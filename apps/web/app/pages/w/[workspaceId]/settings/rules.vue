@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import {
-  RULE_OPERATORS,
   TICKET_PRIORITIES,
   type RoutingRuleDto,
   type RuleCondition,
   type RuleEffect,
-  type RuleLeaf,
-  type RuleOperator,
   type RuleStage,
   type RuleTestResultDto,
   type TicketListDto,
@@ -26,7 +23,6 @@ const STAGES: Array<{ value: RuleStage; title: string; description: string }> = 
   title: t(`rules.stage.${value}.title`),
   description: t(`rules.stage.${value}.description`),
 }));
-const OP_LABELS = Object.fromEntries(RULE_OPERATORS.map((op) => [op, t(`rules.op.${op}`)])) as Record<RuleOperator, string>;
 const EFFECT_TYPES: Array<RuleEffect['type']> = ['set_department', 'set_priority', 'add_tags', 'assign', 'set_field', 'set_field_from_regex', 'skip_agent'];
 const EFFECT_LABELS = Object.fromEntries(EFFECT_TYPES.map((type) => [type, t(`rules.effect.${type}`)])) as Record<RuleEffect['type'], string>;
 const fieldPaths = computed(() => [
@@ -38,52 +34,28 @@ const fieldPaths = computed(() => [
   'agent.department', 'agent.confidence', 'agent.needs_human',
 ]);
 
-interface LeafRow { field: string; op: RuleOperator; value: string }
 interface EffectRow { type: RuleEffect['type']; departmentKey: string; priority: TicketPriority; tags: string[]; userId: string; key: string; value: string; source: 'subject' | 'body'; pattern: string }
 
 const emptyEffect = (): EffectRow => ({ type: 'set_department', departmentKey: '', priority: 'high', tags: [], userId: '', key: '', value: '', source: 'subject', pattern: '' });
 const open = ref(false);
-const advanced = ref(false);
 const form = reactive({
   id: null as string | null,
   name: '',
   stage: 'on_ingest' as RuleStage,
-  match: 'all' as 'all' | 'any',
-  leaves: [] as LeafRow[],
-  conditionsJson: '',
+  conditions: conditionsDraft({ all: [] }),
   effects: [] as EffectRow[],
   stop: false,
   enabled: true,
   position: 0,
 });
 
-function leafToRow(leaf: RuleLeaf): LeafRow {
-  const value = Array.isArray(leaf.value) ? leaf.value.join(', ') : leaf.value === undefined ? '' : String(leaf.value);
-  return { field: leaf.field, op: leaf.op, value };
-}
-function rowToLeaf(row: LeafRow): RuleLeaf {
-  if (row.op === 'is_empty' || row.op === 'is_not_empty') return { field: row.field, op: row.op };
-  if (row.op === 'in' || row.op === 'not_in' || row.op === 'between') {
-    return { field: row.field, op: row.op, value: row.value.split(/[,;]|\s-\s/).map((v) => v.trim()).filter(Boolean) };
-  }
-  return { field: row.field, op: row.op, value: row.value };
-}
-function isFlat(condition: RuleCondition): condition is { all: RuleLeaf[] } | { any: RuleLeaf[] } {
-  const list = 'all' in condition ? condition.all : 'any' in condition ? condition.any : null;
-  return list !== null && list.every((c) => 'field' in c);
-}
-
 function edit(rule: RoutingRuleDto | null, stage: RuleStage = 'on_ingest'): void {
   const conditions: RuleCondition = rule?.conditions ?? { all: [{ field: 'subject', op: 'contains', value: '' }] };
-  const flat = 'field' in conditions ? { all: [conditions] } : conditions;
-  advanced.value = !isFlat(flat);
   Object.assign(form, {
     id: rule?.id ?? null,
     name: rule?.name ?? '',
     stage: rule?.stage ?? stage,
-    match: 'any' in flat ? 'any' : 'all',
-    leaves: isFlat(flat) ? ('all' in flat ? flat.all : flat.any).map(leafToRow) : [],
-    conditionsJson: JSON.stringify(conditions, null, 2),
+    conditions: conditionsDraft(conditions),
     effects: (rule?.effects ?? [{ type: 'set_department', departmentKey: '' } as RuleEffect]).map((e) => ({ ...emptyEffect(), ...e, value: 'value' in e ? String(e.value ?? '') : '' })),
     stop: rule?.stop ?? false,
     enabled: rule?.enabled ?? true,
@@ -107,7 +79,7 @@ function effectFromRow(row: EffectRow): RuleEffect {
 async function save(): Promise<void> {
   let conditions: RuleCondition;
   try {
-    conditions = advanced.value ? JSON.parse(form.conditionsJson) : { [form.match]: form.leaves.map(rowToLeaf) } as RuleCondition;
+    conditions = conditionsFromDraft(form.conditions);
   } catch {
     toast.add({ color: 'error', title: t('rules.invalidJson') });
     return;
@@ -137,11 +109,7 @@ async function remove(): Promise<void> {
 }
 
 function describe(rule: RoutingRuleDto): string {
-  const leaves = (c: RuleCondition): string =>
-    'field' in c
-      ? `${c.field} ${OP_LABELS[c.op]}${c.value !== undefined ? ` ${Array.isArray(c.value) ? c.value.join(', ') : String(c.value)}` : ''}`
-      : 'all' in c ? c.all.map(leaves).join(` ${t('rules.and')} `) : 'any' in c ? `(${c.any.map(leaves).join(` ${t('rules.or')} `)})` : t('rules.not', { condition: leaves(c.not) });
-  return `${leaves(rule.conditions)} → ${rule.effects.map((e) => EFFECT_LABELS[e.type]).join(', ')}`;
+  return `${describeCondition(rule.conditions)} → ${rule.effects.map((e) => EFFECT_LABELS[e.type]).join(', ')}`;
 }
 
 /* Check on a ticket */
@@ -221,32 +189,7 @@ const fieldItems = computed(() => ticketFields.value.map((f) => ({ label: f.labe
               </UFormField>
             </div>
 
-            <div class="space-y-2">
-              <div class="flex items-center gap-2">
-                <p class="text-sm font-medium">{{ t('rules.conditions') }}</p>
-                <USelect
-                  v-if="!advanced"
-                  v-model="form.match"
-                  :items="[
-                    { label: t('rules.matchAll'), value: 'all' },
-                    { label: t('rules.matchAny'), value: 'any' },
-                  ]"
-                  size="xs"
-                  class="w-24"
-                />
-                <UButton size="xs" variant="link" class="ml-auto" @click="advanced = !advanced">{{ advanced ? t('rules.builder') : 'JSON' }}</UButton>
-              </div>
-              <UTextarea v-if="advanced" v-model="form.conditionsJson" autoresize :rows="6" class="w-full font-mono text-xs" />
-              <template v-else>
-                <div v-for="(leaf, index) in form.leaves" :key="index" class="grid grid-cols-[2fr_8rem_2fr_auto] gap-2">
-                  <UInputMenu v-model="leaf.field" :items="fieldPaths" create-item size="sm" @create="(v: string) => (leaf.field = v)" />
-                  <USelect v-model="leaf.op" :items="RULE_OPERATORS.map((op) => ({ label: OP_LABELS[op], value: op }))" size="sm" />
-                  <UInput v-model="leaf.value" size="sm" :disabled="leaf.op === 'is_empty' || leaf.op === 'is_not_empty'" :placeholder="leaf.op === 'between' ? '200, 299' : leaf.op === 'in' ? 'a, b, c' : ''" />
-                  <UButton icon="i-lucide-x" size="sm" color="neutral" variant="ghost" @click="form.leaves.splice(index, 1)" />
-                </div>
-                <UButton size="xs" variant="soft" icon="i-lucide-plus" @click="form.leaves.push({ field: 'subject', op: 'contains', value: '' })">{{ t('rules.condition') }}</UButton>
-              </template>
-            </div>
+            <RulesConditionsEditor v-model="form.conditions" :field-paths="fieldPaths" />
 
             <div class="space-y-2">
               <p class="text-sm font-medium">{{ t('rules.effects') }}</p>
