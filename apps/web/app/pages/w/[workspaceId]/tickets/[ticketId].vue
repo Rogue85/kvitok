@@ -329,9 +329,9 @@ watch(
         </div>
 
         <aside v-if="propsOpen" class="w-80 shrink-0 overflow-y-auto border-l border-(--ui-border) p-6">
-          <TicketSidebar :ticket="ticket" :links="links" @update="update" @changed="refreshAll" />
+          <TicketSidebar :ticket="ticket" :links="links" :cost="agent?.cost ?? null" @update="update" @changed="refreshAll" @open-runs="openRun(null)" />
         </aside>
-        <AgentRunsModal v-if="agent" v-model:open="runsOpen" :runs="agent.runs" :run-id="runId" />
+        <AgentRunsModal v-if="agent" v-model:open="runsOpen" :runs="agent.runs" :run-id="runId" :currency="agent.cost.currency" />
       </div>
     </template>
   </UDashboardPanel>

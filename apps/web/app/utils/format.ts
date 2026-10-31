@@ -76,6 +76,44 @@ export function formatBytes(size: number): string {
   return t('common.megabytes', { value: (size / 1024 / 1024).toFixed(1) });
 }
 
+/** Agent runs cost fractions of a cent: below one the amount keeps up to four decimals. */
+export function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(getLocale(), {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: amount !== 0 && Math.abs(amount) < 1 ? 4 : 2,
+    }).format(amount);
+  } catch {
+    // A code this browser's Intl does not know yet: the number and the code.
+    return `${amount} ${currency}`;
+  }
+}
+
+/** 1 284, 12.9K, 4.2M. */
+export function formatCompact(value: number): string {
+  return new Intl.NumberFormat(getLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+/** A span in the largest fitting unit: 12 sec, 45 min, 5.5 h, 3 days. */
+export function formatDuration(ms: number): string {
+  const seconds = ms / 1000;
+  const [value, unit] =
+    seconds < 90 ? [seconds, 'second'] : seconds < 90 * 60 ? [seconds / 60, 'minute'] : seconds < 48 * 3600 ? [seconds / 3600, 'hour'] : [seconds / 86_400, 'day'];
+  return new Intl.NumberFormat(getLocale(), { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: value < 10 ? 1 : 0 }).format(value);
+}
+
+/** 0.256 → 26%. */
+export function formatPercent(share: number): string {
+  return new Intl.NumberFormat(getLocale(), { style: 'percent', maximumFractionDigits: 0 }).format(share);
+}
+
+/** A calendar day (YYYY-MM-DD) without the year: 5 Mar. */
+export function formatDay(date: string): string {
+  return new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
+}
+
 export function formatFieldValue(value: unknown, options: Array<{ value: string; label: string }> = []): string {
   if (value === null || value === undefined || value === '') return '—';
   const label = (v: unknown) => options.find((o) => o.value === v)?.label ?? String(v);

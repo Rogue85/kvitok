@@ -8,7 +8,7 @@ import { errors } from '../common/errors';
 import { Prisma, type AgentRun, type AgentStep } from '../generated/prisma/client';
 import { htmlToPlainText } from '../mail/html';
 import { PrismaService } from '../prisma/prisma.service';
-import { textSimilarity } from './quality-report.service';
+import { textSimilarity } from '../analytics/quality-report.service';
 
 const MAX_REPLY_CHARS = 1500;
 

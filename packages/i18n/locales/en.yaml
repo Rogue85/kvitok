@@ -37,7 +37,9 @@ common:
 
 nav:
   tickets: Tickets
+  analytics: Analytics
   settings: Settings
+  general: General
   members: Members
   channels: Channels
   integrations: Integrations
@@ -147,6 +149,7 @@ events:
     asked: "Who is the customer: {customer} by {identities}"
 
 validation:
+  currency: a three-letter currency code (ISO 4217), e.g. USD
   minLength: "At least {min} characters"
   slug: lowercase letters, digits and hyphens
   identifier: lowercase letters, digits and _, starting with a letter
@@ -211,6 +214,16 @@ ticket:
   answerToAgent: answer to the agent's question
   operator: Operator
   toAgent: "{author} → agent · {time}"
+  cost:
+    title: Agent cost
+    runs:
+      one: "{count} run"
+      other: "{count} runs"
+    tokens: "{count} tokens"
+    unpriced:
+      one: "{count} run without a model price"
+      other: "{count} runs without a model price"
+    tuning: "Trial runs and replays: {cost} ({runs})"
   sidebar:
     unassigned: Unassigned
     properties: Properties
@@ -375,7 +388,7 @@ agentRuns:
   model: "Model: {model}"
   configVersion: "Configuration version: {version}"
   tokens: "Tokens: {input} → {output}"
-  cost: "Cost: {cost} {currency}"
+  cost: "Cost: {cost}"
   tool: tool
   duration: "{ms} ms"
   stepTokens: "{input}→{output} tok."
@@ -406,6 +419,14 @@ agentMessage:
   skip: Skip
   questionClosed: question closed
   draftReady: Reply draft is ready
+
+generalSettings:
+  intro: The workspace name and the currency agent costs are counted in.
+  currency: Currency
+  currencyHelp: Model prices in the agent settings are entered in it; run costs, ticket costs and analytics are shown in it.
+  currencyChanged: Costs already recorded are not converted. Enter the model prices in the new currency in the agent settings.
+  saved: Settings saved
+  saveFailed: Could not save the settings
 
 members:
   role:
@@ -851,7 +872,9 @@ agentSettings:
   apiKey: API key
   keepCurrent: Empty — keep the current one
   supportsTools: Supports tool calling
-  modelsAndPrices: Models and prices (per 1M tokens)
+  modelsAndPrices: "Models and prices, {currency} per 1M tokens"
+  pricesCurrency: "The currency is set in the"
+  generalSettings: general settings
   priceInput: input
   priceOutput: output
 
@@ -946,6 +969,68 @@ outbox:
   confirmClear:
     title: Clear the outbox?
     description: All emails of the test mailbox will be deleted. Tickets and their messages stay.
+
+analytics:
+  days: "{count} days"
+  loadFailed: Could not load analytics
+  empty: No data for the period
+  table: Table
+  chart: Chart
+  ticketCount:
+    one: "{count} ticket"
+    other: "{count} tickets"
+  agent:
+    title: Agent spending
+    spent: Spent on the agent
+    perTicket: Per ticket
+    ticketsWithAgent:
+      one: "{count} ticket the agent worked on"
+      other: "{count} tickets the agent worked on"
+    tuning: Agent tuning
+    tuningRuns:
+      one: "{count} trial run or replay"
+      other: "{count} trial runs and replays"
+    failed: Failed runs
+    avgDuration: "{duration} per run on average"
+    unpriced:
+      one: "{count} run used a model without a price"
+      other: "{count} runs used models without a price"
+    unpricedHint: "Their tokens are counted, their cost is not: the model had no price, or the cost was recorded in another currency. Model prices are set in Settings → Agent."
+    perDay: Spending per day
+    perDayHint: "{total} for the period"
+    topTickets: Most expensive tickets
+    byDepartment: By department
+    byTrigger: By trigger
+    byModel: By model
+    noModel: no model
+  tickets:
+    title: Tickets
+    created: Created
+    openNow: "Open now: {count}"
+    resolved: Resolved
+    firstResponse: First response
+    resolution: Time to resolve
+    median: median
+    perDay: Created per day
+    resolvedOnDay: "resolved: {count}"
+    byChannel: By channel
+    byStatus: Status of the new tickets now
+    noChannel: no channel
+  quality:
+    title: Agent work
+    intro: On the tickets the agent analyzed in the period.
+    analyzed: Analyzed tickets
+    needsHuman: Needed a human
+    overrides: Department changed by an operator
+    questions: Questions to operators
+    replies: Replies to customers
+    repliesHint: Each sent reply compared with the agent's last draft before it.
+    reply:
+      unchanged: Sent as drafted
+      edited: Edited
+      rewritten: Rewritten
+      withoutAgentDraft: Without an agent draft
+    actions: Proposed actions
 
 api:
   errors:

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ActionProposalDto } from './actions.js';
+import type { TicketCostDto } from './analytics.js';
 import { patchOf } from './patch.js';
 import { FieldKeySchema } from './fields.js';
 
@@ -7,10 +8,9 @@ import { FieldKeySchema } from './fields.js';
 
 export const LlmModelSchema = z.object({
   id: z.string().trim().min(1).max(200),
-  /** Price per million tokens — to compute the cost of runs. */
+  /** Price per million tokens in the workspace currency — to compute the cost of runs. */
   inputPerMillion: z.number().min(0).optional(),
   outputPerMillion: z.number().min(0).optional(),
-  currency: z.string().trim().max(8).optional(),
 });
 export type LlmModel = z.infer<typeof LlmModelSchema>;
 
@@ -136,8 +136,8 @@ export interface AgentRunDto {
   error: string | null;
   tokensIn: number;
   tokensOut: number;
+  /** In the workspace currency; null — the model has no price. */
   cost: number | null;
-  currency: string | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -209,7 +209,10 @@ export interface TicketAgentDto {
   draft: ReplyDraftDto | null;
   /** A new version from the agent while the operator has unsent edits of their own. */
   suggestedDraft: ReplyDraftDto | null;
+  /** The latest runs. */
   runs: AgentRunDto[];
+  /** What all runs on the ticket cost. */
+  cost: TicketCostDto;
   /** Proposed actions of all runs, newest last. */
   actions: ActionProposalDto[];
 }

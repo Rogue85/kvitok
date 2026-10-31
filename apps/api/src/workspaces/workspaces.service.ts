@@ -64,6 +64,7 @@ export function toWorkspaceDto(workspace: Workspace): WorkspaceDto {
     name: workspace.name,
     slug: workspace.slug,
     locale: workspace.locale,
+    currency: workspace.currency,
     createdAt: workspace.createdAt.toISOString(),
   };
 }

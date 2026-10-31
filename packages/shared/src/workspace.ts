@@ -17,10 +17,19 @@ export const CreateWorkspaceSchema = z.object({
 });
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
 
+/** An ISO 4217 code: model prices and run costs of the workspace are in it. */
+export const CurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, { error: () => t('validation.currency') })
+  .refine((code) => Intl.supportedValuesOf('currency').includes(code), { error: () => t('validation.currency') });
+
 export const UpdateWorkspaceSchema = z
   .object({
     name: z.string().trim().min(1).max(120),
     locale: z.string().trim().min(2).max(16),
+    currency: CurrencySchema,
   })
   .partial();
 export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceSchema>;
@@ -44,6 +53,7 @@ export interface WorkspaceDto {
   name: string;
   slug: string;
   locale: string;
+  currency: string;
   createdAt: string;
 }
 

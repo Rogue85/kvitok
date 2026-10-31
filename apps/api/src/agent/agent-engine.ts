@@ -158,6 +158,7 @@ export class AgentEngine {
     const controller = new AbortController();
     const poller = dryRun ? null : setInterval(() => void this.checkCancel(ticket.id, controller), CANCEL_POLL_MS);
     let stepIndex = 0;
+    let pricing: LlmModel | undefined;
 
     try {
       if (!providerId || !model) {
@@ -165,6 +166,7 @@ export class AgentEngine {
       }
       const provider = await this.providers.get(ticket.workspaceId, providerId);
       const providerInfo = this.providers.toDto(provider);
+      pricing = providerInfo.models.find((m) => m.id === model);
       const [messages, questions, draftState, actions] = await Promise.all([
         this.prisma.message.findMany({ where: { ticketId: ticket.id }, include: { authorUser: true }, orderBy: { createdAt: 'asc' } }),
         this.prisma.agentQuestion.findMany({ where: { ticketId: ticket.id }, orderBy: { createdAt: 'asc' } }),
@@ -211,8 +213,13 @@ export class AgentEngine {
         onStep: (step) => this.saveStep(run.id, stepIndex++, step),
       });
 
-      const cost = computeCost(providerInfo.models.find((m) => m.id === model), output.usage);
-      const finished = { output: json(output.result), tokensIn: output.usage.input, tokensOut: output.usage.output, ...cost, finishedAt: new Date() };
+      const finished = {
+        output: json(output.result),
+        tokensIn: output.usage.input,
+        tokensOut: output.usage.output,
+        cost: computeCost(pricing, output.usage),
+        finishedAt: new Date(),
+      };
 
       if (dryRun) {
         run = await this.prisma.agentRun.update({ where: { id: run.id }, data: { ...finished, status: 'applied' } });
@@ -232,9 +239,19 @@ export class AgentEngine {
       if (!cancelled) {
         this.logger.warn(`Agent run ${run.id} failed: ${message}`);
       }
+      // The model calls made before the failure were paid for too.
+      const spent = await this.prisma.agentStep.aggregate({ where: { runId: run.id, kind: 'llm' }, _sum: { tokensIn: true, tokensOut: true } });
+      const usage = { input: spent._sum.tokensIn ?? 0, output: spent._sum.tokensOut ?? 0 };
       run = await this.prisma.agentRun.update({
         where: { id: run.id },
-        data: { status: cancelled ? 'cancelled' : 'failed', error: cancelled ? null : message.slice(0, 2000), finishedAt: new Date() },
+        data: {
+          status: cancelled ? 'cancelled' : 'failed',
+          error: cancelled ? null : message.slice(0, 2000),
+          tokensIn: usage.input,
+          tokensOut: usage.output,
+          cost: computeCost(pricing, usage),
+          finishedAt: new Date(),
+        },
       });
       if (!cancelled && !dryRun) {
         await this.prisma.$transaction((tx) =>
@@ -290,12 +307,13 @@ export class AgentEngine {
   }
 }
 
-export function computeCost(model: LlmModel | undefined, usage: { input: number; output: number }): { cost: number | null; currency: string | null } {
+/** The cost in the workspace currency, which model prices are in; null — the model has no price. */
+export function computeCost(model: LlmModel | undefined, usage: { input: number; output: number }): number | null {
   if (!model || (model.inputPerMillion === undefined && model.outputPerMillion === undefined)) {
-    return { cost: null, currency: null };
+    return null;
   }
   const cost = (usage.input * (model.inputPerMillion ?? 0) + usage.output * (model.outputPerMillion ?? 0)) / 1_000_000;
-  return { cost: Math.round(cost * 1_000_000) / 1_000_000, currency: model.currency ?? 'USD' };
+  return Math.round(cost * 1_000_000) / 1_000_000;
 }
 
 export function toRunDto(run: AgentRun & { configVersion?: { number: number } | null }): AgentRunDto {
@@ -311,7 +329,6 @@ export function toRunDto(run: AgentRun & { configVersion?: { number: number } | 
     tokensIn: run.tokensIn,
     tokensOut: run.tokensOut,
     cost: run.cost,
-    currency: run.currency,
     createdAt: run.createdAt.toISOString(),
     startedAt: run.startedAt?.toISOString() ?? null,
     finishedAt: run.finishedAt?.toISOString() ?? null,

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AgentConfigModule } from './agent/agent-config.module';
 import { AgentModule } from './agent/agent.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditContextInterceptor } from './audit/audit-context.interceptor';
 import { AuditController } from './audit/audit.controller';
 import { AuditModule } from './audit/audit.module';
@@ -55,6 +56,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     RoutingModule,
     IdentificationModule,
     AgentModule,
+    AnalyticsModule,
     McpModule,
   ],
   controllers: [HealthController, MetaController, AuditController],

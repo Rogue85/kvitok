@@ -29,8 +29,9 @@ export interface QualityReport {
     byConfigVersion: Record<string, number>;
     tokensIn: number;
     tokensOut: number;
+    /** In the workspace currency. */
     cost: number;
-    currency: string | null;
+    currency: string;
     avgDurationMs: number | null;
     failures: Array<TicketRef & { runId: string; error: string }>;
   };
@@ -60,9 +61,10 @@ export interface QualityReport {
 export class QualityReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async report(workspaceId: string, options: { days: number; departmentId?: string }): Promise<QualityReport> {
+  /** `from` — the start of the period when it is not just `days` back from now (analytics counts whole days). */
+  async report(workspaceId: string, options: { days: number; departmentId?: string; from?: Date }): Promise<QualityReport> {
     const to = new Date();
-    const from = new Date(to.getTime() - options.days * 24 * 60 * 60 * 1000);
+    const from = options.from ?? new Date(to.getTime() - options.days * 24 * 60 * 60 * 1000);
     const runs = await this.prisma.agentRun.findMany({
       where: { workspaceId, dryRun: false, createdAt: { gte: from }, ...(options.departmentId ? { ticket: { departmentId: options.departmentId } } : {}) },
       select: {
@@ -73,7 +75,6 @@ export class QualityReportService {
         tokensIn: true,
         tokensOut: true,
         cost: true,
-        currency: true,
         startedAt: true,
         finishedAt: true,
         configVersion: { select: { number: true } },
@@ -81,7 +82,8 @@ export class QualityReportService {
       orderBy: { createdAt: 'desc' },
     });
     const ticketIds = [...new Set(runs.map((r) => r.ticketId))];
-    const [tickets, departments, overrides, proposals, replies, questions] = await Promise.all([
+    const [workspace, tickets, departments, overrides, proposals, replies, questions] = await Promise.all([
+      this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { currency: true } }),
       this.prisma.ticket.findMany({ where: { id: { in: ticketIds } }, select: { id: true, number: true, departmentId: true, analysis: true } }),
       this.prisma.department.findMany({ where: { workspaceId }, select: { id: true, key: true } }),
       this.prisma.ticketEvent.findMany({
@@ -166,7 +168,7 @@ export class QualityReportService {
         tokensIn: sum(runs.map((r) => r.tokensIn)),
         tokensOut: sum(runs.map((r) => r.tokensOut)),
         cost: round(sum(runs.map((r) => r.cost ?? 0)), 4),
-        currency: runs.find((r) => r.currency)?.currency ?? null,
+        currency: workspace.currency,
         avgDurationMs: finished.length
           ? Math.round(sum(finished.map((r) => r.finishedAt!.getTime() - r.startedAt!.getTime())) / finished.length)
           : null,

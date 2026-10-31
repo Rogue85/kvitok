@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { AgentRunDetailDto, AgentRunDto } from '@kvitok/shared';
 
-const props = defineProps<{ runs: AgentRunDto[]; runId?: string | null }>();
+/** `currency` — the workspace one, run costs are in it. */
+const props = defineProps<{ runs: AgentRunDto[]; runId?: string | null; currency: string }>();
 const open = defineModel<boolean>('open', { default: false });
 const { workspaceId } = useWorkspace();
 
@@ -61,7 +62,9 @@ function pretty(value: unknown): string {
                 <UBadge :color="STATUS_COLORS[run.status]" variant="subtle" size="sm">{{ runStatusLabel(run.status) }}</UBadge>
                 <UBadge v-if="run.dryRun" color="neutral" variant="outline" size="sm">{{ t('agentRuns.dryRun') }}</UBadge>
               </div>
-              <div class="text-(--ui-text-muted)">{{ triggerLabel(run.trigger.type) }} · {{ formatRelative(run.createdAt) }}</div>
+              <div class="text-(--ui-text-muted)">
+                {{ triggerLabel(run.trigger.type) }} · {{ formatRelative(run.createdAt) }}<template v-if="run.cost !== null"> · {{ formatMoney(run.cost, currency) }}</template>
+              </div>
             </button>
           </li>
         </ul>
@@ -71,7 +74,7 @@ function pretty(value: unknown): string {
               <span>{{ t('agentRuns.model', { model: detail.model ?? '—' }) }}</span>
               <span>{{ t('agentRuns.configVersion', { version: detail.configVersion ?? '—' }) }}</span>
               <span>{{ t('agentRuns.tokens', { input: detail.tokensIn, output: detail.tokensOut }) }}</span>
-              <span v-if="detail.cost !== null">{{ t('agentRuns.cost', { cost: detail.cost, currency: detail.currency ?? '' }) }}</span>
+              <span v-if="detail.cost !== null">{{ t('agentRuns.cost', { cost: formatMoney(detail.cost, currency) }) }}</span>
             </div>
             <UAlert v-if="detail.error" color="error" variant="subtle" :title="detail.error" />
             <div v-for="step in detail.steps" :key="step.index" class="rounded-md border border-(--ui-border) p-2">

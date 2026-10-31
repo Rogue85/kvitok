@@ -77,7 +77,7 @@ You can run the same scenarios on your machine with the coffee shop simulator de
 
 Your backend publishes a manifest with its tools, actions, playbooks, departments and domain knowledge, and the agent picks up a new version without a change in Kvitok (see the [Support Action Protocol](docs/protocol.md)). The backend team keeps this knowledge in git next to their code. The support team writes its policy (tone, what not to promise, when to hand over to a human) and its departments in the UI. Every change creates a new version, and each agent run records the version it used.
 
-The model is anything behind an OpenAI-compatible endpoint with tool calling: OpenAI, OpenRouter, a LiteLLM proxy, vLLM or Ollama. Each workspace sets its own provider, model and prices, so every agent run has a known cost.
+The model is anything behind an OpenAI-compatible endpoint with tool calling: OpenAI, OpenRouter, a LiteLLM proxy, vLLM or Ollama. Each workspace sets its own provider, model and prices, so every agent run has a known cost. A ticket shows what the agent spent on it, and the Analytics page breaks spending down by day, department, model and ticket, next to ticket volume, response times and how operators used the agent's drafts.
 
 <img src="docs/screenshots/agent-settings.webp" alt="Agent settings: the model, the support policy written by the support team and the list of LLM providers">
 

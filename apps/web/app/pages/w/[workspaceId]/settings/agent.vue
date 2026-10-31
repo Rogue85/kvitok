@@ -7,6 +7,9 @@ const isAdmin = computed(() => can('admin'));
 const base = computed(() => `/workspaces/${workspaceId.value}`);
 
 const { data: settings, refresh: refreshSettings } = await useAsyncData(() => `agent-settings:${workspaceId.value}`, () => api<AgentSettingsDto>(`${base.value}/agent/settings`));
+const { data: workspace } = await useWorkspaceSettings();
+/** Model prices are entered and run costs shown in the workspace currency. */
+const currency = computed(() => workspace.value?.currency ?? 'USD');
 const { data: providers, refresh: refreshProviders } = await useAsyncData(
   () => `llm-providers:${workspaceId.value}`,
   () => (isAdmin.value ? api<LlmProviderDto[]>(`${base.value}/llm-providers`) : Promise.resolve([])),
@@ -100,7 +103,7 @@ const providerForm = reactive({
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
   tools: true,
-  models: [] as Array<{ id: string; inputPerMillion: number | null; outputPerMillion: number | null; currency: string }>,
+  models: [] as Array<{ id: string; inputPerMillion: number | null; outputPerMillion: number | null }>,
 });
 function editProvider(provider: LlmProviderDto | null): void {
   Object.assign(providerForm, {
@@ -113,7 +116,6 @@ function editProvider(provider: LlmProviderDto | null): void {
       id: m.id,
       inputPerMillion: m.inputPerMillion ?? null,
       outputPerMillion: m.outputPerMillion ?? null,
-      currency: m.currency ?? 'USD',
     })),
   });
   providerOpen.value = true;
@@ -130,7 +132,6 @@ async function saveProvider(): Promise<void> {
         id: m.id.trim(),
         ...(m.inputPerMillion !== null ? { inputPerMillion: m.inputPerMillion } : {}),
         ...(m.outputPerMillion !== null ? { outputPerMillion: m.outputPerMillion } : {}),
-        currency: m.currency || 'USD',
       })),
   };
   try {
@@ -263,7 +264,7 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
             </div>
             <div v-if="trialResult" class="mt-3 space-y-2 text-xs">
               <p class="text-(--ui-text-muted)">
-                {{ trialResult.run.model }} · {{ t('agentSettings.seconds', { seconds: trialSeconds ?? '—' }) }} · {{ t('agentRuns.stepTokens', { input: trialResult.run.tokensIn, output: trialResult.run.tokensOut }) }}<template v-if="trialResult.run.cost !== null"> · {{ trialResult.run.cost }} {{ trialResult.run.currency }}</template>
+                {{ trialResult.run.model }} · {{ t('agentSettings.seconds', { seconds: trialSeconds ?? '—' }) }} · {{ t('agentRuns.stepTokens', { input: trialResult.run.tokensIn, output: trialResult.run.tokensOut }) }}<template v-if="trialResult.run.cost !== null"> · {{ formatMoney(trialResult.run.cost, currency) }}</template>
               </p>
               <UAlert v-if="trialResult.run.error" color="error" variant="subtle" :title="trialResult.run.error" />
               <template v-if="trialResult.result">
@@ -311,15 +312,20 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
             </div>
             <UCheckbox v-model="providerForm.tools" :label="t('agentSettings.supportsTools')" />
             <div class="space-y-2">
-              <p class="text-sm font-medium">{{ t('agentSettings.modelsAndPrices') }}</p>
-              <div v-for="(model, index) in providerForm.models" :key="index" class="grid grid-cols-[2fr_1fr_1fr_5rem_auto] gap-2">
+              <div>
+                <p class="text-sm font-medium">{{ t('agentSettings.modelsAndPrices', { currency }) }}</p>
+                <p class="text-xs text-(--ui-text-muted)">
+                  {{ t('agentSettings.pricesCurrency') }}
+                  <NuxtLink :to="`/w/${workspaceId}/settings/general`" class="underline" @click="providerOpen = false">{{ t('agentSettings.generalSettings') }}</NuxtLink>
+                </p>
+              </div>
+              <div v-for="(model, index) in providerForm.models" :key="index" class="grid grid-cols-[2fr_1fr_1fr_auto] gap-2">
                 <UInput v-model="model.id" placeholder="gpt-4.1-mini" size="sm" />
                 <UInputNumber v-model="model.inputPerMillion" :placeholder="t('agentSettings.priceInput')" size="sm" :min="0" :step="0.1" />
                 <UInputNumber v-model="model.outputPerMillion" :placeholder="t('agentSettings.priceOutput')" size="sm" :min="0" :step="0.1" />
-                <UInput v-model="model.currency" size="sm" />
                 <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" @click="providerForm.models.splice(index, 1)" />
               </div>
-              <UButton icon="i-lucide-plus" size="xs" variant="soft" @click="providerForm.models.push({ id: '', inputPerMillion: null, outputPerMillion: null, currency: 'USD' })">{{ t('agentSettings.model') }}</UButton>
+              <UButton icon="i-lucide-plus" size="xs" variant="soft" @click="providerForm.models.push({ id: '', inputPerMillion: null, outputPerMillion: null })">{{ t('agentSettings.model') }}</UButton>
             </div>
           </form>
         </template>

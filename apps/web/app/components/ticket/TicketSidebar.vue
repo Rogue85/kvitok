@@ -3,13 +3,14 @@ import {
   TICKET_PRIORITIES,
   type CustomerLinkDto,
   type FieldDefinitionDto,
+  type TicketCostDto,
   type TicketDto,
   type TicketPriority,
   type UpdateTicketInput,
 } from '@kvitok/shared';
 
-const props = defineProps<{ ticket: TicketDto; links: CustomerLinkDto[] }>();
-const emit = defineEmits<{ update: [patch: UpdateTicketInput]; changed: [] }>();
+const props = defineProps<{ ticket: TicketDto; links: CustomerLinkDto[]; cost: TicketCostDto | null }>();
+const emit = defineEmits<{ update: [patch: UpdateTicketInput]; changed: []; openRuns: [] }>();
 
 const { can } = useWorkspace();
 const { departments, members, ticketFields, customerFields } = useWorkspaceData();
@@ -133,6 +134,19 @@ function requiredMark(field: FieldDefinitionDto): string {
           <span class="truncate">{{ p.name ? `${p.name} <${p.email}>` : p.email }}</span>
         </li>
       </ul>
+    </section>
+
+    <section v-if="cost && (cost.usage.runs || cost.dryRuns.runs)" class="space-y-1">
+      <h3 class="text-xs font-semibold uppercase text-(--ui-text-muted)">{{ t('ticket.cost.title') }}</h3>
+      <p class="text-lg font-semibold">{{ formatMoney(cost.usage.cost, cost.currency) }}</p>
+      <p class="text-sm text-(--ui-text-muted)">
+        {{ tp('ticket.cost.runs', cost.usage.runs) }} · {{ t('ticket.cost.tokens', { count: formatCompact(cost.usage.tokensIn + cost.usage.tokensOut) }) }}
+      </p>
+      <p v-if="cost.usage.unpricedRuns" class="text-xs text-(--ui-text-muted)">{{ tp('ticket.cost.unpriced', cost.usage.unpricedRuns) }}</p>
+      <p v-if="cost.dryRuns.runs" class="text-xs text-(--ui-text-muted)">
+        {{ t('ticket.cost.tuning', { cost: formatMoney(cost.dryRuns.cost, cost.currency), runs: tp('ticket.cost.runs', cost.dryRuns.runs) }) }}
+      </p>
+      <UButton size="xs" variant="link" color="neutral" icon="i-lucide-history" class="px-0" @click="emit('openRuns')">{{ t('ticket.agentRuns') }}</UButton>
     </section>
   </div>
 </template>

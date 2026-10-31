@@ -76,6 +76,8 @@ model Workspace {
   name                String
   slug                String               @unique
   locale              String               @default("ru")
+  /// ISO 4217: model prices and run costs are in it.
+  currency            String               @default("USD")
   settings            Json                 @default("{}")
   /// Counter for ticket numbers (#T-123) within the workspace.
   ticketSeq           Int                  @default(0) @map("ticket_seq")
@@ -341,6 +343,7 @@ model Ticket {
   @@index([workspaceId, status, lastMessageAt])
   @@index([workspaceId, departmentId])
   @@index([workspaceId, assigneeId])
+  @@index([workspaceId, createdAt])
   @@map("tickets")
 }
 
@@ -577,7 +580,7 @@ model LlmProvider {
   baseUrl      String    @map("base_url")
   /// Encrypted { apiKey, headers? }.
   secrets      String?
-  /// [{ id, inputPerMillion?, outputPerMillion?, currency? }]
+  /// [{ id, inputPerMillion?, outputPerMillion? }], prices in the workspace currency.
   models       Json      @default("[]")
   /// { tools, jsonMode, vision }
   capabilities Json      @default("{}")
@@ -704,8 +707,8 @@ model AgentRun {
   error           String?
   tokensIn        Int                 @default(0) @map("tokens_in")
   tokensOut       Int                 @default(0) @map("tokens_out")
+  /// In the workspace currency; null — the model had no price.
   cost            Float?
-  currency        String?
   startedAt       DateTime?           @map("started_at") @db.Timestamptz
   finishedAt      DateTime?           @map("finished_at") @db.Timestamptz
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
@@ -713,6 +716,7 @@ model AgentRun {
   questions       AgentQuestion[]
 
   @@index([ticketId, createdAt])
+  @@index([workspaceId, createdAt])
   @@map("agent_runs")
 }
 

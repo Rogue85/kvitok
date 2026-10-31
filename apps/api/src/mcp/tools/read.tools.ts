@@ -22,7 +22,7 @@ import { TicketsService } from '../../tickets/tickets.service';
 import { workspaceRole } from '../../workspaces/workspace.guard';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { tool, type ToolSpec } from '../mcp-tool';
-import { QualityReportService } from '../quality-report.service';
+import { QualityReportService } from '../../analytics/quality-report.service';
 
 const DEFAULT_STEP_CHARS = 4000;
 

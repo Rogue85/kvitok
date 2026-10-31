@@ -14,6 +14,7 @@ import {
   type TicketAnalysis,
 } from '@kvitok/shared';
 import { ActionsService } from '../actions/actions.service';
+import { summarizeUsage } from '../analytics/usage';
 import { errors } from '../common/errors';
 import { json } from '../common/json';
 import { ConversationService } from '../conversation/conversation.service';
@@ -107,12 +108,14 @@ export class AgentService {
 
   async ticketAgent(workspaceId: string, ticketId: string): Promise<TicketAgentDto> {
     const ticket = await this.tickets.get(workspaceId, ticketId);
-    const [settings, questions, draftState, runs, actions] = await Promise.all([
+    const [settings, questions, draftState, runs, usage, actions, workspace] = await Promise.all([
       this.settings.get(workspaceId),
       this.prisma.agentQuestion.findMany({ where: { ticketId, status: 'open' }, orderBy: { createdAt: 'asc' } }),
       this.drafts.state(ticketId),
       this.prisma.agentRun.findMany({ where: { ticketId }, orderBy: { createdAt: 'desc' }, take: 20, include: { configVersion: true } }),
+      this.prisma.agentRun.findMany({ where: { ticketId }, select: { dryRun: true, tokensIn: true, tokensOut: true, cost: true } }),
       this.actions.listForTicket(ticketId),
+      this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { currency: true } }),
     ]);
     return {
       enabled: settings.enabled,
@@ -122,6 +125,11 @@ export class AgentService {
       draft: toDraftDto(draftState.draft),
       suggestedDraft: toDraftDto(draftState.suggested),
       runs: runs.map(toRunDto),
+      cost: {
+        currency: workspace.currency,
+        usage: summarizeUsage(usage.filter((r) => !r.dryRun)),
+        dryRuns: summarizeUsage(usage.filter((r) => r.dryRun)),
+      },
       actions,
     };
   }

@@ -18,7 +18,7 @@ const USAGE = `Agent evaluation on the coffee-sim simulator scenarios.
   --tag         only scenarios with the tag (hard, loyalty, …)
   --locale      language of the scenarios (en, ru); the installation language (APP_LOCALE) by default
   --repeat      run every scenario N times — shows flaky ones
-  --budget      do not start new scenarios once more than this was spent (in the provider's currency)
+  --budget      do not start new scenarios once more than this was spent (in the workspace currency)
   --min-pass    exit code 1 if the share of passed scenarios is lower
 
 Every run recreates the "eval" workspace — its tickets can be opened in the interface.`;

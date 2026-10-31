@@ -22,6 +22,7 @@ export interface EnvProvider {
   model: string;
   inputPerMillion?: number;
   outputPerMillion?: number;
+  /** The currency the prices are in; becomes the evaluation workspace currency. */
   currency?: string;
 }
 
@@ -41,7 +42,7 @@ export interface EvalRunOptions {
   concurrency?: number;
   /** How many times to run each scenario: the model is nondeterministic. */
   repeat?: number;
-  /** Do not start new scenarios once more than this has been spent (in the provider's currency). */
+  /** Do not start new scenarios once more than this has been spent (in the workspace currency). */
   budget?: number;
   onProgress?: (score: ScenarioScore, done: number, total: number) => void;
 }
@@ -107,7 +108,9 @@ export class EvalRunner {
     if (options.settingsFrom && !source) throw new Error(`No workspace "${options.settingsFrom}"`);
 
     await prisma.workspace.deleteMany({ where: { slug } });
-    const workspace = await prisma.workspace.create({ data: { id: newId(), name: 'Agent evaluation', slug } });
+    // Model prices are in the workspace currency: the source's, or the one the env prices are in.
+    const currency = source?.currency ?? options.provider?.currency ?? 'USD';
+    const workspace = await prisma.workspace.create({ data: { id: newId(), name: 'Agent evaluation', slug, currency } });
     const workspaceId = workspace.id;
 
     // So the result of the last run can be opened in the interface.
@@ -150,7 +153,7 @@ export class EvalRunner {
           name: env.name,
           baseUrl: env.baseUrl,
           apiKey: env.apiKey,
-          models: [{ id: env.model, inputPerMillion: env.inputPerMillion, outputPerMillion: env.outputPerMillion, currency: env.currency }],
+          models: [{ id: env.model, inputPerMillion: env.inputPerMillion, outputPerMillion: env.outputPerMillion }],
         })
       ).id;
       model = env.model;
@@ -181,10 +184,15 @@ export class EvalRunner {
     await integrations.sync(workspaceId, integration.id, { force: true });
 
     const { channel, apiKey } = await this.app.get(ChannelsService).create(workspaceId, { type: 'api', name: 'Scenarios', metadataMapping: {}, webhookUrl: null });
-    return { workspaceId, channelId: channel.id, apiKey: apiKey! };
+    return { workspaceId, channelId: channel.id, apiKey: apiKey!, currency };
   }
 
-  private async runScenario(scenario: Scenario, attempt: number, setup: { channelId: string; apiKey: string }, options: EvalRunOptions): Promise<ScenarioOutcome> {
+  private async runScenario(
+    scenario: Scenario,
+    attempt: number,
+    setup: { channelId: string; apiKey: string; currency: string },
+    options: EvalRunOptions,
+  ): Promise<ScenarioOutcome> {
     const started = Date.now();
     const payload = options.sim.ingestPayload(scenario);
     // A repeat is a separate ticket: without a suffix ingest would return the same one by external_id.
@@ -232,7 +240,7 @@ export class EvalRunner {
       tokensIn: run.tokensIn ?? 0,
       tokensOut: run.tokensOut ?? 0,
       cost: run.cost === null ? null : Number(run.cost),
-      currency: run.currency,
+      currency: setup.currency,
       durationMs: Date.now() - started,
     };
   }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { AgentConfigModule } from '../agent/agent-config.module';
 import { AgentCoreModule } from '../agent/agent-core.module';
 import { AgentModule } from '../agent/agent.module';
@@ -13,7 +14,6 @@ import { TicketsModule } from '../tickets/tickets.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { McpServerFactory } from './mcp-server.factory';
 import { McpController } from './mcp.controller';
-import { QualityReportService } from './quality-report.service';
 import { ReplayService } from './replay.service';
 import { CheckTools } from './tools/check.tools';
 import { ConfigTools } from './tools/config.tools';
@@ -24,6 +24,7 @@ import { ReadTools } from './tools/read.tools';
     AgentModule,
     AgentCoreModule,
     AgentConfigModule,
+    AnalyticsModule,
     ChannelsModule,
     DepartmentsModule,
     FieldsModule,
@@ -35,6 +36,6 @@ import { ReadTools } from './tools/read.tools';
     WorkspacesModule,
   ],
   controllers: [McpController],
-  providers: [McpServerFactory, QualityReportService, ReplayService, ReadTools, ConfigTools, CheckTools],
+  providers: [McpServerFactory, ReplayService, ReadTools, ConfigTools, CheckTools],
 })
 export class McpModule {}

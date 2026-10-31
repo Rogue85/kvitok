@@ -53,7 +53,7 @@ describe('agent', () => {
         name: 'Test',
         baseUrl: 'http://llm.test/v1',
         apiKey: 'sk-test',
-        models: [{ id: 'test-model', inputPerMillion: 2, outputPerMillion: 8, currency: 'USD' }],
+        models: [{ id: 'test-model', inputPerMillion: 2, outputPerMillion: 8 }],
       })
     ).json();
     const put = (body: object) => ctx.http.put(`${base}/agent/settings`, body);
@@ -83,7 +83,7 @@ describe('agent', () => {
   }
 
   it('a new ticket: analysis, department, field, suggestion, draft, question, cost and steps', async () => {
-    const { channel, departments } = await setup();
+    const { channel, departments, http, base } = await setup();
     const created = await newTicket(channel);
 
     const queued = await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } });
@@ -132,9 +132,16 @@ describe('agent', () => {
     expect(ticket.revision).toBe(1);
 
     const run = await prisma.agentRun.findFirstOrThrow({ include: { steps: { orderBy: { index: 'asc' } }, configVersion: true } });
-    expect(run).toMatchObject({ status: 'applied', mode: 'triage', tokensIn: 2500, tokensOut: 350, cost: 0.0078, currency: 'USD', model: 'test-model' });
+    expect(run).toMatchObject({ status: 'applied', mode: 'triage', tokensIn: 2500, tokensOut: 350, cost: 0.0078, model: 'test-model' });
     expect(run.steps.map((s) => `${s.kind}:${s.name}`)).toEqual(['llm:test-model', 'tool:read_playbook', 'llm:test-model', 'tool:submit_result']);
     expect(run.configVersion?.number).toBe(1);
+
+    const { cost } = (await http.get(`${base}/tickets/${created.ticket_id}/agent`)).json();
+    expect(cost).toEqual({
+      currency: 'USD',
+      usage: { runs: 1, tokensIn: 2500, tokensOut: 350, cost: 0.0078, unpricedRuns: 0 },
+      dryRuns: { runs: 0, tokensIn: 0, tokensOut: 0, cost: 0, unpricedRuns: 0 },
+    });
   });
 
   it('low confidence or needs_human — to the triage department', async () => {
@@ -408,6 +415,19 @@ describe('agent', () => {
     expect(ticket.events.find((e) => e.type === 'agent_failed')?.data).toMatchObject({ error: 'LLM HTTP 401: invalid key' });
   });
 
+  it('a run that fails after calling the model keeps the tokens it spent and their cost', async () => {
+    const { channel } = await setup();
+    const created = await newTicket(channel);
+    agent.setLlm(
+      new ScriptedLlm([toolCall('read_playbook', { key: 'missing_points' }, { input: 1000, output: 50 }), () => Promise.reject(new Error('LLM HTTP 500'))]),
+    );
+
+    await expect(processQueued(created.ticket_id)).resolves.toBe('failed');
+
+    const run = await prisma.agentRun.findFirstOrThrow({ where: { ticketId: created.ticket_id } });
+    expect(run).toMatchObject({ status: 'failed', tokensIn: 1000, tokensOut: 50, cost: 0.0024 });
+  });
+
   it('an error before the run is created: the ticket does not get stuck in running', async () => {
     const { channel } = await setup();
     const created = await newTicket(channel);
@@ -540,6 +560,9 @@ describe('agent', () => {
       expect(dry.statusCode).toBe(200);
       expect(dry.json()).toMatchObject({ result: { department: 'loyalty' }, run: { dryRun: true, status: 'applied', steps: [{ kind: 'llm' }, { kind: 'tool' }] } });
       expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({ departmentId: null, analysis: null });
+      // A trial run is the cost of tuning the agent, not of the ticket.
+      const { cost } = (await http.get(`${base}/tickets/${created.ticket_id}/agent`)).json();
+      expect(cost).toMatchObject({ usage: { runs: 0, cost: 0 }, dryRuns: { runs: 1, cost: 0.00036 } });
     });
   });
 });

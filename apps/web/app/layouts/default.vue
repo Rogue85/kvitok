@@ -16,11 +16,13 @@ const navItems = computed<NavigationMenuItem[]>(() => {
   const base = `/w/${workspaceId.value}`;
   return [
     { label: t('nav.tickets'), icon: 'i-lucide-inbox', to: `${base}/tickets` },
+    { label: t('nav.analytics'), icon: 'i-lucide-chart-column', to: `${base}/analytics` },
     {
       label: t('nav.settings'),
       icon: 'i-lucide-settings',
       defaultOpen: true,
       children: [
+        { label: t('nav.general'), to: `${base}/settings/general` },
         { label: t('nav.members'), to: `${base}/settings/members` },
         { label: t('nav.channels'), to: `${base}/settings/channels` },
         { label: t('nav.integrations'), to: `${base}/settings/integrations` },

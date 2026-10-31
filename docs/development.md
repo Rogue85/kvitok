@@ -171,7 +171,7 @@ pnpm eval --from coffee-sim --concurrency 3
 ```
 
 - `--from` is the workspace that provides the policy, settings, departments, playbooks, provider and model of the agent: this is the configuration being evaluated. Domain knowledge and the backend's playbooks come from the simulator manifest.
-- Without `--from` the provider comes from `EVAL_LLM_BASE_URL`, `EVAL_LLM_API_KEY`, `EVAL_LLM_MODEL` (prices in `EVAL_LLM_PRICE_IN` / `EVAL_LLM_PRICE_OUT`, currency in `EVAL_LLM_CURRENCY`). This is how the `.github/workflows/eval.yml` workflow runs (manually and nightly).
+- Without `--from` the provider comes from `EVAL_LLM_BASE_URL`, `EVAL_LLM_API_KEY`, `EVAL_LLM_MODEL` (prices in `EVAL_LLM_PRICE_IN` / `EVAL_LLM_PRICE_OUT`, their currency in `EVAL_LLM_CURRENCY`; it becomes the evaluation workspace currency). This is how the `.github/workflows/eval.yml` workflow runs (manually and nightly).
 - `--locale ru` — the language of the scenarios; by default the installation language (`APP_LOCALE`). The report records it: compare runs in the same language.
 - `--scenarios a,b` or `--tag hard` (a harder set), `--repeat 3` (each scenario several times — shows flaky ones; the model is nondeterministic), `--model`, `--budget 20` (do not start new scenarios over budget), `--min-pass 0.8` (exit code 1 if fewer scenarios pass).
 

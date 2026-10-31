@@ -97,7 +97,7 @@ export class ConfigTools {
         title: 'Add an LLM provider',
         description:
           'An OpenAI-compatible endpoint with tool calling (OpenAI, OpenRouter, LiteLLM, vLLM, Ollama). The API key is stored encrypted and never returned. ' +
-          'List models with prices per million tokens so run costs are known.',
+          'List models with prices per million tokens so run costs are known; prices are in the workspace currency (`workspace.currency` in describe_workspace).',
         input: CreateLlmProviderSchema,
         scope: 'config:write',
         role: 'admin',

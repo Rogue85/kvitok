@@ -1,5 +1,6 @@
 export * from './actions.js';
 export * from './agent.js';
+export * from './analytics.js';
 export * from './audit.js';
 export * from './auth.js';
 export * from './channels.js';

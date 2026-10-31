@@ -36,7 +36,9 @@ common:
 
 nav:
   tickets: Тикеты
+  analytics: Аналитика
   settings: Настройки
+  general: Общие
   members: Участники
   channels: Каналы
   integrations: Интеграции
@@ -146,6 +148,7 @@ events:
     asked: "Кто клиент: {customer} по данным {identities}"
 
 validation:
+  currency: трёхбуквенный код валюты (ISO 4217), например RUB
   minLength: "Не короче {min} символов"
   slug: латиница, цифры и дефисы
   identifier: латиница в нижнем регистре, цифры и _, начинается с буквы
@@ -210,6 +213,20 @@ ticket:
   answerToAgent: ответ на вопрос агента
   operator: Оператор
   toAgent: "{author} → агенту · {time}"
+  cost:
+    title: Стоимость агента
+    runs:
+      one: "{count} прогон"
+      few: "{count} прогона"
+      many: "{count} прогонов"
+      other: "{count} прогона"
+    tokens: "{count} токенов"
+    unpriced:
+      one: "{count} прогон без цены модели"
+      few: "{count} прогона без цены модели"
+      many: "{count} прогонов без цены модели"
+      other: "{count} прогона без цены модели"
+    tuning: "Пробные прогоны и replay: {cost} ({runs})"
   sidebar:
     unassigned: Не назначен
     properties: Свойства
@@ -374,7 +391,7 @@ agentRuns:
   model: "Модель: {model}"
   configVersion: "Версия конфигурации: {version}"
   tokens: "Токены: {input} → {output}"
-  cost: "Стоимость: {cost} {currency}"
+  cost: "Стоимость: {cost}"
   tool: инструмент
   duration: "{ms} мс"
   stepTokens: "{input}→{output} ток."
@@ -405,6 +422,14 @@ agentMessage:
   skip: Пропустить
   questionClosed: вопрос закрыт
   draftReady: Черновик ответа готов
+
+generalSettings:
+  intro: Название пространства и валюта, в которой считаются расходы на агента.
+  currency: Валюта
+  currencyHelp: В ней вводятся цены моделей в настройках агента и показываются стоимость прогонов, тикетов и аналитика.
+  currencyChanged: Уже записанные расходы не пересчитываются. Введите цены моделей в новой валюте в настройках агента.
+  saved: Настройки сохранены
+  saveFailed: Не удалось сохранить настройки
 
 members:
   role:
@@ -850,7 +875,9 @@ agentSettings:
   apiKey: API-ключ
   keepCurrent: Пусто — оставить прежний
   supportsTools: Поддерживает tool calling
-  modelsAndPrices: Модели и цены (за 1 млн токенов)
+  modelsAndPrices: "Модели и цены, {currency} за 1 млн токенов"
+  pricesCurrency: "Валюта задаётся в"
+  generalSettings: общих настройках
   priceInput: вход
   priceOutput: выход
 
@@ -947,6 +974,76 @@ outbox:
   confirmClear:
     title: Очистить исходящие?
     description: Все письма тестового ящика будут удалены. Тикеты и сообщения в них останутся.
+
+analytics:
+  days: "{count} дней"
+  loadFailed: Не удалось загрузить аналитику
+  empty: Нет данных за период
+  table: Таблица
+  chart: График
+  ticketCount:
+    one: "{count} тикет"
+    few: "{count} тикета"
+    many: "{count} тикетов"
+    other: "{count} тикета"
+  agent:
+    title: Расходы на агента
+    spent: Потрачено на агента
+    perTicket: На тикет
+    ticketsWithAgent:
+      one: "{count} тикет с агентом"
+      few: "{count} тикета с агентом"
+      many: "{count} тикетов с агентом"
+      other: "{count} тикета с агентом"
+    tuning: Настройка агента
+    tuningRuns:
+      one: "{count} пробный прогон или replay"
+      few: "{count} пробных прогона и replay"
+      many: "{count} пробных прогонов и replay"
+      other: "{count} пробных прогона и replay"
+    failed: Прогоны с ошибкой
+    avgDuration: "в среднем {duration} на прогон"
+    unpriced:
+      one: "{count} прогон шёл на модели без цены"
+      few: "{count} прогона шли на моделях без цены"
+      many: "{count} прогонов шли на моделях без цены"
+      other: "{count} прогона шли на моделях без цены"
+    unpricedHint: "Их токены учтены, стоимость — нет: у модели не было цены или стоимость записана в другой валюте. Цены моделей задаются в Настройках → Агент."
+    perDay: Расходы по дням
+    perDayHint: "{total} за период"
+    topTickets: Самые дорогие тикеты
+    byDepartment: По отделам
+    byTrigger: По поводу запуска
+    byModel: По моделям
+    noModel: без модели
+  tickets:
+    title: Тикеты
+    created: Создано
+    openNow: "Открыто сейчас: {count}"
+    resolved: Решено
+    firstResponse: Первый ответ
+    resolution: Время решения
+    median: медиана
+    perDay: Создано по дням
+    resolvedOnDay: "решено: {count}"
+    byChannel: По каналам
+    byStatus: Статус новых тикетов сейчас
+    noChannel: без канала
+  quality:
+    title: Работа агента
+    intro: По тикетам, которые агент разбирал за период.
+    analyzed: Разобрано тикетов
+    needsHuman: Нужен человек
+    overrides: Оператор сменил отдел
+    questions: Вопросы операторам
+    replies: Ответы клиентам
+    repliesHint: Каждый отправленный ответ сравнивается с последним черновиком агента перед ним.
+    reply:
+      unchanged: Отправлен как есть
+      edited: С правками
+      rewritten: Переписан
+      withoutAgentDraft: Без черновика агента
+    actions: Предложенные действия
 
 api:
   errors:

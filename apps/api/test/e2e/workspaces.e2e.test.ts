@@ -71,13 +71,20 @@ describe('workspaces', () => {
     const admin = await createUser(app);
     const workspaceId = await createWorkspace(app, [{ user: admin, role: 'admin' }]);
 
-    const response = await request(await login(app, admin), 'PATCH', `/workspaces/${workspaceId}`, {
+    const cookie = await login(app, admin);
+    expect((await request(cookie, 'GET', `/workspaces/${workspaceId}`)).json()).toMatchObject({ currency: 'USD' });
+
+    const response = await request(cookie, 'PATCH', `/workspaces/${workspaceId}`, {
       name: 'Новое имя',
       locale: 'en',
+      currency: 'rub',
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ name: 'Новое имя', locale: 'en' });
+    expect(response.json()).toMatchObject({ name: 'Новое имя', locale: 'en', currency: 'RUB' });
+    for (const currency of ['RUBL', 'XYZ']) {
+      expect((await request(cookie, 'PATCH', `/workspaces/${workspaceId}`, { currency })).statusCode).toBe(422);
+    }
   });
 
   describe('members', () => {
