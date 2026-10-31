@@ -1,4 +1,5 @@
 import { createParamDecorator, SetMetadata, type ExecutionContext } from '@nestjs/common';
+import type { ApiTokenScope } from '@kvitok/shared';
 import type { AuthContext } from '../common/request';
 import type { AppRequest } from '../common/request';
 
@@ -14,3 +15,11 @@ export const CurrentAuth = createParamDecorator((_: unknown, ctx: ExecutionConte
   }
   return request.auth;
 });
+
+export const REQUIRED_SCOPE = 'requiredTokenScope';
+
+/**
+ * Opens a non-GET route to personal access tokens with this scope.
+ * GET routes need `read`; any other route without this decorator is closed to tokens.
+ */
+export const RequireScope = (scope: ApiTokenScope) => SetMetadata(REQUIRED_SCOPE, scope);

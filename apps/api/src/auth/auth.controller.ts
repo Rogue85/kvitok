@@ -49,12 +49,15 @@ export class AuthController {
   @Post('logout')
   @HttpCode(204)
   async logout(@CurrentAuth() auth: AuthContext, @Res({ passthrough: true }) reply: FastifyReply): Promise<void> {
-    await this.authService.logout(auth.sessionId);
+    if (auth.sessionId !== null) await this.authService.logout(auth.sessionId);
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
   }
 
   @Get('me')
-  me(@CurrentAuth() auth: AuthContext): Promise<MeResponse> {
-    return this.authService.me(auth.user.id);
+  async me(@CurrentAuth() auth: AuthContext): Promise<MeResponse> {
+    const me = await this.authService.me(auth.user.id);
+    // A token restricted to one workspace does not reveal the others.
+    const tokenWorkspaceId = auth.token?.workspaceId ?? null;
+    return tokenWorkspaceId === null ? me : { ...me, memberships: me.memberships.filter((m) => m.workspaceId === tokenWorkspaceId) };
   }
 }

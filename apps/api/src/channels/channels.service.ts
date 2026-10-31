@@ -7,6 +7,7 @@ import type {
   CreateChannelInput,
   UpdateChannelInput,
 } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
@@ -31,6 +32,7 @@ export class ChannelsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly box: SecretBox,
+    private readonly audit: AuditService,
   ) {}
 
   async list(workspaceId: string): Promise<ChannelDto[]> {
@@ -75,7 +77,9 @@ export class ChannelsService {
           apiKeyPrefix: apiKey.slice(0, API_KEY_PREFIX.length + 6),
         },
       });
-      return { channel: this.toDto(channel, null), apiKey, ...(webhookSecret ? { webhookSecret } : {}) };
+      const dto = this.toDto(channel, null);
+      await this.audit.record({ workspaceId, entity: 'channel', entityId: channel.id, action: 'create', after: dto });
+      return { channel: dto, apiKey, ...(webhookSecret ? { webhookSecret } : {}) };
     }
 
     const transport = input.transport ?? 'smtp';
@@ -124,7 +128,9 @@ export class ChannelsService {
       return created;
     });
     const workspace = await this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
-    return { channel: this.toDto(channel, workspace.defaultMailboxId) };
+    const dto = this.toDto(channel, workspace.defaultMailboxId);
+    await this.audit.record({ workspaceId, entity: 'channel', entityId: channel.id, action: 'create', after: dto });
+    return { channel: dto };
   }
 
   async update(workspaceId: string, id: string, input: UpdateChannelInput): Promise<ChannelSecretsDto> {
@@ -194,7 +200,20 @@ export class ChannelsService {
       },
     });
     const workspace = await this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
-    return { channel: this.toDto(updated, workspace.defaultMailboxId), ...(webhookSecret ? { webhookSecret } : {}) };
+    const dto = this.toDto(updated, workspace.defaultMailboxId);
+    const passwordsChanged = {
+      ...(input.smtp?.password ? { smtpPasswordChanged: true } : {}),
+      ...(input.imap?.password ? { imapPasswordChanged: true } : {}),
+    };
+    await this.audit.record({
+      workspaceId,
+      entity: 'channel',
+      entityId: id,
+      action: 'update',
+      before: this.toDto(channel, workspace.defaultMailboxId),
+      after: { ...dto, ...passwordsChanged },
+    });
+    return { channel: dto, ...(webhookSecret ? { webhookSecret } : {}) };
   }
 
   async rotateApiKey(workspaceId: string, id: string): Promise<ChannelSecretsDto> {
@@ -207,6 +226,7 @@ export class ChannelsService {
       where: { id },
       data: { apiKeyHash: hashApiKey(apiKey), apiKeyPrefix: apiKey.slice(0, API_KEY_PREFIX.length + 6) },
     });
+    await this.audit.record({ workspaceId, entity: 'channel', entityId: id, action: 'rotate_key', after: { apiKeyPrefix: updated.apiKeyPrefix } });
     return { channel: this.toDto(updated, null), apiKey };
   }
 
@@ -220,6 +240,7 @@ export class ChannelsService {
       where: { id },
       data: { secrets: this.box.encrypt({ ...this.secretsOf<ApiChannelSecrets>(channel), webhookSecret }) },
     });
+    await this.audit.record({ workspaceId, entity: 'channel', entityId: id, action: 'rotate_webhook_secret' });
     return { channel: this.toDto(updated, null), webhookSecret };
   }
 
@@ -229,6 +250,7 @@ export class ChannelsService {
       throw errors.validation([{ path: 'type', message: t('api.onlyMailboxCanBeDefault'), code: 'custom' }]);
     }
     await this.prisma.workspace.update({ where: { id: workspaceId }, data: { defaultMailboxId: id } });
+    await this.audit.record({ workspaceId, entity: 'channel', entityId: id, action: 'set_default_mailbox' });
     return this.toDto(channel, id);
   }
 

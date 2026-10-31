@@ -45,6 +45,8 @@ nav:
   agent: Агент
   playbooks: Плейбуки
   rules: Правила
+  tokens: Токены доступа
+  audit: Журнал изменений
 
 auth:
   subtitle: Вход для операторов
@@ -390,6 +392,69 @@ members:
   addFailed: Не удалось добавить участника
   new: Новый участник
   newUserHint: Если пользователя ещё нет, укажите имя и пароль — он будет создан.
+
+tokens:
+  intro: Персональный токен доступа позволяет внешнему агенту, например Claude Code через MCP, работать с Kvitok от вашего имени. У токена ваши права, сужённые до его скоупов и workspace.
+  new: Новый токен
+  namePlaceholder: Claude Code на ноутбуке
+  scopes: Скоупы
+  scope:
+    read: Читать конфигурацию, тикеты и прогоны агента
+    "config:write": Менять отделы, поля, правила, плейбуки, настройки агента и каналы
+    "integrations:write": Подключать, синхронизировать и удалять интеграции
+    "tickets:ingest": Создавать тикеты через канал, для тестовых workspace
+    "workspaces:create": Создавать workspace
+  workspace: Workspace
+  allWorkspaces: Все мои workspace
+  expires: Срок действия
+  expiry:
+    d30: 30 дней
+    d90: 90 дней
+    d365: Год
+    never: Бессрочно
+  noExpiry: бессрочный
+  lastUsed: Последнее использование
+  notUsed: ещё не использовался
+  created: Создан
+  revoke: Отозвать
+  revoked: "Токен «{name}» отозван"
+  createFailed: Не удалось создать токен
+  empty: Токенов пока нет
+  secret:
+    title: Скопируйте токен
+    description: Он показывается только один раз. Kvitok хранит только его хэш.
+    saved: Я скопировал
+
+audit:
+  intro: Изменения конфигурации и участников, сделанные в интерфейсе, через API и внешними агентами по токенам доступа. Секреты в журнал не попадают, только факт их смены.
+  when: Когда
+  who: Кто
+  what: Что
+  changes: Изменения
+  system: Система
+  viaToken: "{name} по токену «{token}»"
+  allEntities: Всё
+  loadMore: Показать раньше
+  empty: Изменений пока нет
+  entity:
+    workspace: Workspace
+    member: Участник
+    department: Отдел
+    field: Поле
+    agent_settings: Настройки агента
+    llm_provider: LLM-провайдер
+    playbook: Плейбук
+    routing_rule: Правило маршрутизации
+    channel: Канал
+    integration: Интеграция
+  action:
+    create: создание
+    update: изменение
+    delete: удаление
+    sync: новый манифест
+    rotate_key: новый ключ
+    rotate_webhook_secret: новый секрет вебхука
+    set_default_mailbox: ящик по умолчанию
 
 departments:
   department: Отдел
@@ -769,6 +834,11 @@ api:
   lastAdmin: Нельзя убрать последнего администратора workspace
   slugTaken: "Slug «{slug}» уже занят"
   workspaceNotFound: Workspace не найден
+  mcpNeedsToken: "MCP-сервер принимает только персональные токены доступа: создайте токен в «Настройки → Токены доступа»"
+  tokenNotFound: Токен не найден
+  tokenRouteClosed: Это действие недоступно с токеном доступа
+  tokenScopeMissing: "У токена доступа нет скоупа «{scope}»"
+  tokenWorkspacesCreateScope: Скоуп «workspaces:create» доступен только суперадминистраторам и только без ограничения workspace
   ruleNotFound: Правило не найдено
   rule:
     departmentNotFound: отдел не найден

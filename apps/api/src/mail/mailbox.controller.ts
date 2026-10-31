@@ -1,5 +1,6 @@
 import { t } from '@kvitok/i18n';
 import { Controller, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { RequireScope } from '../auth/decorators';
 import { ChannelsService } from '../channels/channels.service';
 import { errors } from '../common/errors';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
@@ -8,6 +9,7 @@ import { MailboxTester, type MailboxTestResult } from './mailbox-tester';
 
 @Controller('workspaces/:workspaceId/channels/:channelId')
 @UseGuards(WorkspaceGuard)
+@RequireScope('config:write')
 @RequireRole('admin')
 export class MailboxController {
   constructor(

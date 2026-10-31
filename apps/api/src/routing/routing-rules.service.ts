@@ -10,6 +10,7 @@ import type {
   TicketAnalysis,
   UpdateRoutingRuleInput,
 } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
@@ -20,7 +21,10 @@ import { evaluateRules, type EvaluableRule } from './rules-engine';
 
 @Injectable()
 export class RoutingRulesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async list(workspaceId: string): Promise<RoutingRuleDto[]> {
     const rows = await this.prisma.routingRule.findMany({
@@ -53,11 +57,13 @@ export class RoutingRulesService {
         enabled: input.enabled ?? true,
       },
     });
-    return toRuleDto(row);
+    const dto = toRuleDto(row);
+    await this.audit.record({ workspaceId, entity: 'routing_rule', entityId: row.id, action: 'create', after: dto });
+    return dto;
   }
 
   async update(workspaceId: string, id: string, input: UpdateRoutingRuleInput): Promise<RoutingRuleDto> {
-    await this.get(workspaceId, id);
+    const existing = await this.get(workspaceId, id);
     const data: Prisma.RoutingRuleUpdateInput = {
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.position === undefined ? {} : { position: input.position }),
@@ -66,12 +72,15 @@ export class RoutingRulesService {
       ...(input.conditions === undefined ? {} : { conditions: json(input.conditions) }),
       ...(input.effects === undefined ? {} : { effects: json(input.effects) }),
     };
-    return toRuleDto(await this.prisma.routingRule.update({ where: { id }, data }));
+    const dto = toRuleDto(await this.prisma.routingRule.update({ where: { id }, data }));
+    await this.audit.record({ workspaceId, entity: 'routing_rule', entityId: id, action: 'update', before: toRuleDto(existing), after: dto });
+    return dto;
   }
 
   async remove(workspaceId: string, id: string): Promise<void> {
-    await this.get(workspaceId, id);
+    const existing = await this.get(workspaceId, id);
     await this.prisma.routingRule.delete({ where: { id } });
+    await this.audit.record({ workspaceId, entity: 'routing_rule', entityId: id, action: 'delete', before: toRuleDto(existing) });
   }
 
   /** Which rules would match this ticket (without applying them). */

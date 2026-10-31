@@ -7,6 +7,7 @@ import {
   type CreateChannelInput,
   type UpdateChannelInput,
 } from '@kvitok/shared';
+import { RequireScope } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { MailScheduler } from '../mail/mail-scheduler';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
@@ -14,6 +15,7 @@ import { ChannelsService } from './channels.service';
 
 @Controller('workspaces/:workspaceId/channels')
 @UseGuards(WorkspaceGuard)
+@RequireScope('config:write')
 @RequireRole('admin')
 export class ChannelsController {
   constructor(

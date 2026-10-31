@@ -40,17 +40,23 @@ export function deliveryLabel(status: DeliveryStatus): string {
 }
 
 /* Formatters are created on first use: the locale is known only after the i18n plugin has run. */
-let formatters: { relative: Intl.RelativeTimeFormat; dateTime: Intl.DateTimeFormat } | null = null;
+let formatters: { relative: Intl.RelativeTimeFormat; dateTime: Intl.DateTimeFormat; date: Intl.DateTimeFormat } | null = null;
 function intl() {
   formatters ??= {
     relative: new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' }),
     dateTime: new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+    date: new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short', year: 'numeric' }),
   };
   return formatters;
 }
 
 export function formatDateTime(iso: string): string {
   return intl().dateTime.format(new Date(iso));
+}
+
+/** A date with the year, for dates that can be far away. */
+export function formatDate(iso: string): string {
+  return intl().date.format(new Date(iso));
 }
 
 /** "5 minutes ago", "yesterday"; older than a week — the date. */

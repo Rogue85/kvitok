@@ -10,5 +10,6 @@ import { AgentCoreModule } from './agent-core.module';
   imports: [AgentCoreModule, TicketsModule, ConversationModule, ActionsModule],
   controllers: [AgentController],
   providers: [AgentService],
+  exports: [AgentService],
 })
 export class AgentModule {}

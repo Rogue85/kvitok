@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IntegrationError, type ActionDefinition, type ContextResponse, type Manifest, type ToolDefinition } from '@kvitok/protocol';
+import { IntegrationError, type ActionDefinition, type IntegrationClient, type ContextResponse, type Manifest, type ToolDefinition } from '@kvitok/protocol';
 import { stableStringify } from '../common/stable-json';
 import type { Integration } from '../generated/prisma/client';
 import { CustomerLinksService, type CustomerWithIdentities } from '../integrations/customer-links.service';
@@ -27,6 +27,9 @@ export interface IntegrationStepInput {
   customerRef?: string | null;
   identities?: Record<string, string>;
 }
+
+/** Integration calls of a past run: a replay takes their results instead of asking the backend again. */
+export type RecordedCalls = Array<{ input: IntegrationStepInput; output: unknown }>;
 
 /** Previously fetched data that does not need to be requested again yet. */
 export interface IntegrationFact {
@@ -108,7 +111,12 @@ export class IntegrationRuntimeService {
 
   async prepare(
     ticket: { id: string; workspaceId: string; customer: CustomerWithIdentities | null },
-    options: { now?: Date; record: (step: RunnerStep) => Promise<void> },
+    options: {
+      now?: Date;
+      record: (step: RunnerStep) => Promise<void>;
+      /** A replay of a past run: the customer card, tool results and validations are taken from it when the arguments match. */
+      recorded?: RecordedCalls;
+    },
   ): Promise<{ views: IntegrationView[]; executor: ToolExecutor }> {
     const now = options.now ?? new Date();
     const rows = await this.prisma.integration.findMany({ where: { workspaceId: ticket.workspaceId, enabled: true }, orderBy: { createdAt: 'asc' } });
@@ -151,7 +159,10 @@ export class IntegrationRuntimeService {
       const mine = previous.filter((s) => s.input.integrationId === row.id && (s.input.customerRef ?? null) === customerRef);
       if (customerRef) {
         const cached = mine.find((s) => s.input.call === 'context' && now.getTime() - s.createdAt.getTime() < CONTEXT_TTL_SECONDS * 1000);
-        if (cached) {
+        const recordedContext = findRecorded(options.recorded, { integrationId: row.id, call: 'context', customerRef });
+        if (recordedContext) {
+          view.context = { data: recordedContext.output as ContextResponse, fetchedAt: now };
+        } else if (cached) {
           view.context = { data: cached.output as ContextResponse, fetchedAt: cached.createdAt };
         } else {
           const started = Date.now();
@@ -217,10 +228,10 @@ export class IntegrationRuntimeService {
       views.push(view);
     }
 
-    return { views, executor: this.executor(bindings) };
+    return { views, executor: this.executor(bindings, options.recorded) };
   }
 
-  private executor(bindings: Map<string, ToolBinding>): ToolExecutor {
+  private executor(bindings: Map<string, ToolBinding>, recorded?: RecordedCalls): ToolExecutor {
     const proposals = new Map<string, PendingProposal>();
     return {
       has: (name) => bindings.has(name),
@@ -228,7 +239,7 @@ export class IntegrationRuntimeService {
       execute: async (name, args) => {
         const binding = bindings.get(name)!;
         if (binding.kind === 'action') {
-          return this.propose(binding, args, proposals);
+          return this.propose(binding, args, proposals, recorded);
         }
         const stepInput: IntegrationStepInput = {
           integrationId: binding.integration.id,
@@ -241,7 +252,8 @@ export class IntegrationRuntimeService {
           return { content: 'Error: the arguments must be a JSON object following the tool schema.', stepInput, stepOutput: null, error: 'invalid arguments' };
         }
         try {
-          const result = await this.integrations.client(binding.integration).callTool(binding.tool.name, binding.customerRef, args);
+          const replayed = findRecorded(recorded, stepInput)?.output as Awaited<ReturnType<IntegrationClient['callTool']>> | undefined;
+          const result = replayed ?? (await this.integrations.client(binding.integration).callTool(binding.tool.name, binding.customerRef, args));
           return { content: truncate(JSON.stringify({ ...(result.summary ? { summary: result.summary } : {}), data: result.data })), stepInput, stepOutput: result, error: null };
         } catch (error) {
           const message = describe(error);
@@ -256,6 +268,7 @@ export class IntegrationRuntimeService {
     binding: Extract<ToolBinding, { kind: 'action' }>,
     args: unknown,
     proposals: Map<string, PendingProposal>,
+    recorded?: RecordedCalls,
   ): Promise<ToolExecution> {
     const input = isPlainObject(args) ? args : {};
     const params = isPlainObject(input.params) ? input.params : null;
@@ -272,7 +285,8 @@ export class IntegrationRuntimeService {
       return { content: 'Error: params (following the action schema) and reason — why the action is needed — are required.', stepInput, stepOutput: null, error: 'invalid arguments' };
     }
     try {
-      const result = await this.integrations.client(binding.integration).validate(binding.action.name, binding.customerRef, params);
+      const replayed = findRecorded(recorded, stepInput)?.output as Awaited<ReturnType<IntegrationClient['validate']>> | undefined;
+      const result = replayed ?? (await this.integrations.client(binding.integration).validate(binding.action.name, binding.customerRef, params));
       if (!result.ok) {
         const errors = result.errors.map((e) => `${e.path ? `${e.path}: ` : ''}${e.message}`).join('; ');
         return {
@@ -317,7 +331,7 @@ export class IntegrationRuntimeService {
   /** Successful integration calls in earlier runs of this ticket — newest first. */
   private async previousSteps(ticketId: string, now: Date) {
     const steps = await this.prisma.agentStep.findMany({
-      where: { run: { ticketId }, kind: 'tool', error: null, createdAt: { gte: new Date(now.getTime() - MAX_FACT_AGE_MS) } },
+      where: { run: { ticketId }, kind: 'tool', error: null, createdAt: { gte: new Date(now.getTime() - MAX_FACT_AGE_MS), lte: now } },
       orderBy: { createdAt: 'desc' },
       select: { input: true, output: true, createdAt: true },
     });
@@ -325,6 +339,17 @@ export class IntegrationRuntimeService {
       .filter((s): s is typeof s & { input: IntegrationStepInput } => isPlainObject(s.input) && typeof (s.input as Record<string, unknown>).integrationId === 'string')
       .map((s) => ({ input: s.input, output: s.output, createdAt: s.createdAt }));
   }
+}
+
+/** A recorded call with the same integration, call, tool or action, customer and arguments. */
+function findRecorded(recorded: RecordedCalls | undefined, input: IntegrationStepInput): RecordedCalls[number] | undefined {
+  if (!recorded) return undefined;
+  const key = recordKey(input);
+  return recorded.find((r) => recordKey(r.input) === key);
+}
+
+function recordKey(input: IntegrationStepInput): string {
+  return stableStringify([input.integrationId, input.call, input.tool ?? null, input.action ?? null, input.customerRef ?? null, input.args ?? {}]);
 }
 
 /** Tool names for the model: as in the manifest, but prefixed with the integration on a clash between integrations or with service tools. */

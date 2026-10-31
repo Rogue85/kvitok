@@ -12,6 +12,7 @@ import {
   type IntegrationToolDto,
   type UpdateIntegrationInput,
 } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
@@ -45,6 +46,7 @@ export class IntegrationsService {
     private readonly prisma: PrismaService,
     private readonly box: SecretBox,
     private readonly departments: DepartmentsService,
+    private readonly audit: AuditService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -82,6 +84,7 @@ export class IntegrationsService {
         enabled: input.enabled ?? true,
       },
     });
+    await this.audit.record({ workspaceId, entity: 'integration', entityId: row.id, action: 'create', after: auditView(row) });
     const sync = await this.sync(workspaceId, row.id);
     return { integration: await this.getDto(workspaceId, row.id), sync };
   }
@@ -90,7 +93,7 @@ export class IntegrationsService {
     const existing = await this.get(workspaceId, id);
     // Another address or secret — the previous ETag guarantees nothing.
     const endpointChanged = (input.baseUrl !== undefined && input.baseUrl !== existing.baseUrl) || input.secret !== undefined;
-    await this.prisma.integration.update({
+    const updated = await this.prisma.integration.update({
       where: { id },
       data: {
         ...(input.name === undefined ? {} : { name: input.name }),
@@ -100,13 +103,22 @@ export class IntegrationsService {
         ...(endpointChanged ? { manifestEtag: null } : {}),
       },
     });
+    await this.audit.record({
+      workspaceId,
+      entity: 'integration',
+      entityId: id,
+      action: 'update',
+      before: auditView(existing),
+      after: input.secret === undefined ? auditView(updated) : { ...auditView(updated), secretChanged: true },
+    });
     return this.getDto(workspaceId, id);
   }
 
   /** Deletion also removes the playbooks from its manifest. */
   async remove(workspaceId: string, id: string): Promise<void> {
-    await this.get(workspaceId, id);
+    const existing = await this.get(workspaceId, id);
     await this.prisma.integration.delete({ where: { id } });
+    await this.audit.record({ workspaceId, entity: 'integration', entityId: id, action: 'delete', before: auditView(existing) });
   }
 
   client(row: Integration): IntegrationClient {
@@ -152,6 +164,14 @@ export class IntegrationsService {
         },
       });
       return this.syncPlaybooks(tx, row, manifest);
+    });
+    // Only a new manifest is recorded: it changes the agent's knowledge and playbooks.
+    await this.audit.record({
+      workspaceId,
+      entity: 'integration',
+      entityId: id,
+      action: 'sync',
+      after: { manifestEtag: fetched.etag, playbooks },
     });
     return { status: 'updated', playbooks };
   }
@@ -238,6 +258,11 @@ export class IntegrationsService {
     }
     return result;
   }
+}
+
+/** What the audit log keeps about an integration: no secret and no manifest (its sync is recorded separately). */
+function auditView(row: Integration): { name: string; baseUrl: string; enabled: boolean } {
+  return { name: row.name, baseUrl: row.baseUrl, enabled: row.enabled };
 }
 
 /** The stored manifest has already passed the schema; parsing it again fills in the defaults. */

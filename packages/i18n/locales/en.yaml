@@ -46,6 +46,8 @@ nav:
   agent: Agent
   playbooks: Playbooks
   rules: Rules
+  tokens: Access tokens
+  audit: Change log
 
 auth:
   subtitle: Operator sign-in
@@ -391,6 +393,69 @@ members:
   addFailed: Could not add the member
   new: New member
   newUserHint: If the user does not exist yet, enter a name and a password — the account will be created.
+
+tokens:
+  intro: A personal access token lets an external agent, such as Claude Code over MCP, work with Kvitok on your behalf. The token has your rights, narrowed down to its scopes and workspace.
+  new: New token
+  namePlaceholder: Claude Code on my laptop
+  scopes: Scopes
+  scope:
+    read: Read the configuration, tickets and agent runs
+    "config:write": Change departments, fields, rules, playbooks, the agent settings and channels
+    "integrations:write": Connect, sync and remove integrations
+    "tickets:ingest": Create tickets through a channel, for test workspaces
+    "workspaces:create": Create workspaces
+  workspace: Workspace
+  allWorkspaces: All my workspaces
+  expires: Expires
+  expiry:
+    d30: In 30 days
+    d90: In 90 days
+    d365: In a year
+    never: Never
+  noExpiry: does not expire
+  lastUsed: Last used
+  notUsed: not used yet
+  created: Created
+  revoke: Revoke
+  revoked: "Token “{name}” revoked"
+  createFailed: Could not create the token
+  empty: No tokens yet
+  secret:
+    title: Copy the token
+    description: It is shown only once. Kvitok stores only its hash.
+    saved: I have copied it
+
+audit:
+  intro: Changes of the configuration and the members made in the interface, through the API and by external agents with access tokens. Secrets are never recorded, only the fact that one changed.
+  when: When
+  who: Who
+  what: What
+  changes: Changes
+  system: System
+  viaToken: "{name} with the token “{token}”"
+  allEntities: Everything
+  loadMore: Show older
+  empty: No changes yet
+  entity:
+    workspace: Workspace
+    member: Member
+    department: Department
+    field: Field
+    agent_settings: Agent settings
+    llm_provider: LLM provider
+    playbook: Playbook
+    routing_rule: Routing rule
+    channel: Channel
+    integration: Integration
+  action:
+    create: creation
+    update: change
+    delete: deletion
+    sync: new manifest
+    rotate_key: new key
+    rotate_webhook_secret: new webhook secret
+    set_default_mailbox: default mailbox
 
 departments:
   department: Department
@@ -768,6 +833,11 @@ api:
   lastAdmin: The last administrator of the workspace cannot be removed
   slugTaken: "The slug “{slug}” is already taken"
   workspaceNotFound: Workspace not found
+  mcpNeedsToken: "The MCP server accepts only personal access tokens: create one in Settings → Access tokens"
+  tokenNotFound: Token not found
+  tokenRouteClosed: This action is not available with an access token
+  tokenScopeMissing: "The access token has no “{scope}” scope"
+  tokenWorkspacesCreateScope: The “workspaces:create” scope is only for superadministrators and only without a workspace restriction
   ruleNotFound: Rule not found
   rule:
     departmentNotFound: department not found

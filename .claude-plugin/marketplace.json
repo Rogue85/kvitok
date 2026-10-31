@@ -1,0 +1,12 @@
+{
+  "name": "kvitok",
+  "description": "The Kvitok plugin for Claude Code: set Kvitok up for a project and tune its support agent over MCP.",
+  "owner": { "name": "Egor Lazarev" },
+  "plugins": [
+    {
+      "name": "kvitok",
+      "source": "./plugins/kvitok",
+      "description": "Connect Claude Code to a Kvitok installation over MCP: set Kvitok up for a project from its repository and tune the support agent."
+    }
+  ]
+}

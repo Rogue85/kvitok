@@ -2,6 +2,7 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AgentCoreModule } from '../src/agent/agent-core.module';
 import { AgentEngine } from '../src/agent/agent-engine';
+import { AuditModule } from '../src/audit/audit.module';
 import { ConfigModule } from '../src/config/config.module';
 import { CryptoModule } from '../src/crypto/crypto.module';
 import { LLM_CLIENT_FACTORY } from '../src/llm/llm-client.factory';
@@ -28,7 +29,7 @@ export async function createAgentHarness(): Promise<AgentHarness> {
   const client: LlmClient = { chat: (request: LlmRequest): Promise<LlmResponse> => harness.llm.chat(request) };
 
   const moduleRef = await Test.createTestingModule({
-    imports: [ConfigModule, CryptoModule, PrismaModule, RedisModule, QueueRootModule, RealtimeModule, StorageModule, AgentCoreModule],
+    imports: [ConfigModule, CryptoModule, PrismaModule, AuditModule, RedisModule, QueueRootModule, RealtimeModule, StorageModule, AgentCoreModule],
   })
     .overrideProvider(LLM_CLIENT_FACTORY)
     .useValue(() => client)

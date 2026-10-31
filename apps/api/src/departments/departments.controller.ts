@@ -6,12 +6,14 @@ import {
   type DepartmentDto,
   type UpdateDepartmentInput,
 } from '@kvitok/shared';
+import { RequireScope } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { DepartmentsService } from './departments.service';
 
 @Controller('workspaces/:workspaceId/departments')
 @UseGuards(WorkspaceGuard)
+@RequireScope('config:write')
 export class DepartmentsController {
   constructor(private readonly departments: DepartmentsService) {}
 

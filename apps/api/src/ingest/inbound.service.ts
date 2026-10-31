@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import { AgentTriggerService } from '../agent/agent-trigger.service';
+import { apiConfig } from '../channels/channel-config';
 import { APP_CONFIG, type AppConfig } from '../config/env';
 import { buildRuleContext } from '../routing/rule-context';
 import { RuleApplier } from '../routing/rule-applier';
@@ -17,7 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { recordEvent, type Actor } from '../tickets/ticket-events';
 import { TicketsService } from '../tickets/tickets.service';
-import type { FieldMeta, FieldValues } from '@kvitok/shared';
+import type { FieldMeta, FieldValues, IngestMessageInput } from '@kvitok/shared';
 
 export interface StoredAttachment {
   filename: string;
@@ -57,6 +58,9 @@ export interface InboundMessage {
   attachments?: StoredAttachment[];
 }
 
+/** A message from an API source, as the ingest endpoint receives it. */
+export type ApiIngestMessage = Required<Pick<IngestMessageInput, 'customer'>> & IngestMessageInput;
+
 export interface InboundResult {
   ticketId: string;
   ticketNumber: number;
@@ -81,6 +85,29 @@ export class InboundService {
     private readonly agent: AgentTriggerService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /** A message from an API channel: metadata mapped to fields, the customer's email becomes a participant. */
+  receiveApi(channel: Channel, body: ApiIngestMessage): Promise<InboundResult> {
+    const mapped = mapMetadata(body.metadata ?? {}, apiConfig(channel).metadataMapping);
+    const email = body.customer.identities?.email;
+    return this.receive({
+      channel,
+      source: 'api',
+      conversationExternalId: body.conversation_external_id,
+      customer: { name: body.customer.name, identities: body.customer.identities ?? {}, fields: body.customer.fields },
+      subject: body.subject ?? '',
+      bodyText: body.body,
+      bodyHtml: body.body_html ?? null,
+      bodyClean: body.body,
+      externalId: body.external_id,
+      sentAt: body.sent_at ? new Date(body.sent_at) : undefined,
+      fromName: body.customer.name ?? null,
+      fromEmail: email ? email.trim().toLowerCase() : null,
+      ticketFields: { ...mapped, ...(body.fields ?? {}) },
+      headers: body.metadata ? { metadata: body.metadata } : null,
+      participants: email ? [{ email: email.trim().toLowerCase(), name: body.customer.name ?? null, role: 'customer' }] : [],
+    });
+  }
 
   async receive(input: InboundMessage): Promise<InboundResult> {
     const duplicate = await this.findDuplicate(input);
@@ -316,4 +343,19 @@ function subjectOf(input: InboundMessage): string {
   }
   const firstLine = input.bodyText.trim().split('\n')[0] ?? '';
   return firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine || t('api.noSubject');
+}
+
+/** `{ "form.category": "category" }` + metadata `{ form: { category: "bonus" } }` → `{ category: "bonus" }`. */
+export function mapMetadata(metadata: Record<string, unknown>, mapping: Record<string, string>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [path, fieldKey] of Object.entries(mapping)) {
+    const value = path.split('.').reduce<unknown>(
+      (node, part) => (node !== null && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined),
+      metadata,
+    );
+    if (value !== undefined) {
+      result[fieldKey] = value;
+    }
+  }
+  return result;
 }

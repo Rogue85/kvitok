@@ -7,7 +7,7 @@ import {
   type UpdateWorkspaceInput,
   type WorkspaceDto,
 } from '@kvitok/shared';
-import { CurrentAuth } from '../auth/decorators';
+import { CurrentAuth, RequireScope } from '../auth/decorators';
 import { errors } from '../common/errors';
 import type { AuthContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -19,11 +19,14 @@ export class WorkspacesController {
   constructor(private readonly workspaces: WorkspacesService) {}
 
   @Get()
-  list(@CurrentAuth() auth: AuthContext): Promise<WorkspaceDto[]> {
-    return this.workspaces.listFor(auth.user);
+  async list(@CurrentAuth() auth: AuthContext): Promise<WorkspaceDto[]> {
+    const workspaces = await this.workspaces.listFor(auth.user);
+    const tokenWorkspaceId = auth.token?.workspaceId ?? null;
+    return tokenWorkspaceId === null ? workspaces : workspaces.filter((w) => w.id === tokenWorkspaceId);
   }
 
   @Post()
+  @RequireScope('workspaces:create')
   create(
     @CurrentAuth() auth: AuthContext,
     @Body(new ZodValidationPipe(CreateWorkspaceSchema)) body: CreateWorkspaceInput,
@@ -43,6 +46,7 @@ export class WorkspacesController {
   @Patch(':workspaceId')
   @UseGuards(WorkspaceGuard)
   @RequireRole('admin')
+  @RequireScope('config:write')
   update(
     @Param('workspaceId') workspaceId: string,
     @Body(new ZodValidationPipe(UpdateWorkspaceSchema)) body: UpdateWorkspaceInput,

@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import type { CreateWorkspaceInput, UpdateWorkspaceInput, WorkspaceDto } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import type { AuthUser } from '@kvitok/shared';
@@ -9,7 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WorkspacesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async listFor(user: AuthUser): Promise<WorkspaceDto[]> {
     const workspaces = await this.prisma.workspace.findMany({
@@ -32,7 +36,9 @@ export class WorkspacesService {
         memberships: { create: { userId: creator.id, role: 'admin' } },
       },
     });
-    return toWorkspaceDto(workspace);
+    const dto = toWorkspaceDto(workspace);
+    await this.audit.record({ workspaceId: workspace.id, entity: 'workspace', entityId: workspace.id, action: 'create', after: dto });
+    return dto;
   }
 
   async get(workspaceId: string): Promise<WorkspaceDto> {
@@ -44,8 +50,11 @@ export class WorkspacesService {
   }
 
   async update(workspaceId: string, input: UpdateWorkspaceInput): Promise<WorkspaceDto> {
+    const before = await this.get(workspaceId);
     const workspace = await this.prisma.workspace.update({ where: { id: workspaceId }, data: input });
-    return toWorkspaceDto(workspace);
+    const dto = toWorkspaceDto(workspace);
+    await this.audit.record({ workspaceId, entity: 'workspace', entityId: workspaceId, action: 'update', before, after: dto });
+    return dto;
   }
 }
 

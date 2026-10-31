@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import type { CreateDepartmentInput, DepartmentDto, UpdateDepartmentInput } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { isUniqueViolation } from '../common/prisma-errors';
@@ -9,7 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DepartmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async list(workspaceId: string): Promise<DepartmentDto[]> {
     const rows = await this.prisma.department.findMany({ where: { workspaceId }, orderBy: { createdAt: 'asc' } });
@@ -35,7 +39,9 @@ export class DepartmentsService {
           },
         });
       });
-      return toDepartmentDto(row);
+      const dto = toDepartmentDto(row);
+      await this.audit.record({ workspaceId, entity: 'department', entityId: row.id, action: 'create', after: dto });
+      return dto;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw errors.conflict(t('api.departmentKeyExists', { key: input.key }));
@@ -63,7 +69,9 @@ export class DepartmentsService {
         },
       });
     });
-    return toDepartmentDto(row);
+    const dto = toDepartmentDto(row);
+    await this.audit.record({ workspaceId, entity: 'department', entityId: id, action: 'update', before: toDepartmentDto(existing), after: dto });
+    return dto;
   }
 
   /** A department of this workspace and not archived — otherwise 422. */

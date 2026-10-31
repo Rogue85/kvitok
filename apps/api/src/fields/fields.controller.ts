@@ -8,12 +8,14 @@ import {
   type FieldEntity,
   type UpdateFieldDefinitionInput,
 } from '@kvitok/shared';
+import { RequireScope } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { FieldsService } from './fields.service';
 
 @Controller('workspaces/:workspaceId/fields')
 @UseGuards(WorkspaceGuard)
+@RequireScope('config:write')
 export class FieldsController {
   constructor(private readonly fields: FieldsService) {}
 

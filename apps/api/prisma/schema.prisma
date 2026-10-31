@@ -24,6 +24,7 @@ model User {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
   sessions       Session[]
+  apiTokens      ApiToken[]
   memberships    Membership[]
   assigned       Ticket[]         @relation("TicketAssignee")
   messages       Message[]
@@ -48,6 +49,28 @@ model Session {
   @@map("sessions")
 }
 
+/// A personal access token for external agents (the MCP server). The database stores its sha256.
+model ApiToken {
+  id          String     @id
+  userId      String     @map("user_id")
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Restricts the token to one workspace; empty — every workspace of the user.
+  workspaceId String?    @map("workspace_id")
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  tokenHash   String     @unique @map("token_hash")
+  /// The last characters of the token, to tell tokens apart in the list.
+  hint        String
+  scopes      String[]
+  expiresAt   DateTime?  @map("expires_at") @db.Timestamptz
+  lastUsedAt  DateTime?  @map("last_used_at") @db.Timestamptz
+  revokedAt   DateTime?  @map("revoked_at") @db.Timestamptz
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("api_tokens")
+}
+
 model Workspace {
   id               String            @id
   name             String
@@ -61,6 +84,8 @@ model Workspace {
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
   memberships      Membership[]
+  apiTokens        ApiToken[]
+  auditLogs        AuditLog[]
   agentSettings    AgentSettings?
   llmProviders     LlmProvider[]
   playbooks        Playbook[]
@@ -199,25 +224,25 @@ model Department {
 }
 
 model Channel {
-  id            String      @id
-  workspaceId   String      @map("workspace_id")
-  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id            String         @id
+  workspaceId   String         @map("workspace_id")
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   type          ChannelType
   name          String
-  enabled       Boolean     @default(true)
+  enabled       Boolean        @default(true)
   /// Non-secret settings: for api — metadata → fields mapping, for email — hosts, ports, address.
-  config        Json        @default("{}")
+  config        Json           @default("{}")
   /// Encrypted secrets (SMTP/IMAP passwords, webhook secret).
   secrets       String?
   /// sha256 of the channel API key (api type).
-  apiKeyHash    String?     @unique @map("api_key_hash")
-  apiKeyPrefix  String?     @map("api_key_prefix")
+  apiKeyHash    String?        @unique @map("api_key_hash")
+  apiKeyPrefix  String?        @map("api_key_prefix")
   /// IMAP cursor: uidValidity and the last processed UID.
-  syncState     Json        @default("{}") @map("sync_state")
-  lastSyncAt    DateTime?   @map("last_sync_at") @db.Timestamptz
-  lastSyncError String?     @map("last_sync_error")
-  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  syncState     Json           @default("{}") @map("sync_state")
+  lastSyncAt    DateTime?      @map("last_sync_at") @db.Timestamptz
+  lastSyncError String?        @map("last_sync_error")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz
   tickets       Ticket[]
   messages      Message[]
   deliveries    Delivery[]
@@ -410,7 +435,7 @@ model Delivery {
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
-  sandboxEmail      SandboxEmail?
+  sandboxEmail SandboxEmail?
 
   @@index([messageId])
   @@index([ticketId])
@@ -824,4 +849,28 @@ model ActionProposal {
 
   @@index([ticketId, createdAt])
   @@map("action_proposals")
+}
+
+/// Changes of the configuration and other admin changes, from the UI, the API and MCP.
+model AuditLog {
+  id           String     @id
+  workspaceId  String?    @map("workspace_id")
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// user | token | system
+  actorType    String     @map("actor_type")
+  actorUserId  String?    @map("actor_user_id")
+  actorTokenId String?    @map("actor_token_id")
+  /// Names at the time of the change: the user and the token may be renamed or removed later.
+  actorName    String?    @map("actor_name")
+  tokenName    String?    @map("token_name")
+  entity       String
+  entityId     String?    @map("entity_id")
+  action       String
+  /// The entity as the API shows it, never with secrets.
+  before       Json?
+  after        Json?
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([workspaceId, createdAt])
+  @@map("audit_logs")
 }

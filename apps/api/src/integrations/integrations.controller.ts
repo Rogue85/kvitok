@@ -11,12 +11,14 @@ import {
   type IntegrationSyncResultDto,
   type UpdateIntegrationInput,
 } from '@kvitok/shared';
+import { RequireScope } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { IntegrationsService } from './integrations.service';
 
 @Controller('workspaces/:workspaceId/integrations')
 @UseGuards(WorkspaceGuard)
+@RequireScope('integrations:write')
 @RequireRole('admin')
 export class IntegrationsController {
   constructor(private readonly integrations: IntegrationsService) {}

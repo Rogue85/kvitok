@@ -8,12 +8,14 @@ import {
   type UpdateRoutingRuleInput,
 } from '@kvitok/shared';
 import { z } from 'zod';
+import { RequireScope } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { RoutingRulesService } from './routing-rules.service';
 
 @Controller('workspaces/:workspaceId/routing-rules')
 @UseGuards(WorkspaceGuard)
+@RequireScope('config:write')
 @RequireRole('admin')
 export class RoutingController {
   constructor(private readonly rules: RoutingRulesService) {}

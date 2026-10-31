@@ -15,6 +15,7 @@ import {
   type UpdatePlaybookInput,
 } from '@kvitok/shared';
 import { z } from 'zod';
+import { RequireScope } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { AgentSettingsService } from './agent-settings.service';
@@ -23,6 +24,7 @@ import { PlaybooksService } from './playbooks.service';
 
 @Controller('workspaces/:workspaceId')
 @UseGuards(WorkspaceGuard)
+@RequireScope('config:write')
 @RequireRole('admin')
 export class AgentConfigController {
   constructor(

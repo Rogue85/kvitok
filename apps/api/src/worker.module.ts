@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ActionsWorkerModule } from './actions/actions.processor';
+import { AuditModule } from './audit/audit.module';
 import { AgentWorkerModule } from './agent/agent.processor';
 import { ConfigModule } from './config/config.module';
 import { CryptoModule } from './crypto/crypto.module';
@@ -17,6 +18,7 @@ import { StorageModule } from './storage/storage.module';
     ConfigModule,
     CryptoModule,
     PrismaModule,
+    AuditModule,
     RedisModule,
     QueueRootModule,
     RealtimeModule,

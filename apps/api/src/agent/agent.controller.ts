@@ -16,7 +16,7 @@ import {
   type ReplyDraftDto,
   type TicketAgentDto,
 } from '@kvitok/shared';
-import { CurrentAuth } from '../auth/decorators';
+import { CurrentAuth, RequireScope } from '../auth/decorators';
 import type { AuthContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { TicketsService } from '../tickets/tickets.service';
@@ -76,6 +76,7 @@ export class AgentController {
   }
 
   @Post('tickets/:ticketId/agent/dry-run')
+  @RequireScope('config:write')
   @HttpCode(200)
   @RequireRole('admin')
   dryRun(

@@ -6,6 +6,7 @@ import { newId } from '../common/ids';
 import { json } from '../common/json';
 import { Prisma, type AgentRun } from '../generated/prisma/client';
 import { LLM_CLIENT_FACTORY, type LlmClientFactory } from '../llm/llm-client.factory';
+import type { LlmMessage } from '../llm/llm.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { REDIS } from '../redis/redis.module';
@@ -17,7 +18,7 @@ import { CHAT_TRIGGERS, type AgentPending, type AgentTrigger } from './agent-tri
 import { ConfigSnapshotService } from './config-snapshot.service';
 import { assembleContext, type AssembledContext } from './context-assembler';
 import { DraftsService } from './drafts.service';
-import { IntegrationRuntimeService } from './integration-runtime';
+import { IntegrationRuntimeService, type IntegrationStepInput, type RecordedCalls } from './integration-runtime';
 import { LlmProvidersService } from './llm-providers.service';
 import { ResultApplier } from './result-applier';
 import type { AgentResult } from './submit-schema';
@@ -34,6 +35,11 @@ export interface ExecuteParams {
   dryRun?: boolean;
   /** A trial run on another provider or model — without changing the settings. */
   override?: { providerId?: string; model?: string };
+  /**
+   * Replays a past run with the current configuration: the ticket part of the prompt is the one that run saw,
+   * backend results are its recorded ones. Always a dry run.
+   */
+  replayOf?: string;
 }
 
 export class AgentNotConfiguredError extends Error {}
@@ -128,6 +134,8 @@ export class AgentEngine {
       include: { channel: true, customer: { include: { identities: true } } },
     });
     const { version, snapshot } = await this.config.resolve(ticket.workspaceId);
+    const replay = params.replayOf ? await this.loadReplay(ticket.id, params.replayOf) : null;
+    const dryRun = (params.dryRun ?? false) || replay !== null;
     const providerId = params.override?.providerId ?? snapshot.provider?.id ?? null;
     const model = params.override?.model ?? snapshot.settings.model;
 
@@ -139,7 +147,7 @@ export class AgentEngine {
         mode: params.mode,
         trigger: json(params.triggers.at(-1) ?? { type: 'manual' }),
         status: 'running',
-        dryRun: params.dryRun ?? false,
+        dryRun,
         inputRevision: params.inputRevision,
         configVersionId: version.id,
         model,
@@ -148,7 +156,7 @@ export class AgentEngine {
     });
 
     const controller = new AbortController();
-    const poller = params.dryRun ? null : setInterval(() => void this.checkCancel(ticket.id, controller), CANCEL_POLL_MS);
+    const poller = dryRun ? null : setInterval(() => void this.checkCancel(ticket.id, controller), CANCEL_POLL_MS);
     let stepIndex = 0;
 
     try {
@@ -164,7 +172,11 @@ export class AgentEngine {
         this.prisma.actionProposal.findMany({ where: { ticketId: ticket.id, status: { not: 'superseded' } }, orderBy: { createdAt: 'asc' } }),
       ]);
       // The customer in external systems, the card and stored facts — before the prompt is built; calls are recorded as run steps.
-      const integrations = await this.integrations.prepare(ticket, { record: (step) => this.saveStep(run.id, stepIndex++, step) });
+      const integrations = await this.integrations.prepare(ticket, {
+        now: replay?.at,
+        record: (step) => this.saveStep(run.id, stepIndex++, step),
+        recorded: replay?.calls,
+      });
       const context: AssembledContext = assembleContext({
         snapshot,
         ticket,
@@ -177,6 +189,10 @@ export class AgentEngine {
         integrations: integrations.views,
         actions,
       });
+      if (replay) {
+        // The configuration layers are today's; what the agent knew about the ticket is what the past run saw.
+        context.messages = [context.messages[0]!, replay.ticketMessage];
+      }
       run = await this.prisma.agentRun.update({
         where: { id: run.id },
         data: { inputSnapshot: json({ messages: context.messages, tools: context.tools }) },
@@ -195,7 +211,7 @@ export class AgentEngine {
       const cost = computeCost(providerInfo.models.find((m) => m.id === model), output.usage);
       const finished = { output: json(output.result), tokensIn: output.usage.input, tokensOut: output.usage.output, ...cost, finishedAt: new Date() };
 
-      if (params.dryRun) {
+      if (dryRun) {
         run = await this.prisma.agentRun.update({ where: { id: run.id }, data: { ...finished, status: 'applied' } });
         return { outcome: 'dry_run', run, result: output.result };
       }
@@ -217,7 +233,7 @@ export class AgentEngine {
         where: { id: run.id },
         data: { status: cancelled ? 'cancelled' : 'failed', error: cancelled ? null : message.slice(0, 2000), finishedAt: new Date() },
       });
-      if (!cancelled && !params.dryRun) {
+      if (!cancelled && !dryRun) {
         await this.prisma.$transaction((tx) =>
           recordEvent(tx, { workspaceId: ticket.workspaceId, ticketId: ticket.id, type: 'agent_failed', actor: SYSTEM_ACTOR, data: { runId: run.id, error: message.slice(0, 500) } }),
         );
@@ -226,6 +242,24 @@ export class AgentEngine {
     } finally {
       if (poller) clearInterval(poller);
     }
+  }
+
+  private async loadReplay(ticketId: string, runId: string): Promise<{ at: Date; ticketMessage: LlmMessage; calls: RecordedCalls }> {
+    const past = await this.prisma.agentRun.findFirst({ where: { id: runId, ticketId } });
+    const messages = (past?.inputSnapshot as { messages?: LlmMessage[] } | null)?.messages;
+    const ticketMessage = messages?.find((m) => m.role === 'user');
+    if (!past || !ticketMessage) {
+      throw new Error(`Run ${runId} has no stored input to replay`);
+    }
+    // That run's calls and the stored facts it relied on: successful calls of this and earlier runs, the newest first.
+    const steps = await this.prisma.agentStep.findMany({
+      where: { kind: 'tool', error: null, run: { ticketId, OR: [{ id: past.id }, { createdAt: { lt: past.createdAt } }] } },
+      orderBy: [{ createdAt: 'desc' }, { index: 'desc' }],
+    });
+    const calls = steps
+      .filter((s) => typeof (s.input as IntegrationStepInput | null)?.integrationId === 'string')
+      .map((s) => ({ input: s.input as unknown as IntegrationStepInput, output: s.output }));
+    return { at: past.createdAt, ticketMessage, calls };
   }
 
   private async checkCancel(ticketId: string, controller: AbortController): Promise<void> {

@@ -10,6 +10,6 @@ import { WorkspacesService } from './workspaces.service';
   imports: [UsersModule],
   controllers: [WorkspacesController, MembersController],
   providers: [WorkspacesService, MembersService, WorkspaceGuard],
-  exports: [WorkspaceGuard],
+  exports: [WorkspaceGuard, WorkspacesService],
 })
 export class WorkspacesModule {}

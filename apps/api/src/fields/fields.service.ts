@@ -8,6 +8,7 @@ import {
   type FieldValidation,
   type UpdateFieldDefinitionInput,
 } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { isUniqueViolation } from '../common/prisma-errors';
@@ -18,7 +19,10 @@ type Db = Pick<PrismaService, 'fieldDefinition'>;
 
 @Injectable()
 export class FieldsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async list(workspaceId: string, entity?: FieldEntity, db: Db = this.prisma): Promise<FieldDefinitionDto[]> {
     const rows = await db.fieldDefinition.findMany({
@@ -50,7 +54,9 @@ export class FieldsService {
           position: input.position ?? 0,
         },
       });
-      return toFieldDefinitionDto(row);
+      const dto = toFieldDefinitionDto(row);
+      await this.audit.record({ workspaceId, entity: 'field', entityId: row.id, action: 'create', after: dto });
+      return dto;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw errors.conflict(t('api.fieldKeyExists', { key: input.key }));
@@ -77,7 +83,9 @@ export class FieldsService {
         ...(archived === undefined ? {} : { archivedAt: archived ? (existing.archivedAt ?? new Date()) : null }),
       },
     });
-    return toFieldDefinitionDto(row);
+    const dto = toFieldDefinitionDto(row);
+    await this.audit.record({ workspaceId, entity: 'field', entityId: id, action: 'update', before: toFieldDefinitionDto(existing), after: dto });
+    return dto;
   }
 }
 

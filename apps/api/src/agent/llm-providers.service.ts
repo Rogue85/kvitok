@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import type { CreateLlmProviderInput, LlmCapabilities, LlmModel, LlmProviderDto, UpdateLlmProviderInput } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
@@ -18,6 +19,7 @@ export class LlmProvidersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly box: SecretBox,
+    private readonly audit: AuditService,
     @Inject(LLM_CLIENT_FACTORY) private readonly clientFactory: LlmClientFactory,
   ) {}
 
@@ -46,7 +48,9 @@ export class LlmProvidersService {
         capabilities: json(input.capabilities ?? { tools: true, vision: false }),
       },
     });
-    return this.toDto(row);
+    const dto = this.toDto(row);
+    await this.audit.record({ workspaceId, entity: 'llm_provider', entityId: row.id, action: 'create', after: dto });
+    return dto;
   }
 
   async update(workspaceId: string, id: string, input: UpdateLlmProviderInput): Promise<LlmProviderDto> {
@@ -62,16 +66,26 @@ export class LlmProvidersService {
         ...(input.apiKey === undefined ? {} : { secrets: this.box.encrypt({ ...secrets, apiKey: input.apiKey || undefined }) }),
       },
     });
-    return this.toDto(row);
+    const dto = this.toDto(row);
+    await this.audit.record({
+      workspaceId,
+      entity: 'llm_provider',
+      entityId: id,
+      action: 'update',
+      before: this.toDto(existing),
+      after: input.apiKey === undefined ? dto : { ...dto, apiKeyChanged: true },
+    });
+    return dto;
   }
 
   async remove(workspaceId: string, id: string): Promise<void> {
-    await this.get(workspaceId, id);
+    const existing = await this.get(workspaceId, id);
     const inUse = await this.prisma.agentSettings.count({ where: { workspaceId, providerId: id } });
     if (inUse > 0) {
       throw errors.conflict(t('api.providerInUse'));
     }
     await this.prisma.llmProvider.delete({ where: { id } });
+    await this.audit.record({ workspaceId, entity: 'llm_provider', entityId: id, action: 'delete', before: this.toDto(existing) });
   }
 
   /** A check from the UI: a short request to the model. */

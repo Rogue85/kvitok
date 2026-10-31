@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AgentConfigModule } from './agent/agent-config.module';
 import { AgentModule } from './agent/agent.module';
+import { AuditContextInterceptor } from './audit/audit-context.interceptor';
+import { AuditController } from './audit/audit.controller';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { ChannelsModule } from './channels/channels.module';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
@@ -13,6 +16,7 @@ import { FieldsModule } from './fields/fields.module';
 import { HealthController } from './health/health.controller';
 import { MetaController } from './health/meta.controller';
 import { MailModule } from './mail/mail.module';
+import { McpModule } from './mcp/mcp.module';
 import { IngestModule } from './ingest/ingest.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { QueueRootModule } from './queue.module';
@@ -30,6 +34,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     ConfigModule,
     CryptoModule,
     PrismaModule,
+    AuditModule,
     RedisModule,
     QueueRootModule,
     StorageModule,
@@ -48,8 +53,12 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     IntegrationsModule,
     RoutingModule,
     AgentModule,
+    McpModule,
   ],
-  controllers: [HealthController, MetaController],
-  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
+  controllers: [HealthController, MetaController, AuditController],
+  providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: AuditContextInterceptor },
+  ],
 })
 export class AppModule {}

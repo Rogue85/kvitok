@@ -1,0 +1,8 @@
+{
+  "name": "kvitok",
+  "version": "0.1.0",
+  "description": "Connect Claude Code to a Kvitok installation over MCP: set Kvitok up for a project from its repository and tune the support agent.",
+  "author": { "name": "Egor Lazarev" },
+  "repository": "https://github.com/Rogue85/kvitok",
+  "keywords": ["support", "helpdesk", "mcp", "kvitok"]
+}

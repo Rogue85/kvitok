@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import type { AddMemberInput, MemberDto, WorkspaceRole } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import type { Membership, User } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,6 +12,7 @@ export class MembersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(workspaceId: string): Promise<MemberDto[]> {
@@ -46,12 +48,14 @@ export class MembersService {
       data: { workspaceId, userId: user.id, role: input.role },
       include: { user: true },
     });
-    return toMemberDto(membership);
+    const dto = toMemberDto(membership);
+    await this.audit.record({ workspaceId, entity: 'member', entityId: user.id, action: 'create', after: dto });
+    return dto;
   }
 
   async updateRole(workspaceId: string, userId: string, role: WorkspaceRole): Promise<MemberDto> {
     return this.prisma.$transaction(async (tx) => {
-      const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } } });
+      const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } }, include: { user: true } });
       if (membership === null) {
         throw errors.notFound(t('api.memberNotFound'));
       }
@@ -64,13 +68,15 @@ export class MembersService {
         data: { role },
         include: { user: true },
       });
-      return toMemberDto(updated);
+      const dto = toMemberDto(updated);
+      await this.audit.record({ workspaceId, entity: 'member', entityId: userId, action: 'update', before: toMemberDto(membership), after: dto }, tx);
+      return dto;
     });
   }
 
   async remove(workspaceId: string, userId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } } });
+      const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } }, include: { user: true } });
       if (membership === null) {
         throw errors.notFound(t('api.memberNotFound'));
       }
@@ -78,6 +84,7 @@ export class MembersService {
         await this.assertNotLastAdmin(tx, workspaceId);
       }
       await tx.membership.delete({ where: { workspaceId_userId: { workspaceId, userId } } });
+      await this.audit.record({ workspaceId, entity: 'member', entityId: userId, action: 'delete', before: toMemberDto(membership) }, tx);
     });
   }
 

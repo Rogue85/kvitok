@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import type { CreatePlaybookInput, PlaybookDto, UpdatePlaybookInput } from '@kvitok/shared';
+import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { isUniqueViolation } from '../common/prisma-errors';
@@ -9,7 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PlaybooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async list(workspaceId: string): Promise<PlaybookDto[]> {
     const rows = await this.prisma.playbook.findMany({ where: { workspaceId }, orderBy: { createdAt: 'asc' } });
@@ -30,7 +34,9 @@ export class PlaybooksService {
           enabled: input.enabled ?? true,
         },
       });
-      return toPlaybookDto(row);
+      const dto = toPlaybookDto(row);
+      await this.audit.record({ workspaceId, entity: 'playbook', entityId: row.id, action: 'create', after: dto });
+      return dto;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw errors.conflict(t('api.playbookKeyExists', { key: input.key }));
@@ -54,18 +60,21 @@ export class PlaybooksService {
       where: { id },
       data: { ...input, ...(contentChanged ? { version: { increment: 1 } } : {}) },
     });
-    return toPlaybookDto(row);
+    const dto = toPlaybookDto(row);
+    await this.audit.record({ workspaceId, entity: 'playbook', entityId: id, action: 'update', before: toPlaybookDto(existing), after: dto });
+    return dto;
   }
 
   async remove(workspaceId: string, id: string): Promise<void> {
-    const existing = await this.prisma.playbook.findFirst({ where: { id, workspaceId }, select: { source: true } });
+    const existing = await this.prisma.playbook.findFirst({ where: { id, workspaceId } });
     if (existing?.source === 'manifest') {
       throw errors.conflict(t('api.playbookFromIntegrationDelete'));
     }
     const deleted = await this.prisma.playbook.deleteMany({ where: { id, workspaceId } });
-    if (deleted.count === 0) {
+    if (existing === null || deleted.count === 0) {
       throw errors.notFound(t('api.playbookNotFound'));
     }
+    await this.audit.record({ workspaceId, entity: 'playbook', entityId: id, action: 'delete', before: toPlaybookDto(existing) });
   }
 }
 

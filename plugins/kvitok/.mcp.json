@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kvitok": {
+      "type": "http",
+      "url": "${KVITOK_URL:-http://localhost:3001}/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${KVITOK_TOKEN}"
+      }
+    }
+  }
+}

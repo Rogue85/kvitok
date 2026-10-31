@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_CONFIG, type AppConfig } from '../config/env';
+import { ApiTokensController } from './api-tokens.controller';
+import { ApiTokensService } from './api-tokens.service';
 import { AuthController } from './auth.controller';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
@@ -13,8 +15,8 @@ import { AuthService } from './auth.service';
       useFactory: (config: AppConfig) => [{ name: 'login', ttl: 60_000, limit: config.loginRateLimit }],
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, { provide: APP_GUARD, useClass: AuthGuard }],
+  controllers: [AuthController, ApiTokensController],
+  providers: [AuthService, ApiTokensService, { provide: APP_GUARD, useClass: AuthGuard }],
   exports: [AuthService],
 })
 export class AuthModule {}

@@ -11,6 +11,10 @@ x-app: &app
   image: kvitok-dev
   working_dir: /app
   init: true
+  # A backend you run on this machine is http://host.docker.internal:<port> from the containers.
+  # Docker Desktop resolves the name itself; on Linux this line adds it.
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   volumes:
     - .:/app
     # node_modules of every package in its own volume: the host has macOS builds of native modules, the container needs Linux ones.

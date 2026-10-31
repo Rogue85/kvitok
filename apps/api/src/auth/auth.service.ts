@@ -51,7 +51,7 @@ export class AuthService {
       },
     });
 
-    return { token, expiresAt: session.expiresAt, auth: { user: toAuthUser(user), sessionId: session.id } };
+    return { token, expiresAt: session.expiresAt, auth: { user: toAuthUser(user), sessionId: session.id, token: null } };
   }
 
   async authenticate(token: string): Promise<AuthContext | null> {
@@ -76,7 +76,7 @@ export class AuthService {
       });
     }
 
-    return { user: toAuthUser(session.user), sessionId: session.id };
+    return { user: toAuthUser(session.user), sessionId: session.id, token: null };
   }
 
   async logout(sessionId: string): Promise<void> {

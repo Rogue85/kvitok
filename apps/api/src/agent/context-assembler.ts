@@ -396,6 +396,9 @@ function escape(text: string): string {
   return result;
 }
 
+/** For other places that show untrusted text to a model, such as the MCP server. */
+export const escapeUntrusted = escape;
+
 function escapeAttr(text: string): string {
   return text.replace(/"/g, "'").replace(/[<>]/g, '');
 }

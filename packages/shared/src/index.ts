@@ -1,5 +1,6 @@
 export * from './actions.js';
 export * from './agent.js';
+export * from './audit.js';
 export * from './auth.js';
 export * from './channels.js';
 export * from './departments.js';
@@ -13,5 +14,6 @@ export * from './realtime.js';
 export * from './roles.js';
 export * from './rules.js';
 export * from './tickets.js';
+export * from './tokens.js';
 export * from './validation-locale.js';
 export * from './workspace.js';

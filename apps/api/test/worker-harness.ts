@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import type { INestApplicationContext } from '@nestjs/common';
 import { createTransport, type SendMailOptions, type Transporter } from 'nodemailer';
+import { AuditModule } from '../src/audit/audit.module';
 import { ChannelsModule } from '../src/channels/channels.module';
 import { ConfigModule } from '../src/config/config.module';
 import { IngestModule } from '../src/ingest/ingest.module';
@@ -99,6 +100,7 @@ export async function createWorkerHarness(): Promise<WorkerHarness> {
       ConfigModule,
       CryptoModule,
       PrismaModule,
+      AuditModule,
       RedisModule,
       QueueRootModule,
       RealtimeModule,

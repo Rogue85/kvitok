@@ -45,7 +45,7 @@ docker compose exec api pnpm --filter @kvitok/api db:seed
 | Postgres (`kvitok` / `kvitok`, database `kvitok`) | localhost:5432 | `postgres:5432` |
 | Redis | localhost:6379 | `redis:6379` |
 
-Addresses the API and the worker call themselves (an integration, an LLM provider, a mailbox's SMTP) are set in the settings by service name: `localhost` inside a container is the container itself.
+Addresses the API and the worker call themselves (an integration, an LLM provider, a mailbox's SMTP) are set in the settings by service name: `localhost` inside a container is the container itself. A service running on your machine, such as the backend you are connecting, is `http://host.docker.internal:<port>`.
 
 Logs:
 
@@ -53,14 +53,14 @@ Logs:
 docker compose logs -f api worker
 ```
 
-After changes to `pnpm-lock.yaml`, `packages/shared`, `packages/protocol` or `packages/i18n`, reinstall dependencies and rebuild the packages, then restart the API and the worker:
+After changes to `pnpm-lock.yaml`, `packages/shared`, `packages/protocol` or `packages/i18n`, reinstall dependencies and rebuild the packages, then restart the API, the worker and the web interface (Vite keeps the previous build of the packages otherwise):
 
 ```bash
 docker compose run --rm deps
 ```
 
 ```bash
-docker compose restart api worker
+docker compose restart api worker web
 ```
 
 Tests, checks and migrations run on the host (Node ≥ 22, pnpm 10 via `packageManager`) against Postgres and Redis from compose. The addresses come from `apps/api/.env`:
@@ -192,6 +192,16 @@ Create a user:
 ```bash
 pnpm --filter @kvitok/api build && pnpm --filter @kvitok/api cli user:create --email ops@example.com --password 'secret-pass' --name 'Ops' --superadmin
 ```
+
+## External agents (MCP)
+
+The API serves an MCP endpoint at `http://localhost:3001/api/mcp`. Create a token in Settings → Access tokens and connect a client, for example Claude Code:
+
+```bash
+claude mcp add --transport http kvitok http://localhost:3001/api/mcp --header "Authorization: Bearer kvt_…"
+```
+
+Tools, scopes and safety notes are in [mcp.md](mcp.md).
 
 ## Checks
 

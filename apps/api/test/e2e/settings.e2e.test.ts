@@ -1,5 +1,6 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AgentSettingsService } from '../../src/agent/agent-settings.service';
 import { SecretBox } from '../../src/crypto/secret-box';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { client, createTestApp, createUser, login, resetDb, setupWorkspace } from '../helpers';
@@ -17,6 +18,15 @@ describe('workspace settings', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('the agent settings of a new workspace survive parallel first reads', async () => {
+    const { workspaceId } = await setupWorkspace(app);
+    const settings = app.get(AgentSettingsService);
+
+    const rows = await Promise.all(Array.from({ length: 5 }, () => settings.get(workspaceId)));
+
+    expect(new Set(rows.map((r) => r.workspaceId))).toEqual(new Set([workspaceId]));
   });
 
   describe('fields', () => {
