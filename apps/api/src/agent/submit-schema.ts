@@ -223,7 +223,7 @@ export function buildSubmitResultTool(departments: DepartmentDto[], fields: Fiel
             : "The draft reply to the customer as plain text, in the customer's language; an empty string — no reply is needed now",
         },
         needs_human: { type: 'boolean', description: 'A human must decide (a compensation, a disputed case). Still set the department' },
-        questions_for_operator: { type: 'array', items: { type: 'string' }, description: 'What to clarify with the operator' },
+        questions_for_operator: { type: 'array', items: { type: 'string' }, description: 'Open questions only the operator can answer; usually empty. Replaces the open ones: repeat an open question exactly to keep it' },
         ...(partial
           ? {
               drop_pending_actions: {

@@ -25,6 +25,7 @@ import {
 
 const KEEP_LAST_MESSAGES = 20;
 const MAX_MESSAGE_CHARS = 4000;
+const MAX_QUESTIONS = 30;
 const TAGS = ['customer_message', 'operator_reply', 'operator_message', 'automated_message', 'agent_question', 'integration_data'];
 /** All stored facts together — no more than this; the agent requests the rest itself. */
 const MAX_FACTS_CHARS = 40_000;
@@ -124,6 +125,7 @@ export function assembleContext(input: AssembleInput): AssembledContext {
     factsSection(integrations),
     actionsSection(input.actions ?? []),
     conversationSection(input),
+    questionsSection(input),
     draftSection(input),
     taskSection(input, partial),
   ]
@@ -327,10 +329,20 @@ function conversationSection(input: AssembleInput): string {
   for (const message of tail) {
     items.push(renderMessage(message, input));
   }
-  for (const question of input.questions.filter((q) => q.status === 'open')) {
-    items.push(`<agent_question at="${question.createdAt.toISOString()}" status="open">${escape(question.text)}</agent_question>`);
-  }
   return `## Conversation\n${items.join('\n\n') || '(no messages)'}`;
+}
+
+const QUESTION_STATUS: Record<string, string> = { open: 'open', answered: 'answered', dismissed: 'closed without an answer' };
+
+/** All questions the agent has asked on the ticket: without them it asks the closed ones again after every rerun. */
+function questionsSection({ questions }: AssembleInput): string | null {
+  if (questions.length === 0) return null;
+  const lines = ['## Your questions to the operator'];
+  for (const question of questions.slice(-MAX_QUESTIONS)) {
+    lines.push(`<agent_question at="${question.createdAt.toISOString()}" status="${QUESTION_STATUS[question.status] ?? question.status}">${escape(question.text)}</agent_question>`);
+  }
+  lines.push('Answers are in the conversation (answers_question). Do not ask answered or closed questions again. questions_for_operator replaces the open ones: repeat an open question exactly to keep it.');
+  return lines.join('\n');
 }
 
 function renderMessage(message: Message & { authorUser: User | null }, input: AssembleInput): string {

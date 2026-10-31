@@ -28,13 +28,8 @@ const showAnalysis = computed(() => !failed.value && data.value.analysisUpdated 
 const compact = computed(() => !failed.value && !message.value && !props.latest && questions.value.length === 0 && actions.value.length === 0);
 /** A partial run that neither said nor changed anything is not needed in the timeline. */
 const empty = computed(() => compact.value && !showAnalysis.value && !data.value.replyUpdated);
-const expanded = ref(props.latest);
-watch(
-  () => props.latest,
-  (latest) => {
-    if (!latest) expanded.value = false;
-  },
-);
+/** The analysis is collapsed: the reply to the operator already says the essentials. Without a reply, the latest message shows it anyway. */
+const expanded = ref(false);
 
 const departmentTitle = computed(() => {
   const key = data.value.department;

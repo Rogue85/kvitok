@@ -367,6 +367,35 @@ describe('agent', () => {
     expect(llm.requests[0]!.messages[1]!.content).toContain('answers_question="Какая сумма чека?"');
   });
 
+  it('questions on a rerun: closed ones stay in the context, a repeated open one is kept, not asked anew', async () => {
+    const { channel, http, base } = await setup();
+    const created = await newTicket(channel);
+    const url = `${base}/tickets/${created.ticket_id}`;
+    agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ questions_for_operator: ['Какая сумма чека?', 'Карту прикладывал?'] }))]));
+    await processQueued(created.ticket_id);
+    const amount = await prisma.agentQuestion.findFirstOrThrow({ where: { text: 'Какая сумма чека?' } });
+    const card = await prisma.agentQuestion.findFirstOrThrow({ where: { text: 'Карту прикладывал?' } });
+    await http.post(`${url}/agent/questions/${card.id}/dismiss`);
+
+    const llm = new ScriptedLlm([toolCall('submit_result', result({ questions_for_operator: ['какая сумма чека', 'Какая сумма чека?', 'Где была покупка?'] }))]);
+    agent.setLlm(llm);
+    await http.post(`${url}/agent/run`, { mode: 'refine' });
+    await processQueued(created.ticket_id);
+
+    const context = llm.requests[0]!.messages[1]!.content as string;
+    expect(context).toContain('status="open">Какая сумма чека?</agent_question>');
+    expect(context).toContain('status="closed without an answer">Карту прикладывал?</agent_question>');
+    const questions = await prisma.agentQuestion.findMany();
+    expect(Object.fromEntries(questions.map((q) => [q.text, q.status]))).toEqual({
+      'Какая сумма чека?': 'open',
+      'Карту прикладывал?': 'dismissed',
+      'Где была покупка?': 'open',
+    });
+    expect(questions.find((q) => q.text === 'Какая сумма чека?')!.id).toBe(amount.id);
+    const event = await prisma.ticketEvent.findFirstOrThrow({ where: { ticketId: created.ticket_id, type: 'agent_analyzed' }, orderBy: { createdAt: 'desc' } });
+    expect((event.data as { questions: Array<{ text: string }> }).questions.map((q) => q.text)).toEqual(['Где была покупка?']);
+  });
+
   it('a model error: the run fails, an event in the ticket, the state is failed', async () => {
     const { channel } = await setup();
     const created = await newTicket(channel);

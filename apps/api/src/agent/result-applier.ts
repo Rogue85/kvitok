@@ -205,9 +205,22 @@ export class ResultApplier {
       }
 
       // The list of questions replaces the open ones; no section (partial run) — the open ones stay.
-      const questions = (result.questions_for_operator ?? []).map((text) => ({ id: newId(), text }));
+      // An open question repeated as is stays where it was asked: the new message carries only new questions.
+      let questions: Array<{ id: string; text: string }> = [];
       if (result.questions_for_operator !== undefined) {
-        await tx.agentQuestion.updateMany({ where: { ticketId: ticket.id, status: 'open' }, data: { status: 'dismissed' } });
+        const asked = new Set(result.questions_for_operator.map(normalizeQuestion));
+        const open = await tx.agentQuestion.findMany({ where: { ticketId: ticket.id, status: 'open' }, select: { id: true, text: true } });
+        const kept = open.filter((q) => asked.has(normalizeQuestion(q.text)));
+        await tx.agentQuestion.updateMany({
+          where: { id: { in: open.filter((q) => !kept.includes(q)).map((q) => q.id) } },
+          data: { status: 'dismissed' },
+        });
+        const seen = new Set(kept.map((q) => normalizeQuestion(q.text)));
+        for (const text of result.questions_for_operator) {
+          if (seen.has(normalizeQuestion(text))) continue;
+          seen.add(normalizeQuestion(text));
+          questions.push({ id: newId(), text });
+        }
       }
       if (questions.length > 0) {
         await tx.agentQuestion.createMany({
@@ -261,4 +274,9 @@ export class ResultApplier {
       return 'applied';
     });
   }
+}
+
+/** The same question asked again: case, spacing and the final punctuation do not matter. */
+function normalizeQuestion(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, ' ').replace(/[\s.?!]+$/, '').trim();
 }
