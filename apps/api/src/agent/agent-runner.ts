@@ -40,7 +40,9 @@ export class AgentRunError extends Error {}
 
 /**
  * Tool loop: the model reads playbooks and finishes the analysis by calling submit_*.
- * Invalid arguments go back to the model with the errors (up to two attempts to fix).
+ * An invalid result goes back to the model with the errors (up to two attempts to fix). The fix comes as a JSON object
+ * in the message text: some providers corrupt long tool-call arguments on the way (their call markup leaks into the
+ * strings), and a repeated call fails the same way, while text does not go through that translation.
  * Without tool support — a single JSON answer in content.
  */
 @Injectable()
@@ -54,16 +56,20 @@ export class AgentRunner {
     let toolCalls = 0;
     let repairs = 0;
     let forceSubmit = false;
+    /** After an invalid submit: the result is expected as JSON in the message text, tools stay defined but unused. */
+    let submitAsText = false;
+    const resultKeys = Object.keys((context.tools.find((t) => t.name === context.submitTool)?.parameters.properties ?? {}) as object);
 
     const callLlm = async () => {
       input.signal?.throwIfAborted();
       const started = Date.now();
       const onlySubmit = forceSubmit || toolCalls >= snapshot.settings.maxToolCalls;
       const tools = onlySubmit ? context.tools.filter((t) => t.name === context.submitTool) : context.tools;
+      const toolChoice: LlmRequest['toolChoice'] = submitAsText ? 'none' : onlySubmit ? { name: context.submitTool } : 'auto';
       const request: LlmRequest = {
         model: input.model,
         messages,
-        ...(supportsTools ? { tools, toolChoice: onlySubmit ? { name: context.submitTool } : ('auto' as const) } : { jsonMode: true }),
+        ...(supportsTools ? { tools, toolChoice } : { jsonMode: true }),
         temperature: snapshot.settings.temperature,
         maxTokens: snapshot.settings.maxOutputTokens,
         signal: input.signal,
@@ -100,9 +106,9 @@ export class AgentRunner {
 
     const tryParse = (raw: unknown): { ok: true; value: AgentResult } | { ok: false; error: string } => {
       // Call markup inside a string — the model lost track of the arguments; the schema would accept it, but the data would be corrupted.
-      const leaked = findLeakedMarkup(raw);
+      const leaked = findLeakedMarkup(raw, resultKeys);
       if (leaked) {
-        return { ok: false, error: `${leaked}: tool-call markup (<parameter …>) leaked into the value. Pass every field as a separate JSON field, without markup` };
+        return { ok: false, error: `${leaked}: tool-call markup or other fields leaked into the value; every field must be a separate JSON field` };
       }
       const parsed = schema.safeParse(raw);
       return parsed.success
@@ -131,7 +137,32 @@ export class AgentRunner {
 
       messages.push({ role: 'assistant', content: response.content, toolCalls: response.toolCalls });
 
+      if (submitAsText && response.toolCalls.length === 0) {
+        const parsed = tryParse(extractJson(response.content));
+        await input.onStep?.({
+          kind: 'tool',
+          name: context.submitTool,
+          input: { text: response.content },
+          output: parsed.ok ? 'accepted from text' : null,
+          error: parsed.ok ? null : parsed.error,
+          tokensIn: null,
+          tokensOut: null,
+          durationMs: 0,
+        });
+        if (parsed.ok) return { result: parsed.value, usage };
+        repairs += 1;
+        if (repairs > MAX_REPAIRS) throw new AgentRunError(t('api.agent.invalidSubmit', { tool: context.submitTool, error: parsed.error }));
+        messages.push({ role: 'user', content: `The JSON failed validation: ${parsed.error}. ${textResultRequest(context.submitTool)}` });
+        continue;
+      }
+
       if (response.toolCalls.length === 0) {
+        // A finished result written as text instead of a call is a result all the same.
+        const asText = extractJson(response.content);
+        if (asText !== undefined) {
+          const parsed = tryParse(asText);
+          if (parsed.ok) return { result: parsed.value, usage };
+        }
         if (repairs >= MAX_REPAIRS) throw new AgentRunError(t('api.agent.noSubmit'));
         repairs += 1;
         forceSubmit = true;
@@ -159,7 +190,9 @@ export class AgentRunner {
       if (invalid !== null) {
         repairs += 1;
         if (repairs > MAX_REPAIRS) throw new AgentRunError(t('api.agent.invalidSubmit', { tool: context.submitTool, error: invalid }));
-        forceSubmit = true;
+        submitAsText = true;
+        messages.push({ role: 'user', content: `Do not call ${context.submitTool} again. ${textResultRequest(context.submitTool)}` });
+        continue;
       }
       if (toolCalls >= snapshot.settings.maxToolCalls) {
         messages.push({ role: 'user', content: `The tool limit is used up. Finish the analysis with a ${context.submitTool} call using the data you have.` });
@@ -202,7 +235,7 @@ export class AgentRunner {
       });
       return parsed.ok
         ? { kind: 'submitted', value: parsed.value }
-        : { kind: 'invalid', error: parsed.error, content: `Validation error: ${parsed.error}. Fix it and call ${context.submitTool} again.` };
+        : { kind: 'invalid', error: parsed.error, content: `Validation error: ${parsed.error}.` };
     }
 
     if (tools?.has(call.name)) {
@@ -234,6 +267,10 @@ export class AgentRunner {
     await onStep?.({ kind: 'tool', name: call.name, input: args ?? call.arguments, output: content, error, tokensIn: null, tokensOut: null, durationMs: Date.now() - started });
     return { kind: 'tool', content };
   }
+}
+
+function textResultRequest(submitTool: string): string {
+  return `Reply with the whole corrected result as one JSON object in the message text: the same fields as the ${submitTool} arguments, each a separate JSON field, nothing around it.`;
 }
 
 function isCompleteJson(text: string | null): boolean {

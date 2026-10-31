@@ -4,6 +4,7 @@ import type { Message, Ticket, User } from '../generated/prisma/client';
 import { AgentRunError, AgentRunner, extractJson } from './agent-runner';
 import type { AgentConfigSnapshot } from './config-snapshot.service';
 import { assembleContext, type AssembleInput } from './context-assembler';
+import { findLeakedMarkup } from './submit-schema';
 
 const snapshot: AgentConfigSnapshot = {
   corePromptVersion: 1,
@@ -187,14 +188,28 @@ describe('AgentRunner', () => {
     expect(toolMessage).toMatchObject({ role: 'tool', content: expect.stringContaining('Попроси номер чека.') });
   });
 
-  it('an invalid department goes back to the model with an error and gets fixed', async () => {
-    const llm = new ScriptedLlm([toolCall('submit_result', result({ department: 'sales' })), toolCall('submit_result', result({ department: 'loyalty' }))]);
+  it('an invalid department goes back to the model with an error, and the fix comes as JSON in the text', async () => {
+    const llm = new ScriptedLlm([toolCall('submit_result', result({ department: 'sales' })), text(JSON.stringify(result({ department: 'loyalty' })))]);
+    const steps: Array<{ name: string | null; output: unknown }> = [];
+
+    const output = await runner.run({ client: llm, model: 'm', snapshot, context: assembleContext(input()), onStep: (s) => void steps.push(s) });
+
+    expect(output.result).toMatchObject({ department: 'loyalty' });
+    const repair = llm.requests[1]!;
+    expect(repair.messages.at(-2)).toMatchObject({ role: 'tool', content: expect.stringContaining('loyalty, general') });
+    expect(repair.messages.at(-1)).toMatchObject({ role: 'user', content: expect.stringContaining('one JSON object in the message text') });
+    expect(repair.toolChoice).toBe('none');
+    expect(repair.tools!.map((t) => t.name)).toContain('submit_result');
+    expect(steps.at(-1)).toMatchObject({ name: 'submit_result', output: 'accepted from text' });
+  });
+
+  it('a result written as text instead of a call is accepted without a repair round', async () => {
+    const llm = new ScriptedLlm([text('Итог:\n' + JSON.stringify(result({ department: 'loyalty' })))]);
 
     const output = await runner.run({ client: llm, model: 'm', snapshot, context: assembleContext(input()) });
 
     expect(output.result).toMatchObject({ department: 'loyalty' });
-    expect(llm.requests[1]!.messages.at(-1)!.content).toContain('loyalty, general');
-    expect(llm.requests[1]!.toolChoice).toEqual({ name: 'submit_result' });
+    expect(llm.requests).toHaveLength(1);
   });
 
   it('if the model answered with text — asks it to finish via submit_result', async () => {
@@ -232,14 +247,30 @@ describe('AgentRunner', () => {
     expect(assembleContext(input()).tools.find((t) => t.name === 'submit_result')!.parameters).toMatchObject({ required: expect.arrayContaining(['reply_body']) });
   });
 
-  it('call markup leaked into a string is rejected and the model fixes it', async () => {
-    const broken = result({ findings: ['Чек 7781</findings>\n<parameter name="fields">{"receipt_number": "7781"}'] });
-    const llm = new ScriptedLlm([toolCall('submit_result', broken), toolCall('submit_result', result({ findings: ['Чек 7781'] }))]);
+  it('call markup leaked into a string is rejected and the result comes again as JSON in the text', async () => {
+    // As a provider translating Claude's XML calls returned it: a parameter closed with its own name swallowed the next one.
+    const broken = result({ routing_reason: 'Жалоба на бариста</routing_reason>\n<parameter name="summary">Мария жалуется на горький раф' });
+    const llm = new ScriptedLlm([toolCall('submit_result', broken), toolCall('submit_result', broken), text(JSON.stringify(result({ routing_reason: 'Жалоба на бариста' })))]);
 
     const output = await runner.run({ client: llm, model: 'm', snapshot, context: assembleContext(input()) });
 
-    expect(output.result).toMatchObject({ findings: ['Чек 7781'] });
-    expect(llm.requests[1]!.messages.at(-1)!.content).toContain('findings.0: tool-call markup (<parameter …>) leaked into the value');
+    expect(output.result).toMatchObject({ routing_reason: 'Жалоба на бариста' });
+    expect(llm.requests[1]!.messages.at(-2)!.content).toContain('routing_reason: tool-call markup or other fields leaked into the value');
+    // The provider ignored tool_choice: none and the call broke again — the next request still asks for text.
+    expect(llm.requests[2]!.toolChoice).toBe('none');
+  });
+
+  it('a text answer that fails validation gets one more attempt', async () => {
+    const llm = new ScriptedLlm([
+      toolCall('submit_result', result({ department: 'sales' })),
+      text('{"department": "loyalty"'),
+      text(JSON.stringify(result({ department: 'loyalty' }))),
+    ]);
+
+    const output = await runner.run({ client: llm, model: 'm', snapshot, context: assembleContext(input()) });
+
+    expect(output.result).toMatchObject({ department: 'loyalty' });
+    expect(llm.requests[2]!.messages.at(-1)!.content).toContain('The JSON failed validation');
   });
 
   it('several submits in one response: the first valid one is taken, corrupted ones get one repair attempt', async () => {
@@ -291,6 +322,21 @@ describe('AgentRunner', () => {
     await expect(runner.run({ client: new ScriptedLlm([]), model: 'm', snapshot, context: assembleContext(input()), signal: controller.signal })).rejects.toThrow();
   });
 
+});
+
+describe('findLeakedMarkup', () => {
+  const keys = ['summary', 'findings', 'reply_body'];
+
+  it('finds call markup of different model families and fields leaked as JSON', () => {
+    expect(findLeakedMarkup({ summary: 'ok</summary>\n<parameter name="findings">[]' }, keys)).toBe('summary');
+    expect(findLeakedMarkup({ summary: 'ok<tool_call>{"name": "x"}</tool_call>' }, keys)).toBe('summary');
+    expect(findLeakedMarkup({ summary: 'ok<|python_tag|>' }, keys)).toBe('summary');
+    expect(findLeakedMarkup({ findings: ['ok", "reply_body": "Здравствуйте'] }, keys)).toBe('findings.0');
+  });
+
+  it('leaves ordinary text alone', () => {
+    expect(findLeakedMarkup({ summary: 'Клиент пишет: «баллы", "не пришли» — <b>срочно</b>', findings: ['5 < 6'] }, keys)).toBeNull();
+  });
 });
 
 describe('extractJson', () => {

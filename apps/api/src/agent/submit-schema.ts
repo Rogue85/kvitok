@@ -49,17 +49,28 @@ function liftReplyBody(raw: unknown): unknown {
   return typeof body === 'string' ? { ...rest, reply: { needed: body.trim() !== '', body } } : rest;
 }
 
-const LEAKED_MARKUP = /<\/?(?:[a-z]+:)?(?:parameter|invoke|function_calls)\b/i;
+/**
+ * Tool-call markup of different model families: Anthropic-style <parameter>/<invoke>/<function_calls>,
+ * Hermes/Qwen <tool_call>, Llama <function=…> and special tokens like <|python_tag|>.
+ */
+const LEAKED_MARKUP = /<\/?(?:[a-z]+:)?(?:parameter|invoke|function_calls|tool_call)\b|<function=|<\|[a-z_]+\|>/i;
 
-/** Path to the string the tool-call service markup leaked into (the model lost track of the arguments), or null. */
-export function findLeakedMarkup(value: unknown, path = ''): string | null {
-  if (typeof value === 'string') return LEAKED_MARKUP.test(value) ? path || '(root)' : null;
+/**
+ * Path to a string that other arguments leaked into, or null: call markup, or a JSON fragment that starts the next
+ * known field ("…", "summary": "…") — the model or the provider lost track of the arguments.
+ */
+export function findLeakedMarkup(value: unknown, keys: string[] = [], path = ''): string | null {
+  if (typeof value === 'string') return LEAKED_MARKUP.test(value) || leakedJsonField(value, keys) ? path || '(root)' : null;
   if (value === null || typeof value !== 'object') return null;
   for (const [key, item] of Object.entries(value)) {
-    const found = findLeakedMarkup(item, path ? `${path}.${key}` : key);
+    const found = findLeakedMarkup(item, keys, path ? `${path}.${key}` : key);
     if (found) return found;
   }
   return null;
+}
+
+function leakedJsonField(text: string, keys: string[]): boolean {
+  return keys.some((key) => new RegExp(`"\\s*,\\s*"${key}"\\s*:`).test(text));
 }
 
 const fieldValueSchema = z.object({

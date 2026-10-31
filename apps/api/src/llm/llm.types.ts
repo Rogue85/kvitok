@@ -20,8 +20,8 @@ export interface LlmRequest {
   model: string;
   messages: LlmMessage[];
   tools?: LlmTool[];
-  /** auto | required | name of the tool to call. */
-  toolChoice?: 'auto' | 'required' | { name: string };
+  /** auto | required | none (tools stay defined, the model answers with text) | name of the tool to call. */
+  toolChoice?: 'auto' | 'required' | 'none' | { name: string };
   temperature?: number;
   maxTokens?: number;
   /** Ask the model for a JSON object (mode without tools). */
