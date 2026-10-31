@@ -1,0 +1,25 @@
+id: receipt-not-on-card
+title: The receipt was not registered on the card — base cashback by the amount from the ticket
+tags: [loyalty, points]
+guests:
+  - { id: anna, name: Anna, phone: '79000000001', email: anna@example.test, cashback_percent: 5, balance: 340 }
+transactions:
+  - id: anna-t1
+    guest: anna
+    at: 2026-10-14 15:22
+    place: okeania
+    total: 885
+    items:
+      - { name: Cappuccino L, group: Espresso drinks, price: 290 }
+      - { name: Cheesecake, group: Desserts, price: 595 }
+ticket:
+  customer: anna
+  subject: Loyalty program and mobile app
+  body: Yesterday evening around 19:30 I bought a latte for 380 ₽, the app wouldn't open, and the points never came. Can you credit them?
+  sent_at: 2026-10-15 09:10
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 19, transaction_id: null, receipt_total: 380 } }
+  forbid_actions: [issue_coupon]
+  note: There is no 380 ₽ receipt on the card — it was not registered; 380 × 5% = 19.

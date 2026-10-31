@@ -1,0 +1,14 @@
+id: app-login-code
+title: The app login code does not arrive
+tags: [app, no-action]
+guests:
+  - { id: lev, name: Lev, phone: '79000000011', cashback_percent: 3, balance: 40 }
+ticket:
+  customer: lev
+  subject: Loyalty program and mobile app
+  body: I can't log in to the app — the SMS code never arrives, I wait 5 minutes each time and have tried about ten times.
+  sent_at: 2026-10-15 07:45
+expect:
+  department: app
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]

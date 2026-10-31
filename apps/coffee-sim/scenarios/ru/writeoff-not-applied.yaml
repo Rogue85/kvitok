@@ -1,0 +1,25 @@
+id: writeoff-not-applied
+title: Баллы списались, но не ушли в оплату
+tags: [loyalty, points]
+guests:
+  - { id: gleb, name: Глеб, phone: '79000000004', cashback_percent: 5, balance: 15 }
+transactions:
+  - id: gleb-t1
+    guest: gleb
+    at: 2026-10-14 08:31
+    place: okeania
+    total: 450
+    balance_writeoff: 120
+    items:
+      - { name: Флэт уайт M, group: Напитки на основе эспрессо, price: 270 }
+      - { name: Сырники, group: Еда, price: 180 }
+ticket:
+  customer: gleb
+  subject: Программа лояльности и мобильное приложение
+  body: Вчера утром хотел оплатить баллами, их списали — 120 штук, а с карты всё равно сняли всю сумму 450 ₽. Верните баллы.
+  sent_at: 2026-10-15 08:55
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: writeoff_refund, amount: 120, transaction_id: gleb-t1 } }
+  forbid_actions: [issue_coupon, accrue_cups]

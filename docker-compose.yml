@@ -1,0 +1,157 @@
+# Development environment: infrastructure and the apps with hot reload.
+# `docker compose up` starts everything; the code is mounted from the host, dependencies live in container volumes.
+# Infrastructure only (if the apps run on the host): `docker compose up -d postgres redis`.
+
+name: kvitok
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/dev.Dockerfile
+  image: kvitok-dev
+  working_dir: /app
+  init: true
+  volumes:
+    - .:/app
+    # node_modules of every package in its own volume: the host has macOS builds of native modules, the container needs Linux ones.
+    - node_modules:/app/node_modules
+    - api_node_modules:/app/apps/api/node_modules
+    - web_node_modules:/app/apps/web/node_modules
+    - sim_node_modules:/app/apps/coffee-sim/node_modules
+    - shared_node_modules:/app/packages/shared/node_modules
+    - protocol_node_modules:/app/packages/protocol/node_modules
+    - pnpm_store:/pnpm-store
+
+x-api-env: &api-env
+  # The rest (APP_SECRET etc.) comes from apps/api/.env; service addresses are inside the compose network.
+  DATABASE_URL: postgresql://kvitok:kvitok@postgres:5432/kvitok
+  REDIS_URL: redis://redis:6379
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: kvitok
+      POSTGRES_PASSWORD: kvitok
+      POSTGRES_DB: kvitok
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kvitok"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio:/data
+    profiles: [minio]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Installs dependencies into the volumes and builds the packages (postinstall). Rerunning it is fast.
+  deps:
+    <<: *app
+    command: pnpm install --frozen-lockfile --store-dir /pnpm-store
+    environment:
+      CI: "true"
+
+  migrate:
+    <<: *app
+    command: pnpm --filter @kvitok/api db:deploy
+    env_file: apps/api/.env
+    environment: *api-env
+    depends_on:
+      deps:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: pnpm --filter @kvitok/api dev
+    env_file: apps/api/.env
+    environment: *api-env
+    ports:
+      - "3001:3001"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Queues: sending emails and webhooks, receiving mail, the agent.
+  worker:
+    <<: *app
+    command: pnpm --filter @kvitok/api dev:worker
+    env_file: apps/api/.env
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    command: pnpm --filter @kvitok/web exec nuxt dev --host 0.0.0.0
+    environment:
+      API_URL: http://api:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      deps:
+        condition: service_completed_successfully
+
+  # The coffee shop simulator. In a workspace integration its address is http://coffee-sim:3100.
+  # Language of its data and texts — SIM_LOCALE (en, ru) in the .env next to this file.
+  coffee-sim:
+    <<: *app
+    command: pnpm --filter @kvitok/coffee-sim exec tsx watch src/cli.ts serve --host 0.0.0.0 --port 3100
+    environment:
+      SIM_LOCALE: ${SIM_LOCALE:-en}
+    ports:
+      - "3100:3100"
+    depends_on:
+      deps:
+        condition: service_completed_successfully
+
+  # A fake OpenAI-compatible LLM for debugging at no cost. Provider address: http://fake-llm:3999/v1.
+  fake-llm:
+    <<: *app
+    command: node apps/api/scripts/fake-llm.mjs
+    ports:
+      - "3999:3999"
+
+volumes:
+  postgres:
+  minio:
+  node_modules:
+  api_node_modules:
+  web_node_modules:
+  sim_node_modules:
+  shared_node_modules:
+  protocol_node_modules:
+  pnpm_store:

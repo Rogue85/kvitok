@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Brand: the orange of the k icon (500) is for graphics; buttons use 600 so white text keeps 5:1. */
+@theme static {
+  --font-sans: 'Onest', sans-serif;
+
+  --color-brand-50: #fff4ef;
+  --color-brand-100: #ffe5da;
+  --color-brand-200: #ffc8b2;
+  --color-brand-300: #ffa383;
+  --color-brand-400: #ff7a4d;
+  --color-brand-500: #f2551d;
+  --color-brand-600: #c93c0c;
+  --color-brand-700: #a2300b;
+  --color-brand-800: #82290f;
+  --color-brand-900: #6a2510;
+  --color-brand-950: #3a1005;
+}
+
+:root {
+  --ui-primary: var(--ui-color-primary-600);
+}
+.dark {
+  --ui-primary: var(--ui-color-primary-400);
+}
+
+/* HTML of operator replies in the timeline (already sanitized by the server). */
+.message-html p { margin: 0 0 0.5em; }
+.message-html p:last-child { margin-bottom: 0; }
+.message-html ul { list-style: disc; padding-left: 1.25em; }
+.message-html ol { list-style: decimal; padding-left: 1.25em; }
+.message-html a { color: var(--ui-primary); text-decoration: underline; }
+.message-html blockquote { border-left: 3px solid var(--ui-border-accented); padding-left: 0.5em; color: var(--ui-text-muted); }
+
+/* AI style of agent messages: one gradient for the border, background, avatar and name. */
+.ai-card {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background:
+    linear-gradient(120deg, rgb(139 92 246 / 0.07), rgb(59 130 246 / 0.05) 50%, rgb(236 72 153 / 0.05)) padding-box,
+    linear-gradient(var(--ui-bg), var(--ui-bg)) padding-box,
+    linear-gradient(120deg, rgb(139 92 246 / 0.45), rgb(59 130 246 / 0.4), rgb(236 72 153 / 0.4)) border-box;
+}
+.dark .ai-card {
+  background:
+    linear-gradient(120deg, rgb(139 92 246 / 0.12), rgb(59 130 246 / 0.08) 50%, rgb(236 72 153 / 0.08)) padding-box,
+    linear-gradient(var(--ui-bg), var(--ui-bg)) padding-box,
+    linear-gradient(120deg, rgb(139 92 246 / 0.6), rgb(59 130 246 / 0.5), rgb(236 72 153 / 0.5)) border-box;
+}
+.ai-orb { background: conic-gradient(from 200deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6); color: #fff; }
+.ai-text { background: linear-gradient(90deg, #7c3aed, #2563eb, #db2777); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.dark .ai-text { background-image: linear-gradient(90deg, #a78bfa, #60a5fa, #f472b6); }
+.ai-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.2rem 0.6rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500;
+  color: #6d28d9; background: rgb(255 255 255 / 0.7); border: 1px solid rgb(139 92 246 / 0.35);
+}
+.ai-chip:hover { background: rgb(139 92 246 / 0.1); }
+.dark .ai-chip { color: #c4b5fd; background: rgb(139 92 246 / 0.12); }

@@ -1,0 +1,46 @@
+{
+  "name": "@kvitok/coffee-sim",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Coffee shop chain backend simulator: the Support Action Protocol on synthetic data and scenarios with expected answers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "coffee-sim": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "content",
+    "scenarios"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm --dts --clean",
+    "dev": "tsx watch src/cli.ts serve",
+    "start": "node dist/cli.js serve",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "conformance": "tsx src/cli.ts conformance",
+    "seed": "tsx src/cli.ts seed"
+  },
+  "dependencies": {
+    "@kvitok/protocol": "workspace:*",
+    "fastify": "5.11.3",
+    "yaml": "^2.8.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsup": "^9.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

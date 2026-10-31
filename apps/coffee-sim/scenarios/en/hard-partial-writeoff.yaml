@@ -1,0 +1,26 @@
+id: hard-partial-writeoff
+title: More points were written off than went towards the payment
+tags: [hard, loyalty, points]
+guests:
+  - { id: hasan, name: Hasan, phone: '79000000022', cashback_percent: 5, balance: 40 }
+transactions:
+  - id: hasan-t1
+    guest: hasan
+    at: 2026-10-14 17:45
+    place: arbat
+    total: 450
+    balance_writeoff: 150
+    items:
+      - { name: Flat white L, group: Espresso drinks, price: 300 }
+      - { name: Muffin, group: Desserts, price: 200 }
+ticket:
+  customer: hasan
+  subject: Loyalty program and mobile app
+  body: Yesterday on Arbat 150 points were written off, but the discount on the receipt was only 50 rubles. Return the remaining 100.
+  sent_at: 2026-10-15 09:00
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: writeoff_refund, amount: 100, transaction_id: hasan-t1 } }
+  forbid_actions: [issue_coupon, accrue_cups]
+  note: The guest talks about part of the write-off — return 100 of 150.

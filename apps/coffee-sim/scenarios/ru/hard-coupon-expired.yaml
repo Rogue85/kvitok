@@ -1,0 +1,20 @@
+id: hard-coupon-expired
+title: Купон на подарочный напиток истёк
+tags: [hard, loyalty, cups, no-action]
+guests:
+  - { id: nina, name: Нина, phone: '79000000027', cashback_percent: 3, balance: 30 }
+coupons:
+  - { id: nina-c1, guest: nina, type: free_drink, created_at: 2026-09-05 12:00, source: cups }
+cups:
+  - { guest: nina, at: 2026-08-20 09:00, delta: 5, reason: opening }
+  - { guest: nina, at: 2026-09-05 12:00, delta: -5, reason: writeoff }
+ticket:
+  customer: nina
+  subject: Программа лояльности и мобильное приложение
+  body: У меня был купон на бесплатный кофе за 6-ю кружку, а теперь он пропал из приложения. Верните купон.
+  sent_at: 2026-10-15 12:00
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_cups, issue_coupon]
+  note: Купон выдан 05.09 на 30 дней и истёк 05.10 — это не сбой; продлевать или нет, решает оператор.

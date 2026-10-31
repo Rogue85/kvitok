@@ -1,0 +1,23 @@
+id: hard-promo-weekday
+title: Круассан за капучино — покупка в субботу, акция только по будням
+tags: [hard, loyalty, promo, no-action]
+guests:
+  - { id: fedor, name: Фёдор, phone: '79000000021', cashback_percent: 5, balance: 75 }
+transactions:
+  - id: fedor-t1
+    guest: fedor
+    at: 2026-10-10 11:30
+    place: okeania
+    total: 290
+    items:
+      - { name: Капучино L, group: Напитки на основе эспрессо, price: 290 }
+ticket:
+  customer: fedor
+  subject: Программа лояльности и мобильное приложение
+  body: В Океании брал капучино L 10 октября, по акции должен был получить купон на круассан. Не пришёл.
+  sent_at: 2026-10-13 09:15
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [issue_coupon]
+  note: Акция только по будням, 10.10 — суббота; записи в журнале по акции нет.

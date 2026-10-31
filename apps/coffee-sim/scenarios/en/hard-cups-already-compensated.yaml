@@ -1,0 +1,27 @@
+id: hard-cups-already-compensated
+title: Support already credited the cups — do not credit again
+tags: [hard, loyalty, cups, no-action]
+guests:
+  - { id: masha, name: Masha, phone: '79000000026', cashback_percent: 5, balance: 95 }
+cups:
+  - { guest: masha, at: 2026-10-01 09:00, delta: 1, reason: opening }
+  - { guest: masha, at: 2026-10-14 16:00, delta: 2, reason: manual }
+transactions:
+  - id: masha-t1
+    guest: masha
+    at: 2026-10-14 08:10
+    place: okeania
+    total: 520
+    cups_counted: 0
+    items:
+      - { name: Cappuccino M, group: Espresso drinks, price: 260, amount: 2 }
+ticket:
+  customer: masha
+  subject: Loyalty program and mobile app
+  body: Yesterday morning I got two cappuccinos and the promo cups were not counted. I'm writing again, please check!
+  sent_at: 2026-10-15 08:15
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_cups]
+  note: The receipt's drinks were not counted, but support already credited 2 cups manually on 14.10 at 16:00 — do not credit again.

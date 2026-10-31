@@ -1,0 +1,25 @@
+id: cups-ready-not-claimed
+title: Five cups collected, the guest has not claimed the coupon
+tags: [loyalty, cups, no-action]
+guests:
+  - { id: kira, name: Kira, phone: '79000000010', cashback_percent: 5, balance: 190 }
+cups:
+  - { guest: kira, at: 2026-10-01 09:00, delta: 3, reason: opening }
+transactions:
+  - id: kira-t1
+    guest: kira
+    at: 2026-10-14 17:05
+    place: okeania
+    total: 560
+    items:
+      - { name: Latte M, group: Espresso drinks, price: 280, amount: 2 }
+ticket:
+  customer: kira
+  subject: Loyalty program and mobile app
+  body: I already have five cups, but the free coffee never came. When will it?
+  sent_at: 2026-10-15 08:00
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_cups, issue_coupon]
+  note: The coupon does not come by itself — the guest claims it in the app in the promo section.

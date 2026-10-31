@@ -1,0 +1,838 @@
+# Русский каталог. Ключи — как в en.yaml; плейсхолдеры {name} не переводятся.
+# Множественное число: one (1, 21), few (2–4, 22–24), many (5–20, 25…), other (дроби).
+
+common:
+  appName: Kvitok
+  save: Сохранить
+  cancel: Отмена
+  edit: Изменить
+  delete: Удалить
+  add: Добавить
+  create: Создать
+  close: Закрыть
+  clear: Очистить
+  enable: Включить
+  disable: Отключить
+  disabled: Отключён
+  copy: Скопировать
+  copied: Скопировано
+  yes: Да
+  no: Нет
+  none: "—"
+  loading: Загрузка…
+  error: Ошибка
+  logout: Выйти
+  name: Название
+  title: Заголовок
+  key: Ключ
+  description: Описание
+  search: Поиск
+  justNow: только что
+  bytes: "{value} Б"
+  kilobytes: "{value} КБ"
+  megabytes: "{value} МБ"
+  serverUnavailable: Сервер недоступен
+  actionFailed: Не удалось выполнить действие
+
+nav:
+  tickets: Тикеты
+  settings: Настройки
+  members: Участники
+  channels: Каналы
+  integrations: Интеграции
+  departments: Отделы
+  fields: Поля
+  agent: Агент
+  playbooks: Плейбуки
+  rules: Правила
+
+auth:
+  subtitle: Вход для операторов
+  password: Пароль
+  signIn: Войти
+  signInFailed: Не удалось войти
+
+workspaceSetup:
+  noWorkspaces: Нет доступных workspace
+  slugHelp: Латиница, цифры и дефисы
+  create: Создать workspace
+  createFailed: Не удалось создать workspace
+  askAdmin: Попросите администратора добавить вас в workspace.
+
+ticketStatus:
+  new: Новый
+  open: Открыт
+  pending: Ждём клиента
+  resolved: Решён
+  closed: Закрыт
+
+ticketPriority:
+  low: Низкий
+  normal: Обычный
+  high: Высокий
+  urgent: Срочный
+
+deliveryStatus:
+  queued: В очереди
+  sending: Отправляется
+  sent: Отправлено
+  failed: Ошибка
+  cancelled: Отменено
+
+fieldSource:
+  operator: Заполнил оператор
+  agent: Заполнил агент
+  ingest: Пришло из источника
+  rule: Заполнило правило
+  integration: Из интеграции
+  confidence: "уверенность {percent}%"
+  locked: закреплено — агент и правила не перезапишут
+
+events:
+  actor:
+    system: Система
+    channel: Канал
+    rule: Правило
+    agent: Агент
+  deletedDepartment: удалённый отдел
+  noDepartment: без отдела
+  formerMember: бывший участник
+  nobody: никто
+  undetermined: не определён
+  ticketCreated: "Тикет создан ({source})"
+  statusChanged: "Статус: {from} → {to}"
+  priorityChanged: "Приоритет: {from} → {to}"
+  departmentChanged: "Отдел: {from} → {to}"
+  departmentByAgent: "(агент, {percent}%)"
+  assigneeChanged: "Исполнитель: {from} → {to}"
+  tagsChanged: "Теги: {tags}"
+  subjectChanged: "Тема: «{subject}»"
+  fieldChanged: "{label}: {from} → {to}"
+  bySource:
+    agent: (агент)
+    rule: (правило)
+    ingest: (источник)
+  fieldsRejected: "Отклонены поля: {fields}"
+  replyCancelled: Отправка ответа отменена
+  deliveryFailedEmail: "Не удалось доставить письмо: {error}"
+  deliveryFailedWebhook: "Не удалось доставить webhook: {error}"
+  deliveryBounced: "Письмо не доставлено: {reason}"
+  agentAnalyzed: "Агент разобрал тикет: отдел {department}"
+  agentRefined: "Агент пересобрал разбор: отдел {department}"
+  toTriage: → в разбор
+  confidenceSuffix: ", {percent}%"
+  approvalComment: "(«{comment}»)"
+  rejectionComment: "— «{comment}»"
+  customerLinked: "Клиент в «{integration}»: {customer}"
+  integrationFallback: интеграции
+  customerFound: найден
+  linkedByOperator: (привязал оператор)
+  actionApproved: "Подтверждено: {action}"
+  actionRejected: "Отклонено: {action}"
+  actionRetried: "Повтор исполнения: {action}"
+  actionExecuted: "Исполнено: {action}"
+  actionFailed: "Не исполнено: {action} — {error}"
+  agentFailed: "Агент не смог разобрать тикет: {error}"
+
+validation:
+  minLength: "Не короче {min} символов"
+  slug: латиница, цифры и дефисы
+  identifier: латиница в нижнем регистре, цифры и _, начинается с буквы
+  fieldKey: латиница в нижнем регистре, цифры и _, начинается с буквы
+  customerRefOrIdentities: Либо customerRef, либо identities
+  identityRequired: Укажите хотя бы одну идентичность
+  smtpRequired: Нужны настройки SMTP
+  sandboxHasNoServers: У тестового ящика нет SMTP и IMAP
+  invalidRegex: Некорректное регулярное выражение
+  betweenRange: "Для between нужен [от, до]"
+  optionsRequired: Для списка нужны варианты
+  optionsUnique: Значения вариантов должны быть уникальны
+  number: Ожидается число
+  integer: Ожидается целое число
+  min: "Не меньше {min}"
+  max: "Не больше {max}"
+  unknownOption: Нет такого варианта
+  phone: Некорректный телефон
+
+tickets:
+  views:
+    open: Открытые
+    pending: Ждём клиента
+    done: Решённые
+    all: Все
+  columns:
+    subject: Тема
+    status: Статус
+    department: Отдел
+    assignee: Исполнитель
+    updated: Обновлён
+  filters:
+    allDepartments: Все отделы
+    noDepartment: Без отдела
+    anyone: Все
+    mine: Мои
+    unassigned: Без исполнителя
+  searchPlaceholder: "Тема, #T-12, email, телефон"
+  noCustomer: Без клиента
+  empty:
+    title: Тикетов нет
+    description: Заявки появятся здесь, когда придут по API или на почту.
+
+ticket:
+  saveFailed: Не удалось сохранить
+  agentState:
+    idle: Агент готов
+    queued: Агент в очереди
+    running: Агент думает…
+    failed: Ошибка агента
+    off: Агент выключен
+  rerunStarted: Агент разбирает тикет заново
+  rerun: Разобрать заново
+  agentRuns: Прогоны агента
+  backToList: К списку
+  hideProperties: Скрыть свойства
+  showProperties: Показать свойства
+  properties: Свойства тикета
+  notFound: Тикет не найден
+  answerToAgent: ответ на вопрос агента
+  operator: Оператор
+  toAgent: "{author} → агенту · {time}"
+  sidebar:
+    unassigned: Не назначен
+    properties: Свойства
+    priority: Приоритет
+    department: Отдел
+    pinned: закреплён
+    assignee: Исполнитель
+    tags: Теги
+    fields: Поля
+    saveFields: Сохранить поля
+    customer: Клиент
+    noName: Без имени
+    noCustomer: Клиент не определён
+    participants: Участники переписки
+
+message:
+  customer: Клиент
+  customerVia: "Клиент · {source}"
+  internal: Внутреннее
+  autoReply: Автоответ
+  hideQuote: Скрыть цитату
+  showFull: Показать письмо полностью
+  showImages: Показать картинки
+  deliveryEmail: "Email: {status}"
+  deliverySource: "Источник: {status}"
+  inSandbox: В тестовом ящике
+  cancelSending: "Отменить ({seconds} с)"
+
+reply:
+  title: Ответ клиенту
+  nowhere:
+    title: Ответить некуда
+    api: "Тикет пришёл через API-канал «{channel}», а у него нет webhook или канал выключен. Ответ уходит только в канал-источник: подключите webhook именно у «{channel}» или выберите почтовый ящик по умолчанию в настройках каналов."
+    email: "Почтовый ящик «{channel}», через который пришёл тикет, выключен. Включите его или выберите почтовый ящик по умолчанию в настройках каналов."
+    noChannel: У тикета нет канала-источника. Подключите почтовый ящик по умолчанию в настройках каналов.
+  viaSource: "В источник ({channel})"
+  emailTo: "Email → {to}"
+  noRecipient: нет адресата
+  ccCount: ", копия: {count}"
+  toSource: "в источник ({channel})"
+  noChannelSelected: Не выбран канал
+  send:
+    pending: Отправить и ждать ответа
+    resolved: Отправить и решить тикет
+    keep: Отправить, не меняя статус
+  agentVersion: "версия агента v{version}"
+  editsSaved: ваши правки сохранены
+  sendingSoon: Ответ отправится через несколько секунд
+  sendFailed: Не удалось отправить
+  cancelled: Отправка отменена, текст вернулся в редактор
+  cancelFailed: Не удалось отменить
+  collapse: свернуть
+  change: изменить
+  collapseReply: Свернуть ответ
+  to: Кому
+  cc: Копия
+  recipientRequired: Укажите адрес клиента
+  suggested:
+    title: Агент предложил новую версию ответа
+    description: Ваши правки сохранены. Можно сравнить и выбрать.
+    compare: Сравнить
+  takeAgentVersion: Взять версию агента
+  placeholder: Текст ответа…
+  sendAnyway: Всё равно отправить
+  statusAfter: Что сделать со статусом
+  compareTitle: Сравнение версий ответа
+  yourVersion: Ваша версия
+  agentVersionTitle: Версия агента
+  keepMine: Оставить мою
+
+customerLinks:
+  status:
+    found: найден
+    ambiguous: несколько совпадений
+    not_found: не найден
+    unresolved: ещё не искали
+  identity:
+    phone: Телефон
+    email: Email
+    card_number: Номер карты
+  found: "Клиент найден: {customer}"
+  agentWillRefine: Агент пересоберёт разбор с его данными.
+  ambiguous: Найдено несколько клиентов — выберите нужного
+  notFound: Клиент не найден
+  searchFailed: Не удалось найти клиента
+  linkedByOperator: привязал оператор
+  agentWillFind: Агент найдёт клиента при разборе.
+  choose: Выбрать
+  findBy: Найти по…
+  find: Найти
+  searchAgain: Искать заново по контактам
+
+action:
+  status:
+    proposed: ждёт решения
+    approved: исполняется
+    executing: исполняется
+    executed: исполнено
+    failed: ошибка
+    rejected: отклонено
+    superseded: заменено
+  rejected: Действие отклонено
+  sentForExecution: Действие отправлено на исполнение
+  parameters: "Параметры · {integration}"
+  executedAt: "Исполнено {time}"
+  approvedBy: "подтвердил {name}"
+  approvedByCapital: "Подтвердил {name}"
+  rejectedBy: "Отклонил {name}"
+  operator: оператор
+  quoted: "«{text}»"
+  attempt: "попытка {attempt}"
+  rejectReasonPlaceholder: Причина — её увидит агент (необязательно)
+  approve: Подтвердить
+  reject: Отклонить
+  retry: Повторить
+
+agentChat:
+  placeholder:
+    disabled: Агент выключен — сообщение увидят только операторы
+    answer: Ответ на вопрос агента…
+    refineReply: "Попросите агента поправить ответ: короче, мягче, добавить извинение…"
+    default: "Напишите агенту: уточнение, вопрос, что поправить…"
+  answeringQuestion: "Ответ на вопрос: {question}"
+  dontAnswer: Не отвечать на вопрос
+  teamOnly: Видно только команде
+  replyToCustomer: Ответить клиенту
+
+agentRuns:
+  mode:
+    triage: Разбор
+    refine: Уточнение
+  status:
+    queued: в очереди
+    running: идёт
+    applied: применён
+    stale: устарел
+    failed: ошибка
+    cancelled: отменён
+  trigger:
+    ticket_created: новый тикет
+    customer_message: сообщение клиента
+    operator_message: сообщение оператора
+    question_answer: ответ на вопрос
+    manual: вручную
+    stale_rerun: повтор после изменений
+    customer_linked: привязан клиент
+  dryRun: пробный
+  model: "Модель: {model}"
+  configVersion: "Версия конфигурации: {version}"
+  tokens: "Токены: {input} → {output}"
+  cost: "Стоимость: {cost} {currency}"
+  tool: инструмент
+  duration: "{ms} мс"
+  stepTokens: "{input}→{output} ток."
+  inputOutput: вход / выход
+  prompt: Вход агента (промпт)
+  result: Результат
+
+agentMessage:
+  suggestionReason:
+    suggest_mode: поле в режиме подсказок
+    low_confidence: низкая уверенность
+    locked: поле закреплено оператором
+    filled_by_other_source: уже заполнено из другого источника
+  analyzed: Агент разобрал тикет
+  updated: Агент обновил разбор
+  newDraft: новый черновик ответа
+  runDetails: Детали прогона
+  failed: "Не получилось: {error}"
+  analysis: "Разбор: {department}, {percent}%"
+  departmentLabel: "Отдел:"
+  needsHuman: нужен человек
+  sentToTriage: отправлен в разбор
+  departmentSuggestion: Отдел
+  departmentChanged: Отдел изменён
+  fieldFilled: Поле заполнено
+  accept: Принять
+  answer: Ответить
+  skip: Пропустить
+  questionClosed: вопрос закрыт
+  draftReady: Черновик ответа готов
+
+members:
+  role:
+    admin: Администратор
+    operator: Оператор
+    viewer: Наблюдатель
+  name: Имя
+  roleColumn: Роль
+  removed: "{name} удалён из workspace"
+  addFailed: Не удалось добавить участника
+  new: Новый участник
+  newUserHint: Если пользователя ещё нет, укажите имя и пароль — он будет создан.
+
+departments:
+  department: Отдел
+  descriptionForAgent: Описание для агента
+  saved: Отдел сохранён
+  add: Добавить отдел
+  intro: Отдел — очередь операторов. По описанию и примерам агент выбирает, куда направить обращение. Тикеты с низкой уверенностью уходят в отдел «разбора».
+  triage: Разбор
+  archived: Архив
+  empty:
+    title: Отделов нет
+    description: Добавьте хотя бы один отдел и отдел для разбора.
+  new: Новый отдел
+  keyHelp: Латиница, не меняется
+  descriptionHelp: Какие обращения сюда относятся
+  examples: Примеры обращений
+  examplesHelp: По одному в строке
+  instructions: Инструкции отдела
+  instructionsHelp: Добавятся к промпту, когда тикет в этом отделе
+  isTriage: Отдел разбора (общая очередь)
+  inArchive: В архиве
+
+playbooks:
+  playbook: Сценарий
+  when: Когда применять
+  anyDepartment: Любой
+  add: Добавить сценарий
+  intro: "Сценарии разбора типовых обращений. Агент видит каталог «ключ — название — когда применять» и читает полный текст, когда узнаёт тип обращения. Свои сценарии пишет поддержка; сценарии из интеграций приходят с manifest бэкенда и обновляются вместе с ним — их можно только выключить."
+  disabled: выключен
+  empty:
+    title: Сценариев нет
+    description: "Например: «Не начислены баллы», «Не приходит код входа»."
+  new: Новый сценарий
+  fromIntegration: "Из интеграции «{integration}»"
+  fromIntegrationHint: Текст правится в бэкенде и обновляется при синхронизации. Здесь сценарий можно только выключить.
+  keyHelp: Не меняется
+  whenHelp: Одна строка для каталога
+  whenPlaceholder: Клиент пишет, что не начислили баллы за покупку
+  body: Текст сценария
+  bodyHelp: Шаги разбора, что проверить, что ответить, когда звать человека
+  defaultDepartment: Отдел по умолчанию
+  enabled: Включён
+
+fieldsSettings:
+  type:
+    text: Строка
+    textarea: Текст
+    number: Число
+    boolean: Да/нет
+    date: Дата
+    datetime: Дата и время
+    select: Список
+    multiselect: Мультисписок
+    email: Email
+    phone: Телефон
+    url: Ссылка
+  fill:
+    manual: Только оператор
+    agent_suggest: Агент подсказывает
+    agent_auto: Агент заполняет
+  display:
+    sidebar: В карточке
+    list_column: Колонкой в очереди
+    filter: В фильтрах
+  field: Поле
+  typeColumn: Тип
+  fillColumn: Заполнение
+  saved: Поле сохранено
+  add: Добавить поле
+  ticketFields: Поля тикета
+  customerFields: Поля клиента
+  intro: "Свои поля для этого проекта: номер отдела, категория, номер заказа. Их заполняют источник, правила, агент по подсказке или оператор."
+  required: Обязательное
+  empty: Полей нет
+  editTitle: "Поле «{label}»"
+  new: Новое поле
+  options: Варианты
+  optionValue: значение
+  optionLabel: подпись
+  optionHint: подсказка агенту (необязательно)
+  option: Вариант
+  integersOnly: Только целые
+  min: Минимум
+  max: Максимум
+  pattern: Шаблон (regex)
+  patternHelp: "Например ^\\d{3}$"
+  whoFills: Кто заполняет
+  minConfidence: Мин. уверенность агента
+  agentHint: Подсказка агенту
+  agentHintHelp: Где искать и как нормализовать значение
+  agentHintPlaceholder: Трёхзначный номер отдела сотрудника, обычно в подписи письма
+  whereToShow: Где показывать
+  departmentsHelp: Пусто — во всех
+  requiredOnResolve: Обязательно для решения тикета
+
+integrations:
+  status:
+    disabled: Выключена
+    syncError: Ошибка синхронизации
+    synced: "Синхронизирована {time}"
+    notSynced: Не синхронизирована
+  sync:
+    failed: Не удалось получить manifest
+    notModified: Manifest не изменился
+    added: "новых плейбуков: {count}"
+    updated: "обновлено: {count}"
+    removed: "удалено: {count}"
+    skipped: "пропущено: {playbooks}"
+    updatedTitle: Manifest обновлён
+    noPlaybookChanges: Плейбуки без изменений
+    error: Не удалось синхронизировать
+  departmentsCreated: "Создано отделов: {count}"
+  importFailed: Не удалось импортировать
+  saved: Сохранено
+  savedHint: Адрес или секрет поменялись — нажмите «Синхронизировать», чтобы проверить связь.
+  confirmDelete: Удалить интеграцию? Плейбуки из её manifest тоже удалятся.
+  noParams: без параметров
+  sections:
+    tools: "Данные (tools): {count}"
+    actions: "Действия: {count}"
+    instructions: Знания для агента
+    departments: "Предложенные отделы: {count}"
+  connect: Подключить бэкенд
+  connectShort: Подключить
+  intro: "Бэкенд проекта по Support Action Protocol: отдаёт агенту данные клиента (чеки, заказы, купоны) и выполняет действия после подтверждения оператором. Из его manifest приходят знания для агента и плейбуки; отделы можно импортировать. Manifest сверяется автоматически раз в несколько минут."
+  empty:
+    title: Интеграций нет
+    description: "Для разработки можно подключить симулятор кофейни: в docker compose он доступен по адресу http://coffee-sim:3100."
+  protocol: "протокол v{version}"
+  identityTypes: "клиента ищет по: {types}"
+  syncNow: Синхронизировать
+  lastManifestInUse: Агент продолжает работать с последним полученным manifest.
+  noManifestYet: Manifest ещё ни разу не получен — проверьте адрес и секрет.
+  noCustomerNeeded: без клиента
+  cache: "кэш {seconds} с"
+  requiresApproval: подтверждает оператор
+  instructionsHint: Добавляется в промпт агента после политики поддержки. Правится в бэкенде.
+  departmentExists: "Уже есть: {key}"
+  createDepartments: Создать выбранные отделы
+  playbooksFromManifest: "Плейбуков из manifest: {count} —"
+  inPlaybooks: в плейбуках
+  canBeDisabled: ", их можно выключить."
+  integration: Интеграция
+  address: Адрес
+  addressHelp: "Базовый URL эндпоинтов протокола: …/manifest, …/tools/…"
+  secret: Секрет подписи
+  secretKeep: Оставьте пустым, чтобы не менять
+  secretHelp: Общий с бэкендом, не короче 16 символов
+  enabled: Включена
+
+rules:
+  title: Правила маршрутизации
+  stage:
+    on_ingest:
+      title: При поступлении
+      description: "Новый тикет, до агента: отдел, приоритет, теги, поля из регулярок, выключить агента."
+    after_agent:
+      title: После агента
+      description: Видят вывод агента (agent.*) и заполненные им поля.
+  op:
+    eq: "="
+    neq: "≠"
+    in: один из
+    not_in: не из
+    contains: содержит
+    not_contains: не содержит
+    matches: regex
+    gt: ">"
+    gte: "≥"
+    lt: "<"
+    lte: "≤"
+    between: между
+    is_empty: пусто
+    is_not_empty: не пусто
+  effect:
+    set_department: Отдел
+    set_priority: Приоритет
+    add_tags: Добавить теги
+    assign: Назначить
+    set_field: Заполнить поле
+    set_field_from_regex: Поле из регулярки
+    skip_agent: Не запускать агента
+    add: Действие
+  invalidJson: "Условия: некорректный JSON"
+  and: и
+  or: или
+  not: "не ({condition})"
+  intro: Детерминированные правила работают вместе с агентом. Отдел, закреплённый оператором, и поля, которые он правил, правила не меняют.
+  rule: Правило
+  empty: Правил нет.
+  checkOnTicket: Проверить на тикете
+  check: Проверить
+  nothingMatched: ничего не сработало
+  checkedData: Данные, по которым проверялись условия
+  new: Новое правило
+  stageLabel: Стадия
+  conditions: Условия
+  matchAll: все
+  matchAny: любое
+  builder: Конструктор
+  condition: Условие
+  effects: Действия
+  fromSubject: из темы
+  fromBody: из текста
+  position: Порядок
+  stop: Остановить следующие правила стадии
+  enabled: Включено
+
+agentSettings:
+  saved: Настройки агента сохранены
+  trialFailed: Пробный прогон не удался
+  providerSaveFailed: Не удалось сохранить провайдера
+  addModel: Добавьте модель провайдеру
+  providerResponds: "{model} отвечает ({ms} мс)"
+  providerError: Ошибка провайдера
+  deleteFailed: Не удалось удалить
+  enabledTitle: Разбор тикетов агентом
+  enabledDescription: Агент определяет отдел, заполняет поля, готовит черновик и задаёт вопросы. Клиенту отправляет только оператор.
+  model: Модель
+  provider: Провайдер
+  notSelected: Не выбран
+  temperature: Температура
+  policy: Политика поддержки
+  policyHelp: Тон, обращение, что нельзя обещать, когда звать человека. Добавляется к базовым правилам агента.
+  policyPlaceholder: Обращайся к клиенту на «вы». Не обещай начислений и сроков — их подтверждает оператор. Если клиент угрожает судом или СМИ — needs_human.
+  behavior: Поведение
+  playbooksHelp: По запросу — в промпте только каталог
+  playbooksOnDemand: По запросу (read_playbook)
+  playbooksInline: Все тексты в промпте
+  threshold: Порог уверенности
+  thresholdHelp: Ниже — тикет уходит в отдел разбора
+  debounce: Пауза перед разбором, с
+  debounceHelp: Два сообщения подряд → один прогон
+  maxToolCalls: Лимит вызовов инструментов
+  maxOutputTokens: Лимит токенов ответа
+  maxOutputTokensHelp: Модели с «размышлением» тратят его и на reasoning
+  trialHelp: Разбор выбранной моделью без применения — чтобы сравнить модели перед переключением.
+  providerFromSettings: Провайдер из настроек
+  run: Прогнать
+  seconds: "{seconds} с"
+  fullResult: Полный результат
+  providers: Провайдеры LLM
+  providersHelp: "Любой OpenAI-совместимый эндпоинт: OpenAI, OpenRouter, LiteLLM, vLLM, Ollama. Агенту нужна поддержка tools, без неё он работает в JSON-режиме."
+  noModels: моделей нет
+  noKey: без ключа
+  jsonMode: JSON-режим
+  newProvider: Новый провайдер
+  apiKey: API-ключ
+  keepCurrent: Пусто — оставить прежний
+  supportsTools: Поддерживает tool calling
+  modelsAndPrices: Модели и цены (за 1 млн токенов)
+  priceInput: вход
+  priceOutput: выход
+
+channels:
+  saveFailed: Не удалось сохранить канал
+  sandbox: Тестовый ящик
+  newSandbox: Новый тестовый ящик
+  mailbox: Почтовый ящик
+  newMailbox: Новый почтовый ящик
+  mailboxSaved: Почтовый ящик сохранён
+  mailboxSaveFailed: Не удалось сохранить ящик
+  ok: ок
+  connectionCheck: Проверка соединения
+  checkFailed: Проверка не удалась
+  updateFailed: Не удалось изменить канал
+  apiChannel: API-канал
+  newApiChannel: Новый API-канал
+  intro: "Источники заявок. API-канал принимает обращения из ваших сервисов (форма в приложении, сайт), почтовый ящик — письма. Отвечать клиенту по email можно и на тикеты из API: через ящик по умолчанию. Тестовый ящик ничего не отправляет наружу: письма складываются в его «Исходящие»."
+  sandboxBadge: Тестовый
+  defaultMailbox: Ответы по умолчанию
+  channelId: ID канала
+  metadataToFields: metadata → поля
+  sending: Отправка
+  sandboxSending: в «Исходящие», наружу не уходит
+  noInbound: не принимаем почту
+  sync: Синхронизация
+  never: ещё не было
+  keyRotated: Ключ перевыпущен
+  newKey: Новый ключ
+  webhookSecretRotated: Секрет webhook перевыпущен
+  newWebhookSecret: Новый секрет webhook
+  testConnection: Проверить соединение
+  pollStarted: Проверка почты запущена
+  poll: Проверить почту
+  defaultChosen: Ящик выбран для ответов по умолчанию
+  makeDefault: По умолчанию
+  empty:
+    title: Каналов нет
+    description: Подключите почтовый ящик или создайте API-канал.
+  apiNamePlaceholder: Форма в приложении
+  webhook: Webhook для ответов
+  webhookHelp: Сюда придут ответы операторов и смена статуса (подписаны HMAC)
+  metadataToTicketFields: metadata → поля тикета
+  senderName: Имя отправителя
+  senderNamePlaceholder: Поддержка
+  sandboxAlert:
+    title: Письма не уходят наружу
+    description: "Ответы через этот ящик собираются как настоящие письма и сохраняются в его «Исходящих»: видно, что и на какой адрес ушло бы. Сделайте его ящиком по умолчанию, чтобы отвечать так на тикеты из API."
+  smtpLegend: SMTP — отправка
+  imapLegend: IMAP — приём писем
+  server: Сервер
+  port: Порт
+  login: Логин
+  folder: Папка
+  importExisting: Импортировать письма, которые уже лежат в ящике
+  signature: Подпись (HTML)
+  signatureHelp: Добавляется к каждому ответу
+  secrets:
+    title: Сохраните секреты
+    description: Они показываются один раз.
+    apiKey: API-ключ канала
+    webhookSecret: Секрет подписи webhook
+    verification: "Проверка:"
+    example: Пример запроса
+    saved: Я сохранил
+
+outbox:
+  title: Исходящие
+  ticket: Тикет
+  when: Когда
+  views:
+    html: Письмо
+    text: Текст
+    headers: Заголовки
+  cleared:
+    one: "Удалено {count} письмо"
+    few: "Удалено {count} письма"
+    many: "Удалено {count} писем"
+    other: "Удалено {count} письма"
+  clearFailed: Не удалось очистить
+  backToChannels: К каналам
+  recipientAddress: Адрес получателя
+  notice: "Письма с адреса {address} не уходят наружу. Здесь — ровно то, что получил бы клиент: адресаты, заголовки цепочки, подпись, вложения."
+  ccLine: "копия: {cc}"
+  noSubject: (без темы)
+  empty:
+    title: Писем нет
+    description: Ответьте клиенту по email через этот ящик — письмо появится здесь. Чтобы отвечать так на тикеты из API, сделайте ящик ящиком по умолчанию.
+  from: От
+  downloadEml: Скачать .eml
+  ticketNumber: "Тикет T-{number}"
+  confirmClear:
+    title: Очистить исходящие?
+    description: Все письма тестового ящика будут удалены. Тикеты и сообщения в них останутся.
+
+api:
+  errors:
+    validation: Некорректные данные
+    unauthorized: Требуется вход
+    forbidden: Недостаточно прав
+    notFound: Не найдено
+    internal: Внутренняя ошибка
+  unknownField: Неизвестное поле
+  ticketNotFound: Тикет не найден
+  assigneeMustBeOperator: Исполнитель должен быть оператором workspace
+  fillField: "Заполните «{label}»"
+  requiredFieldsBeforeResolve: Перед решением тикета заполните обязательные поля
+  invalidFilterValue: Некорректное значение фильтра
+  noReplyMailbox: Нет почтового ящика для ответа
+  sourceHasNoWebhook: У источника тикета нет webhook для ответов
+  customerAddressMissing: Не указан адрес клиента
+  messageNotFound: Сообщение не найдено
+  replyAlreadySending: Ответ уже отправляется — отменить нельзя
+  staleConversation: Пока вы писали, клиент прислал новое сообщение. Проверьте ответ и отправьте ещё раз.
+  channelNotFound: Канал не найден
+  smtpPasswordRequired: Нужен пароль SMTP
+  imapPasswordRequired: Нужен пароль IMAP
+  keyOnlyForApiChannel: Ключ есть только у API-канала
+  webhookOnlyForApiChannel: Webhook есть только у API-канала
+  onlyMailboxCanBeDefault: По умолчанию можно сделать только почтовый ящик
+  onlySuperadminCreatesWorkspaces: Создавать workspace может только суперадминистратор
+  newUserNeedsNameAndPassword: Для нового пользователя нужны name и password
+  userNotFoundCreate: "Пользователь не найден: укажите имя и пароль, чтобы создать его"
+  alreadyMember: "{email} уже участник"
+  memberNotFound: Участник не найден
+  lastAdmin: Нельзя убрать последнего администратора workspace
+  slugTaken: "Slug «{slug}» уже занят"
+  workspaceNotFound: Workspace не найден
+  ruleNotFound: Правило не найдено
+  rule:
+    departmentNotFound: отдел не найден
+    departmentPinned: отдел закреплён оператором
+    assigneeNotOperator: исполнитель не оператор workspace
+    assigneeAlreadySet: исполнитель уже назначен
+    valueNotFound: значение не найдено
+    fieldPinned: поле закреплено оператором
+  ticketHasNoCustomer: У тикета нет клиента — сначала укажите контакт клиента
+  manifestNotReceived: Manifest интеграции ещё не получен — синхронизируйте её
+  customerNotFoundExternally: Клиент не найден во внешней системе
+  integrationFailed: "Интеграция не ответила: {error}"
+  integrationNotFound: Интеграция не найдена
+  playbookKeyTakenByIntegration: ключ занят плейбуком другой интеграции
+  playbookKeyTakenByUi: ключ занят плейбуком из интерфейса
+  userExists: "Пользователь {email} уже существует"
+  attachmentNotFound: Вложение не найдено
+  invalidChannelKey: Неверный ключ канала
+  channelDisabled: Канал отключён
+  invalidCredentials: Неверный email или пароль
+  noSubject: Без темы
+  defaultSubject: Обращение
+  fieldKeyExists: "Поле с ключом «{key}» уже есть"
+  fieldNotFound: Поле не найдено
+  departmentKeyExists: "Отдел с ключом «{key}» уже есть"
+  departmentNotFound: Отдел не найден
+  departmentNotFoundOrArchived: Отдел не найден или в архиве
+  fieldArchived: Поле в архиве
+  invalidValue: Некорректное значение
+  action:
+    stillExecuting: бэкенд ещё исполняет действие
+    requestFailed: "запрос не дошёл до бэкенда ({error})"
+    outcomeUnknown: "Исход не подтверждён: {reason}. Повтор безопасен — бэкенд не исполнит действие дважды."
+    notExecuted: Бэкенд не исполнил действие
+  proposalNotFound: Предложение не найдено
+  actionAlreadyInStatus: "Действие уже в статусе «{status}»"
+  emailNotFound: Письмо не найдено
+  emptyEmail: (пустое письмо)
+  emailNotDelivered: Письмо не доставлено
+  imapMessageSkipped: "Письмо UID {uid} пропущено: {error}"
+  testOnlyForMailbox: Проверка доступна только для почтового ящика
+  outboxOnlyForSandbox: Исходящие есть только у тестового ящика
+  llm:
+    cancelled: Запрос отменён
+    network: "Сеть: {error}"
+    notJson: "LLM вернул не JSON: {body}"
+    noChoices: "LLM без choices: {body}"
+  providerNotFound: Провайдер не найден
+  providerInUse: Провайдер используется агентом — сначала выберите другой
+  suggestedDraftNotFound: Предложенная версия не найдена
+  playbookKeyExists: "Плейбук с ключом «{key}» уже есть"
+  playbookNotFound: Плейбук не найден
+  playbookFromIntegrationEdit: Плейбук пришёл из интеграции и правится в её бэкенде — здесь его можно только выключить
+  playbookFromIntegrationDelete: Плейбук пришёл из интеграции — его можно выключить, а удалить только в бэкенде
+  runNotFound: Прогон не найден
+  agentDisabled: Агент выключен в настройках workspace
+  noDepartmentSuggestion: Подсказки по отделу нет
+  noFieldSuggestion: Подсказки по полю нет
+  questionNotFound: Вопрос не найден или уже закрыт
+  agentNeedsModel: Чтобы включить агента, выберите провайдера и модель
+  agentNotConfigured: "Агент не настроен: выберите провайдера и модель"
+  agent:
+    truncated: "Ответ модели обрезан лимитом токенов ({limit}). Увеличьте «Лимит токенов ответа» в настройках агента."
+    invalidJson: "Модель вернула невалидный JSON: {error}"
+    noSubmit: Модель не вызвала инструмент завершения разбора
+    invalidSubmit: "Невалидный {tool}: {error}"
+    tooManySteps: Агент не завершил разбор за отведённое число шагов

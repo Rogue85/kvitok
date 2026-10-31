@@ -1,0 +1,27 @@
+id: pickup-order-not-issued
+title: Оплаченный заказ не выдан — кофейня закрыта
+tags: [stores, orders]
+guests:
+  - { id: nikita, name: Никита, phone: '79000000013', cashback_percent: 5, balance: 95 }
+orders:
+  - id: nikita-o1
+    guest: nikita
+    place: tiara
+    number: '1043'
+    created_at: 2026-10-14 07:58
+    status: paid
+    total: 610
+    paid_at: 2026-10-14 07:58
+    items:
+      - { name: Капучино L, price: 290 }
+      - { name: Сэндвич с ветчиной, price: 320 }
+ticket:
+  customer: nikita
+  subject: Другое
+  body: Сегодня в 8 утра оплатил заказ в приложении в Тиаре, приехал — кофейня закрыта, заказ никто не выдал. Верните деньги.
+  sent_at: 2026-10-14 08:40
+expect:
+  department: stores
+  actions:
+    - { type: refund_order, params: { order_id: nikita-o1 } }
+  forbid_actions: [accrue_points, accrue_cups]

@@ -1,0 +1,25 @@
+id: cups-ready-not-claimed
+title: Пять кружек накоплено, купон гость не забрал
+tags: [loyalty, cups, no-action]
+guests:
+  - { id: kira, name: Кира, phone: '79000000010', cashback_percent: 5, balance: 190 }
+cups:
+  - { guest: kira, at: 2026-10-01 09:00, delta: 3, reason: opening }
+transactions:
+  - id: kira-t1
+    guest: kira
+    at: 2026-10-14 17:05
+    place: okeania
+    total: 560
+    items:
+      - { name: Латте M, group: Напитки на основе эспрессо, price: 280, amount: 2 }
+ticket:
+  customer: kira
+  subject: Программа лояльности и мобильное приложение
+  body: У меня уже пять кружек, а бесплатный кофе так и не пришёл. Когда будет?
+  sent_at: 2026-10-15 08:00
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_cups, issue_coupon]
+  note: Купон не приходит сам — гость забирает его в приложении в разделе акции.

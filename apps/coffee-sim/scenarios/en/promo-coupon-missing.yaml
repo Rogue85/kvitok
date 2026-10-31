@@ -1,0 +1,30 @@
+id: promo-coupon-missing
+title: The promo coupon did not arrive
+tags: [loyalty, promo, coupon]
+guests:
+  - { id: egor, name: Egor, phone: '79000000006', cashback_percent: 3, balance: 58 }
+transactions:
+  - id: egor-t1
+    guest: egor
+    at: 2026-10-09 14:02
+    place: okeania
+    total: 760
+    items:
+      - { name: Cappuccino L, group: Espresso drinks, price: 290 }
+      - { name: Cappuccino M, group: Espresso drinks, price: 250 }
+      - { name: Muffin, group: Desserts, price: 220 }
+    promo_journal:
+      - promo: dessert_for_total
+        applied: true
+        lines: ['Total: 760', 'Applied: 1', 'Coupons: 1']
+ticket:
+  customer: egor
+  subject: Loyalty program and mobile app
+  body: The receipt was for 760 rubles, the promo should give a half-price dessert coupon, but it has not been in the app for almost a week.
+  sent_at: 2026-10-15 11:20
+expect:
+  department: loyalty
+  actions:
+    - { type: issue_coupon, params: { promo_id: dessert_for_total, transaction_id: egor-t1 } }
+  forbid_actions: [accrue_points]
+  note: The promo fired (Coupons 1), the guest has no coupon.

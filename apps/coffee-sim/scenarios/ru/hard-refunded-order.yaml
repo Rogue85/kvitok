@@ -1,0 +1,28 @@
+id: hard-refunded-order
+title: Деньги за отменённый заказ уже вернули
+tags: [hard, stores, orders, no-action]
+guests:
+  - { id: yana, name: Яна, phone: '79000000023', cashback_percent: 5, balance: 60 }
+orders:
+  - id: yana-o1
+    guest: yana
+    place: kristall
+    number: '1077'
+    created_at: 2026-10-13 09:05
+    status: refunded
+    total: 480
+    paid_at: 2026-10-13 09:05
+    refunded_at: 2026-10-13 10:20
+    items:
+      - { name: Латте L, price: 320 }
+      - { name: Круассан, price: 160 }
+ticket:
+  customer: yana
+  subject: Другое
+  body: Позавчера кофейня отменила мой заказ, а деньги так и не вернули!
+  sent_at: 2026-10-15 11:30
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [refund_order, accrue_points]
+  note: Возврат уже сделан 13.10 в 10:20 — повторно не возвращаем, сообщаем гостю срок зачисления.

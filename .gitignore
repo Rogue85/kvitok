@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.output/
+.nuxt/
+.nitro/
+.cache/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+apps/api/src/generated/
+packages/i18n/src/generated/
+apps/api/storage/
+apps/api/storage-test/
+apps/api/dist-dev/
+apps/api/dist-worker/
+
+# Agent evaluation reports (pnpm eval)
+eval-reports/
+
+# Private working notes (design, implementation plan), kept out of the repository
+.private/

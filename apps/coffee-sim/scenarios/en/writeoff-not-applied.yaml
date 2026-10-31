@@ -1,0 +1,25 @@
+id: writeoff-not-applied
+title: Points were written off but did not go towards the payment
+tags: [loyalty, points]
+guests:
+  - { id: gleb, name: Gleb, phone: '79000000004', cashback_percent: 5, balance: 15 }
+transactions:
+  - id: gleb-t1
+    guest: gleb
+    at: 2026-10-14 08:31
+    place: okeania
+    total: 450
+    balance_writeoff: 120
+    items:
+      - { name: Flat white M, group: Espresso drinks, price: 270 }
+      - { name: Syrniki, group: Food, price: 180 }
+ticket:
+  customer: gleb
+  subject: Loyalty program and mobile app
+  body: Yesterday morning I wanted to pay with points, they were written off — 120 of them, and my card was still charged the full 450 ₽. Give the points back.
+  sent_at: 2026-10-15 08:55
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: writeoff_refund, amount: 120, transaction_id: gleb-t1 } }
+  forbid_actions: [issue_coupon, accrue_cups]

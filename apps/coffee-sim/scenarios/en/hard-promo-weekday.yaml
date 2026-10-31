@@ -1,0 +1,23 @@
+id: hard-promo-weekday
+title: A croissant for a cappuccino — bought on Saturday, the promo is weekdays only
+tags: [hard, loyalty, promo, no-action]
+guests:
+  - { id: fedor, name: Fedor, phone: '79000000021', cashback_percent: 5, balance: 75 }
+transactions:
+  - id: fedor-t1
+    guest: fedor
+    at: 2026-10-10 11:30
+    place: okeania
+    total: 290
+    items:
+      - { name: Cappuccino L, group: Espresso drinks, price: 290 }
+ticket:
+  customer: fedor
+  subject: Loyalty program and mobile app
+  body: I got a cappuccino L at Okeania on October 10, and the promo should have given me a croissant coupon. It never came.
+  sent_at: 2026-10-13 09:15
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [issue_coupon]
+  note: The promo is weekdays only, 10.10 is a Saturday; the journal has no entry for the promo.

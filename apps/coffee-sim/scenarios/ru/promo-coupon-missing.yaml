@@ -1,0 +1,30 @@
+id: promo-coupon-missing
+title: Купон по акции не пришёл
+tags: [loyalty, promo, coupon]
+guests:
+  - { id: egor, name: Егор, phone: '79000000006', cashback_percent: 3, balance: 58 }
+transactions:
+  - id: egor-t1
+    guest: egor
+    at: 2026-10-09 14:02
+    place: okeania
+    total: 760
+    items:
+      - { name: Капучино L, group: Напитки на основе эспрессо, price: 290 }
+      - { name: Капучино M, group: Напитки на основе эспрессо, price: 250 }
+      - { name: Маффин, group: Десерты, price: 220 }
+    promo_journal:
+      - promo: dessert_for_total
+        applied: true
+        lines: ['Total: 760', 'Applied: 1', 'Coupons: 1']
+ticket:
+  customer: egor
+  subject: Программа лояльности и мобильное приложение
+  body: Чек был на 760 рублей, по акции должен прийти купон на десерт за полцены, но в приложении его нет уже почти неделю.
+  sent_at: 2026-10-15 11:20
+expect:
+  department: loyalty
+  actions:
+    - { type: issue_coupon, params: { promo_id: dessert_for_total, transaction_id: egor-t1 } }
+  forbid_actions: [accrue_points]
+  note: Акция сработала (Coupons 1), купона у гостя нет.

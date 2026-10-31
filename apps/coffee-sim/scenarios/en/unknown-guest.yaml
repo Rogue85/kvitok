@@ -1,0 +1,14 @@
+id: unknown-guest
+title: The guest is not found by their contacts
+tags: [loyalty, no-customer, no-action]
+ticket:
+  identities: { phone: '79000000015', email: petr@example.test }
+  name: Petr
+  subject: Loyalty program and mobile app
+  body: Yesterday I bought a coffee for 300 rubles, and the points never came.
+  sent_at: 2026-10-15 09:00
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: There is no guest with this phone or email — the number the card is linked to must be clarified.

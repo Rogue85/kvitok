@@ -1,0 +1,23 @@
+id: hard-no-amount
+title: No receipt on the card, and the guest did not name the amount
+tags: [hard, loyalty, points, no-action]
+guests:
+  - { id: tanya, name: Tanya, phone: '79000000019', cashback_percent: 5, balance: 150 }
+transactions:
+  - id: tanya-t1
+    guest: tanya
+    at: 2026-10-10 11:00
+    place: okeania
+    total: 300
+    items:
+      - { name: Latte M, group: Espresso drinks, price: 300 }
+ticket:
+  customer: tanya
+  subject: Loyalty program and mobile app
+  body: The day before yesterday I bought a coffee, and the points were not credited. Please add them.
+  sent_at: 2026-10-15 10:05
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: No receipts on the card for 13.10, the guest did not name the amount — nothing to credit, the amount must be asked from the guest.

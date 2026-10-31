@@ -1,0 +1,24 @@
+id: points-already-accrued
+title: The points are already credited — no action needed
+tags: [loyalty, points, no-action]
+guests:
+  - { id: vera, name: Vera, phone: '79000000003', cashback_percent: 5, balance: 126 }
+transactions:
+  - id: vera-t1
+    guest: vera
+    at: 2026-10-12 13:05
+    place: arbat
+    total: 520
+    items:
+      - { name: Latte L, group: Espresso drinks, price: 320 }
+      - { name: Croissant, group: Bakery, price: 200 }
+ticket:
+  customer: vera
+  subject: Loyalty program and mobile app
+  body: I don't see the points for my 520-ruble purchase on Arbat on October 12. Please check.
+  sent_at: 2026-10-15 10:40
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: 26 points were credited for the receipt — tell the guest the points arrived.

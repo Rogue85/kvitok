@@ -1,0 +1,24 @@
+id: hard-cashback-level
+title: A dispute about the cashback tier — credited correctly
+tags: [hard, loyalty, points, no-action]
+guests:
+  - { id: lida, name: Lida, phone: '79000000025', cashback_percent: 5, balance: 520, registered_at: '2023-05-10' }
+transactions:
+  - id: lida-t1
+    guest: lida
+    at: 2026-10-14 15:10
+    place: arbat
+    total: 700
+    items:
+      - { name: Classic raf L, group: Drinks, price: 380 }
+      - { name: Tiramisu, group: Desserts, price: 320 }
+ticket:
+  customer: lida
+  subject: Loyalty program and mobile app
+  body: For yesterday's 700 receipt I only got 35 points, although my cashback should be 7%. Please credit the difference.
+  sent_at: 2026-10-15 10:40
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: The guest's current tier is 5%, 700 × 5% = 35 was credited correctly; nothing to add.

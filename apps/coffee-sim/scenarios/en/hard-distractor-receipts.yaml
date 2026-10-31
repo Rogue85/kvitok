@@ -1,0 +1,40 @@
+id: hard-distractor-receipts
+title: Two receipts for the same amount — points missing for the evening one
+tags: [hard, loyalty, points]
+guests:
+  - { id: roman, name: Roman, phone: '79000000017', cashback_percent: 5, balance: 210 }
+transactions:
+  - id: roman-t1
+    guest: roman
+    at: 2026-10-14 08:50
+    place: kristall
+    total: 340
+    items:
+      - { name: Classic raf M, group: Drinks, price: 340 }
+  - id: roman-t2
+    guest: roman
+    at: 2026-10-14 12:30
+    place: kristall
+    total: 590
+    items:
+      - { name: Cappuccino L, group: Espresso drinks, price: 290 }
+      - { name: Chicken sandwich, group: Food, price: 300 }
+  - id: roman-t3
+    guest: roman
+    at: 2026-10-14 18:55
+    place: okeania
+    total: 340
+    balance_add: 0
+    items:
+      - { name: Classic raf M, group: Drinks, price: 340 }
+ticket:
+  customer: roman
+  subject: Loyalty program and mobile app
+  body: Yesterday evening at Okeania I got a raf for 340, and the points never came.
+  sent_at: 2026-10-15 09:40
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 17, transaction_id: roman-t3 } }
+  forbid_actions: [issue_coupon, accrue_cups]
+  note: The morning receipt for the same amount with points is a distractor; the evening one at Okeania is needed.

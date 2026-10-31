@@ -1,0 +1,53 @@
+# World reference data and the frozen "now". All scenarios live in this moment,
+# so they can be loaded together (demo, evaluation) or one by one (tests).
+# The same world as scenarios/ru: ids, numbers and dates match, only the texts are translated.
+timezone: '+03:00'
+now: 2026-10-15 12:00
+
+places:
+  - { id: okeania, name: Okeania Mall, city: Moscow }
+  - { id: kristall, name: Kristall Mall, city: Moscow }
+  - { id: tiara, name: Tiara Mall, city: Kazan }
+  - { id: arbat, name: '24 Arbat St', city: Moscow }
+guest_city: Moscow
+
+coupon_types:
+  - { id: free_drink, name: Free drink, days: 30 }
+  - { id: dessert_50, name: Half-price dessert, days: 14 }
+  - { id: croissant_gift, name: Free croissant, days: 14 }
+
+promos:
+  - id: autumn_double_cashback
+    name: Double cashback on the autumn menu
+    type: increased_cashback
+    description: Cashback ×2 on the pumpkin latte and the caramel raf
+    active_from: 2026-09-01
+    active_to: 2026-11-30
+  - id: dessert_for_total
+    name: Half-price dessert for a receipt from 690 ₽
+    type: coupon_for_total
+    description: A half-price dessert coupon if the receipt total is at least 690 ₽
+    active_from: 2026-10-01
+    active_to: 2026-10-31
+    coupon_type: dessert_50
+  - id: croissant_for_cappuccino
+    name: A croissant for a cappuccino on weekdays
+    type: coupon_for_products
+    description: A croissant coupon for a cappuccino L on weekdays at Okeania Mall and Kristall Mall
+    active_from: 2026-10-01
+    active_to: 2026-11-30
+    coupon_type: croissant_gift
+    weekdays: [1, 2, 3, 4, 5]
+    places: [okeania, kristall]
+
+cups:
+  period_from: 2026-02-21
+  period_to: 2027-01-01
+  cups_for_coupon: 5
+  coupon_type: free_drink
+  drink_groups: [Drinks, Espresso drinks, Promo drinks]
+
+limits:
+  max_points: 1000
+  max_coupons: 3
+  max_cups: 3

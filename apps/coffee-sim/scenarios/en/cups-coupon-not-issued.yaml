@@ -1,0 +1,19 @@
+id: cups-coupon-not-issued
+title: Cups were written off, but there is no free drink coupon
+tags: [loyalty, cups]
+guests:
+  - { id: ivan, name: Ivan, phone: '79000000009', cashback_percent: 7, balance: 512 }
+cups:
+  - { guest: ivan, at: 2026-10-01 09:00, delta: 5, reason: opening }
+  - { guest: ivan, at: 2026-10-13 10:02, delta: -5, reason: writeoff }
+ticket:
+  customer: ivan
+  subject: Loyalty program and mobile app
+  body: I tapped "get coupon" for the free coffee, my cups went to zero, and there is no coupon either in the promo section or in my coupons.
+  sent_at: 2026-10-13 10:20
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_cups, params: { basis: coupon_not_issued, count: 5 } }
+  forbid_actions: [issue_coupon, accrue_points]
+  note: The "6th cup" coupon is issued only from the app — we return the cups rather than issue a coupon.

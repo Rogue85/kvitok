@@ -1,0 +1,29 @@
+id: promo-cashback-missing
+title: The promo's increased cashback did not arrive
+tags: [loyalty, promo, points]
+guests:
+  - { id: darya, name: Darya, phone: '79000000005', cashback_percent: 5, balance: 410 }
+transactions:
+  - id: darya-t1
+    guest: darya
+    at: 2026-10-10 16:20
+    place: kristall
+    total: 540
+    items:
+      - { name: Pumpkin latte L, group: Promo drinks, price: 350 }
+      - { name: Croissant, group: Bakery, price: 190 }
+    promo_journal:
+      - promo: autumn_double_cashback
+        applied: false
+        lines: ['(Pumpkin latte L) - found, cashback=17', '(Croissant) - not found', 'Total cashback: 17']
+ticket:
+  customer: darya
+  subject: Loyalty program and mobile app
+  body: On October 10 I got a pumpkin latte under the "double cashback" promo, but only the regular points came. Where is the second part?
+  sent_at: 2026-10-14 12:15
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: promo_cashback, amount: 17, promo_id: autumn_double_cashback, transaction_id: darya-t1 } }
+  forbid_actions: [issue_coupon]
+  note: The journal found the item and calculated 17, but the promo was not applied.

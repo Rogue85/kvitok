@@ -1,0 +1,30 @@
+id: hard-two-problems
+title: Two problems in one email — points and a cup for the same receipt
+tags: [hard, loyalty, points, cups]
+guests:
+  - { id: polina, name: Polina, phone: '79000000016', cashback_percent: 5, balance: 88 }
+cups:
+  - { guest: polina, at: 2026-10-01 09:00, delta: 1, reason: opening }
+transactions:
+  - id: polina-t1
+    guest: polina
+    at: 2026-10-14 13:20
+    place: arbat
+    total: 480
+    balance_add: 0
+    cups_counted: 0
+    items:
+      - { name: Latte L, group: Espresso drinks, price: 320 }
+      - { name: Croissant, group: Bakery, price: 160 }
+ticket:
+  customer: polina
+  subject: Loyalty program and mobile app
+  body: Yesterday afternoon on Arbat I got a latte with a croissant and showed my card. Neither the points nor the promo cup came. Please look into both.
+  sent_at: 2026-10-15 08:30
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 24, transaction_id: polina-t1 } }
+    - { type: accrue_cups, params: { basis: drinks_not_counted, count: 1, transaction_id: polina-t1 } }
+  forbid_actions: [issue_coupon]
+  note: The receipt on the card has balance_add = 0 (480 × 5% = 24) and the drink was not counted — both actions are needed.

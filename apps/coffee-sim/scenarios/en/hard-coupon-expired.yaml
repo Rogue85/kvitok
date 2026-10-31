@@ -1,0 +1,20 @@
+id: hard-coupon-expired
+title: The free drink coupon expired
+tags: [hard, loyalty, cups, no-action]
+guests:
+  - { id: nina, name: Nina, phone: '79000000027', cashback_percent: 3, balance: 30 }
+coupons:
+  - { id: nina-c1, guest: nina, type: free_drink, created_at: 2026-09-05 12:00, source: cups }
+cups:
+  - { guest: nina, at: 2026-08-20 09:00, delta: 5, reason: opening }
+  - { guest: nina, at: 2026-09-05 12:00, delta: -5, reason: writeoff }
+ticket:
+  customer: nina
+  subject: Loyalty program and mobile app
+  body: I had a free coffee coupon for the 6th cup, and now it has disappeared from the app. Give the coupon back.
+  sent_at: 2026-10-15 12:00
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_cups, issue_coupon]
+  note: The coupon was issued on 05.09 for 30 days and expired on 05.10 — this is not a failure; whether to extend it is up to the operator.

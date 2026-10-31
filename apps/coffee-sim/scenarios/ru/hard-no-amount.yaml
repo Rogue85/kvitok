@@ -1,0 +1,23 @@
+id: hard-no-amount
+title: Чека по карте нет, а сумму гость не назвал
+tags: [hard, loyalty, points, no-action]
+guests:
+  - { id: tanya, name: Таня, phone: '79000000019', cashback_percent: 5, balance: 150 }
+transactions:
+  - id: tanya-t1
+    guest: tanya
+    at: 2026-10-10 11:00
+    place: okeania
+    total: 300
+    items:
+      - { name: Латте M, group: Напитки на основе эспрессо, price: 300 }
+ticket:
+  customer: tanya
+  subject: Программа лояльности и мобильное приложение
+  body: Позавчера покупала кофе, а баллы не начислили. Добавьте, пожалуйста.
+  sent_at: 2026-10-15 10:05
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: За 13.10 чеков по карте нет, сумму гость не назвал — начислять нечего, нужно уточнить сумму у гостя.

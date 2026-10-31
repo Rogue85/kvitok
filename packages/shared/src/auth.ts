@@ -1,0 +1,29 @@
+import { z } from 'zod';
+import { WorkspaceRoleSchema } from './roles.js';
+
+export const EmailSchema = z.string().trim().toLowerCase().pipe(z.email());
+
+export const PasswordSchema = z.string().min(8).max(200);
+
+export const LoginSchema = z.object({
+  email: EmailSchema,
+  password: z.string().min(1).max(200),
+});
+export type LoginInput = z.infer<typeof LoginSchema>;
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  isSuperadmin: boolean;
+}
+
+export interface MeResponse {
+  user: AuthUser;
+  memberships: Array<{
+    workspaceId: string;
+    workspaceName: string;
+    workspaceSlug: string;
+    role: z.infer<typeof WorkspaceRoleSchema>;
+  }>;
+}

@@ -1,0 +1,18 @@
+- key: loyalty
+  title: Loyalty
+  description: Points and cashback, tiers, promos and coupons, the "6th cup free", a receipt not registered on the card.
+  examples:
+    - I bought a latte and got no points
+    - A cup was not counted in the promo, the free coffee coupon did not arrive
+- key: app
+  title: App
+  description: App errors, login and confirmation codes, push notifications, menu display, changing the phone number, deleting the account.
+  examples:
+    - The login code does not arrive
+    - The app crashes when I open the menu
+- key: stores
+  title: Coffee shops
+  description: How the coffee shops work — quality of drinks and food, staff, queues, opening hours, lost items, pickup orders and refunds for them.
+  examples:
+    - The coffee was bitter and the barista was rude
+    - I paid for an order in the app, but the coffee shop was closed

@@ -1,0 +1,24 @@
+id: hard-cashback-level
+title: Спор об уровне кэшбека — начислено верно
+tags: [hard, loyalty, points, no-action]
+guests:
+  - { id: lida, name: Лида, phone: '79000000025', cashback_percent: 5, balance: 520, registered_at: '2023-05-10' }
+transactions:
+  - id: lida-t1
+    guest: lida
+    at: 2026-10-14 15:10
+    place: arbat
+    total: 700
+    items:
+      - { name: Раф классический L, group: Напитки, price: 380 }
+      - { name: Тирамису, group: Десерты, price: 320 }
+ticket:
+  customer: lida
+  subject: Программа лояльности и мобильное приложение
+  body: За вчерашний чек на 700 начислили всего 35 баллов, хотя у меня должен быть кэшбек 7%. Доначислите разницу.
+  sent_at: 2026-10-15 10:40
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: Текущий уровень гостя — 5%, 700 × 5% = 35 начислено верно; доначислять нечего.

@@ -1,0 +1,28 @@
+id: hard-refunded-order
+title: The money for a cancelled order was already returned
+tags: [hard, stores, orders, no-action]
+guests:
+  - { id: yana, name: Yana, phone: '79000000023', cashback_percent: 5, balance: 60 }
+orders:
+  - id: yana-o1
+    guest: yana
+    place: kristall
+    number: '1077'
+    created_at: 2026-10-13 09:05
+    status: refunded
+    total: 480
+    paid_at: 2026-10-13 09:05
+    refunded_at: 2026-10-13 10:20
+    items:
+      - { name: Latte L, price: 320 }
+      - { name: Croissant, price: 160 }
+ticket:
+  customer: yana
+  subject: Other
+  body: The day before yesterday the coffee shop cancelled my order, and the money still hasn't been returned!
+  sent_at: 2026-10-15 11:30
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [refund_order, accrue_points]
+  note: The refund was already made on 13.10 at 10:20 — do not refund again, tell the guest when the money arrives.

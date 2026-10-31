@@ -1,0 +1,80 @@
+# Agent evaluation on the simulator scenarios with a real model. It costs money, so it does not block PRs:
+# it runs manually and nightly. The model key is in the repository secrets (EVAL_LLM_API_KEY).
+name: Agent eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: 'Comma-separated scenarios (empty — all)'
+        required: false
+      model:
+        description: 'Another model of the same provider'
+        required: false
+      min_pass:
+        description: 'Minimum share of passed scenarios (0–1)'
+        required: false
+        default: '0.8'
+  schedule:
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: agent-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: kvitok
+          POSTGRES_PASSWORD: kvitok
+          POSTGRES_DB: kvitok
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U kvitok"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kvitok:kvitok@localhost:5432/kvitok
+      REDIS_URL: redis://localhost:6379
+      APP_SECRET: ${{ secrets.EVAL_APP_SECRET || 'ci-secret-ci-secret-ci-secret-ci-secret' }}
+      EVAL_LLM_NAME: ${{ vars.EVAL_LLM_NAME || 'Eval' }}
+      EVAL_LLM_BASE_URL: ${{ vars.EVAL_LLM_BASE_URL }}
+      EVAL_LLM_MODEL: ${{ vars.EVAL_LLM_MODEL }}
+      EVAL_LLM_PRICE_IN: ${{ vars.EVAL_LLM_PRICE_IN }}
+      EVAL_LLM_PRICE_OUT: ${{ vars.EVAL_LLM_PRICE_OUT }}
+      EVAL_LLM_CURRENCY: ${{ vars.EVAL_LLM_CURRENCY }}
+      EVAL_LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kvitok/api db:deploy
+      - name: Eval
+        run: >-
+          pnpm eval --concurrency 3 --budget ${{ vars.EVAL_BUDGET || '30' }}
+          --locale ${{ vars.EVAL_LOCALE || 'ru' }}
+          --min-pass ${{ inputs.min_pass || '0.8' }}
+          ${{ inputs.scenarios && format('--scenarios {0}', inputs.scenarios) || '' }}
+          ${{ inputs.model && format('--model {0}', inputs.model) || '' }}
+      - name: Summary
+        if: always()
+        run: cat eval-reports/*.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report
+          path: eval-reports/

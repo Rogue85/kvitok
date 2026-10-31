@@ -1,0 +1,13 @@
+id: job-application
+title: A question for someone else — a barista job
+tags: [triage, no-action]
+ticket:
+  identities: { phone: '79000000014' }
+  name: Olga
+  subject: Job application
+  body: Hello! I'd like to work as a barista in Kazan. Where should I send my CV?
+  sent_at: 2026-10-15 10:00
+expect:
+  department: triage
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]

@@ -1,0 +1,27 @@
+id: pickup-order-not-issued
+title: A paid order was not handed over — the coffee shop is closed
+tags: [stores, orders]
+guests:
+  - { id: nikita, name: Nikita, phone: '79000000013', cashback_percent: 5, balance: 95 }
+orders:
+  - id: nikita-o1
+    guest: nikita
+    place: tiara
+    number: '1043'
+    created_at: 2026-10-14 07:58
+    status: paid
+    total: 610
+    paid_at: 2026-10-14 07:58
+    items:
+      - { name: Cappuccino L, price: 290 }
+      - { name: Ham sandwich, price: 320 }
+ticket:
+  customer: nikita
+  subject: Other
+  body: Today at 8 am I paid for an order in the app at Tiara, came over — the coffee shop is closed, nobody handed over the order. Give me my money back.
+  sent_at: 2026-10-14 08:40
+expect:
+  department: stores
+  actions:
+    - { type: refund_order, params: { order_id: nikita-o1 } }
+  forbid_actions: [accrue_points, accrue_cups]

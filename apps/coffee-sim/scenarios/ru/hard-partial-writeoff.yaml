@@ -1,0 +1,26 @@
+id: hard-partial-writeoff
+title: Списали больше баллов, чем ушло в оплату
+tags: [hard, loyalty, points]
+guests:
+  - { id: hasan, name: Хасан, phone: '79000000022', cashback_percent: 5, balance: 40 }
+transactions:
+  - id: hasan-t1
+    guest: hasan
+    at: 2026-10-14 17:45
+    place: arbat
+    total: 450
+    balance_writeoff: 150
+    items:
+      - { name: Флэт уайт L, group: Напитки на основе эспрессо, price: 300 }
+      - { name: Маффин, group: Десерты, price: 200 }
+ticket:
+  customer: hasan
+  subject: Программа лояльности и мобильное приложение
+  body: Вчера на Арбате у меня списали 150 баллов, а скидка в чеке была только 50 рублей. Верните оставшиеся 100.
+  sent_at: 2026-10-15 09:00
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: writeoff_refund, amount: 100, transaction_id: hasan-t1 } }
+  forbid_actions: [issue_coupon, accrue_cups]
+  note: Гость говорит о части списания — вернуть 100 из 150.

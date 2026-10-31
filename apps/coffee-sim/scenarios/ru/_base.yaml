@@ -1,0 +1,52 @@
+# Справочники мира и замороженное «сейчас». Все сценарии живут в этом моменте,
+# поэтому их можно загрузить вместе (демо, оценка) или по одному (тесты).
+timezone: '+03:00'
+now: 2026-10-15 12:00
+
+places:
+  - { id: okeania, name: ТЦ «Океания», city: Москва }
+  - { id: kristall, name: ТЦ «Кристалл», city: Москва }
+  - { id: tiara, name: ТЦ «Тиара», city: Казань }
+  - { id: arbat, name: 'Арбат, 24', city: Москва }
+guest_city: Москва
+
+coupon_types:
+  - { id: free_drink, name: Подарочный напиток, days: 30 }
+  - { id: dessert_50, name: Десерт за полцены, days: 14 }
+  - { id: croissant_gift, name: Круассан в подарок, days: 14 }
+
+promos:
+  - id: autumn_double_cashback
+    name: Двойной кэшбек на осеннее меню
+    type: increased_cashback
+    description: Кэшбек ×2 на тыквенный латте и раф с карамелью
+    active_from: 2026-09-01
+    active_to: 2026-11-30
+  - id: dessert_for_total
+    name: Десерт за полцены за чек от 690 ₽
+    type: coupon_for_total
+    description: Купон на десерт за полцены, если сумма чека не меньше 690 ₽
+    active_from: 2026-10-01
+    active_to: 2026-10-31
+    coupon_type: dessert_50
+  - id: croissant_for_cappuccino
+    name: Круассан за капучино в будни
+    type: coupon_for_products
+    description: Купон на круассан за капучино L по будням в ТЦ «Океания» и ТЦ «Кристалл»
+    active_from: 2026-10-01
+    active_to: 2026-11-30
+    coupon_type: croissant_gift
+    weekdays: [1, 2, 3, 4, 5]
+    places: [okeania, kristall]
+
+cups:
+  period_from: 2026-02-21
+  period_to: 2027-01-01
+  cups_for_coupon: 5
+  coupon_type: free_drink
+  drink_groups: [Напитки, Напитки на основе эспрессо, Промо напитки]
+
+limits:
+  max_points: 1000
+  max_coupons: 3
+  max_cups: 3

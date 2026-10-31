@@ -1,0 +1,28 @@
+id: hard-promo-threshold
+title: A coupon for a receipt from 690 ₽ — the total fell short
+tags: [hard, loyalty, promo, no-action]
+guests:
+  - { id: ulyana, name: Ulyana, phone: '79000000020', cashback_percent: 5, balance: 120 }
+transactions:
+  - id: ulyana-t1
+    guest: ulyana
+    at: 2026-10-12 16:40
+    place: kristall
+    total: 650
+    items:
+      - { name: Cappuccino L, group: Espresso drinks, price: 290 }
+      - { name: Cheesecake, group: Desserts, price: 360 }
+    promo_journal:
+      - promo: dessert_for_total
+        applied: false
+        lines: ['Total: 650', 'Applied: 0', 'Coupons: 0']
+ticket:
+  customer: ulyana
+  subject: Loyalty program and mobile app
+  body: The promo should have given me a half-price dessert coupon, I had a big order on Monday. There is no coupon!
+  sent_at: 2026-10-14 19:00
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [issue_coupon, accrue_points]
+  note: The receipt total of 650 ₽ is below the 690 ₽ threshold — the promo rightly did not fire.

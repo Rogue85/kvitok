@@ -1,0 +1,14 @@
+id: app-login-code
+title: Не приходит код для входа в приложение
+tags: [app, no-action]
+guests:
+  - { id: lev, name: Лев, phone: '79000000011', cashback_percent: 3, balance: 40 }
+ticket:
+  customer: lev
+  subject: Программа лояльности и мобильное приложение
+  body: Не могу войти в приложение — СМС с кодом не приходит, жду по 5 минут, пробовал раз десять.
+  sent_at: 2026-10-15 07:45
+expect:
+  department: app
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]

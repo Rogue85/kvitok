@@ -1,0 +1,27 @@
+id: hard-cups-already-compensated
+title: Кружки уже засчитала поддержка — повторно не начислять
+tags: [hard, loyalty, cups, no-action]
+guests:
+  - { id: masha, name: Маша, phone: '79000000026', cashback_percent: 5, balance: 95 }
+cups:
+  - { guest: masha, at: 2026-10-01 09:00, delta: 1, reason: opening }
+  - { guest: masha, at: 2026-10-14 16:00, delta: 2, reason: manual }
+transactions:
+  - id: masha-t1
+    guest: masha
+    at: 2026-10-14 08:10
+    place: okeania
+    total: 520
+    cups_counted: 0
+    items:
+      - { name: Капучино M, group: Напитки на основе эспрессо, price: 260, amount: 2 }
+ticket:
+  customer: masha
+  subject: Программа лояльности и мобильное приложение
+  body: Вчера утром брала два капучино, кружки в акции не засчитались. Пишу ещё раз, проверьте!
+  sent_at: 2026-10-15 08:15
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_cups]
+  note: Напитки чека не засчитались, но поддержка уже вручную начислила 2 кружки 14.10 в 16:00 — повторно не начисляем.

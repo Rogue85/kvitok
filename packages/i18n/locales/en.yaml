@@ -1,0 +1,837 @@
+# English catalog — the source of truth for message keys.
+# Placeholders: {name}. Plural messages list CLDR categories (one, other; Russian also needs few and many).
+# Run `pnpm --filter @kvitok/i18n test` after editing: it checks that every language has the same keys.
+
+common:
+  appName: Kvitok
+  save: Save
+  cancel: Cancel
+  edit: Edit
+  delete: Delete
+  add: Add
+  create: Create
+  close: Close
+  clear: Clear
+  enable: Enable
+  disable: Disable
+  disabled: Disabled
+  copy: Copy
+  copied: Copied
+  yes: "Yes"
+  no: "No"
+  none: "—"
+  loading: Loading…
+  error: Error
+  logout: Log out
+  name: Name
+  title: Title
+  key: Key
+  description: Description
+  search: Search
+  justNow: just now
+  bytes: "{value} B"
+  kilobytes: "{value} KB"
+  megabytes: "{value} MB"
+  serverUnavailable: Server is unavailable
+  actionFailed: Could not complete the action
+
+nav:
+  tickets: Tickets
+  settings: Settings
+  members: Members
+  channels: Channels
+  integrations: Integrations
+  departments: Departments
+  fields: Fields
+  agent: Agent
+  playbooks: Playbooks
+  rules: Rules
+
+auth:
+  subtitle: Operator sign-in
+  password: Password
+  signIn: Sign in
+  signInFailed: Could not sign in
+
+workspaceSetup:
+  noWorkspaces: No workspaces available
+  slugHelp: Lowercase letters, digits and hyphens
+  create: Create workspace
+  createFailed: Could not create the workspace
+  askAdmin: Ask an administrator to add you to a workspace.
+
+ticketStatus:
+  new: New
+  open: Open
+  pending: Waiting for customer
+  resolved: Resolved
+  closed: Closed
+
+ticketPriority:
+  low: Low
+  normal: Normal
+  high: High
+  urgent: Urgent
+
+deliveryStatus:
+  queued: Queued
+  sending: Sending
+  sent: Sent
+  failed: Failed
+  cancelled: Cancelled
+
+fieldSource:
+  operator: Filled in by an operator
+  agent: Filled in by the agent
+  ingest: Came from the source
+  rule: Filled in by a rule
+  integration: From an integration
+  confidence: "confidence {percent}%"
+  locked: pinned — the agent and rules will not overwrite it
+
+events:
+  actor:
+    system: System
+    channel: Channel
+    rule: Rule
+    agent: Agent
+  deletedDepartment: deleted department
+  noDepartment: no department
+  formerMember: former member
+  nobody: nobody
+  undetermined: undetermined
+  ticketCreated: "Ticket created ({source})"
+  statusChanged: "Status: {from} → {to}"
+  priorityChanged: "Priority: {from} → {to}"
+  departmentChanged: "Department: {from} → {to}"
+  departmentByAgent: "(agent, {percent}%)"
+  assigneeChanged: "Assignee: {from} → {to}"
+  tagsChanged: "Tags: {tags}"
+  subjectChanged: "Subject: “{subject}”"
+  fieldChanged: "{label}: {from} → {to}"
+  bySource:
+    agent: (agent)
+    rule: (rule)
+    ingest: (source)
+  fieldsRejected: "Fields rejected: {fields}"
+  replyCancelled: Reply sending cancelled
+  deliveryFailedEmail: "Could not deliver the email: {error}"
+  deliveryFailedWebhook: "Could not deliver the webhook: {error}"
+  deliveryBounced: "Email not delivered: {reason}"
+  agentAnalyzed: "Agent analyzed the ticket: department {department}"
+  agentRefined: "Agent updated the analysis: department {department}"
+  toTriage: → to triage
+  confidenceSuffix: ", {percent}%"
+  approvalComment: "(“{comment}”)"
+  rejectionComment: "— “{comment}”"
+  customerLinked: "Customer in “{integration}”: {customer}"
+  integrationFallback: integration
+  customerFound: found
+  linkedByOperator: (linked by an operator)
+  actionApproved: "Approved: {action}"
+  actionRejected: "Rejected: {action}"
+  actionRetried: "Retrying: {action}"
+  actionExecuted: "Executed: {action}"
+  actionFailed: "Not executed: {action} — {error}"
+  agentFailed: "The agent could not analyze the ticket: {error}"
+
+validation:
+  minLength: "At least {min} characters"
+  slug: lowercase letters, digits and hyphens
+  identifier: lowercase letters, digits and _, starting with a letter
+  fieldKey: lowercase letters, digits and _, starting with a letter
+  customerRefOrIdentities: Either customerRef or identities
+  identityRequired: Specify at least one identity
+  smtpRequired: SMTP settings are required
+  sandboxHasNoServers: A test mailbox has no SMTP or IMAP
+  invalidRegex: Invalid regular expression
+  betweenRange: "between needs [from, to]"
+  optionsRequired: A list needs options
+  optionsUnique: Option values must be unique
+  number: A number is expected
+  integer: An integer is expected
+  min: "At least {min}"
+  max: "At most {max}"
+  unknownOption: No such option
+  phone: Invalid phone number
+
+tickets:
+  views:
+    open: Open
+    pending: Waiting for customer
+    done: Resolved
+    all: All
+  columns:
+    subject: Subject
+    status: Status
+    department: Department
+    assignee: Assignee
+    updated: Updated
+  filters:
+    allDepartments: All departments
+    noDepartment: No department
+    anyone: Anyone
+    mine: Mine
+    unassigned: Unassigned
+  searchPlaceholder: "Subject, #T-12, email, phone"
+  noCustomer: No customer
+  empty:
+    title: No tickets
+    description: Requests will appear here when they arrive through the API or by email.
+
+ticket:
+  saveFailed: Could not save
+  agentState:
+    idle: Agent ready
+    queued: Agent queued
+    running: Agent is thinking…
+    failed: Agent error
+    off: Agent is off
+  rerunStarted: The agent is analyzing the ticket again
+  rerun: Analyze again
+  agentRuns: Agent runs
+  backToList: Back to the list
+  hideProperties: Hide properties
+  showProperties: Show properties
+  properties: Ticket properties
+  notFound: Ticket not found
+  answerToAgent: answer to the agent's question
+  operator: Operator
+  toAgent: "{author} → agent · {time}"
+  sidebar:
+    unassigned: Unassigned
+    properties: Properties
+    priority: Priority
+    department: Department
+    pinned: pinned
+    assignee: Assignee
+    tags: Tags
+    fields: Fields
+    saveFields: Save fields
+    customer: Customer
+    noName: No name
+    noCustomer: Customer not identified
+    participants: Conversation participants
+
+message:
+  customer: Customer
+  customerVia: "Customer · {source}"
+  internal: Internal
+  autoReply: Auto-reply
+  hideQuote: Hide quote
+  showFull: Show the full email
+  showImages: Show images
+  deliveryEmail: "Email: {status}"
+  deliverySource: "Source: {status}"
+  inSandbox: In the test mailbox
+  cancelSending: "Cancel ({seconds} s)"
+
+reply:
+  title: Reply to customer
+  nowhere:
+    title: Nowhere to reply
+    api: "The ticket came through the API channel “{channel}”, which has no webhook or is disabled. A reply goes only to the source channel: connect a webhook on “{channel}” itself or choose a default mailbox in the channel settings."
+    email: "The mailbox “{channel}” the ticket came through is disabled. Enable it or choose a default mailbox in the channel settings."
+    noChannel: The ticket has no source channel. Connect a default mailbox in the channel settings.
+  viaSource: "To the source ({channel})"
+  emailTo: "Email → {to}"
+  noRecipient: no recipient
+  ccCount: ", cc: {count}"
+  toSource: "to the source ({channel})"
+  noChannelSelected: No channel selected
+  send:
+    pending: Send and wait for a reply
+    resolved: Send and resolve the ticket
+    keep: Send without changing the status
+  agentVersion: "agent's version v{version}"
+  editsSaved: your edits are saved
+  sendingSoon: The reply will be sent in a few seconds
+  sendFailed: Could not send
+  cancelled: Sending cancelled, the text is back in the editor
+  cancelFailed: Could not cancel
+  collapse: collapse
+  change: change
+  collapseReply: Collapse the reply
+  to: To
+  cc: Cc
+  recipientRequired: Enter the customer's address
+  suggested:
+    title: The agent suggested a new version of the reply
+    description: Your edits are saved. You can compare and choose.
+    compare: Compare
+  takeAgentVersion: Take the agent's version
+  placeholder: Reply text…
+  sendAnyway: Send anyway
+  statusAfter: What to do with the status
+  compareTitle: Compare reply versions
+  yourVersion: Your version
+  agentVersionTitle: Agent's version
+  keepMine: Keep mine
+
+customerLinks:
+  status:
+    found: found
+    ambiguous: several matches
+    not_found: not found
+    unresolved: not searched yet
+  identity:
+    phone: Phone
+    email: Email
+    card_number: Card number
+  found: "Customer found: {customer}"
+  agentWillRefine: The agent will update the analysis with their data.
+  ambiguous: Several customers found — choose the right one
+  notFound: Customer not found
+  searchFailed: Could not find the customer
+  linkedByOperator: linked by an operator
+  agentWillFind: The agent will find the customer during the analysis.
+  choose: Choose
+  findBy: Find by…
+  find: Find
+  searchAgain: Search again by contacts
+
+action:
+  status:
+    proposed: awaiting decision
+    approved: executing
+    executing: executing
+    executed: executed
+    failed: error
+    rejected: rejected
+    superseded: replaced
+  rejected: Action rejected
+  sentForExecution: Action sent for execution
+  parameters: "Parameters · {integration}"
+  executedAt: "Executed {time}"
+  approvedBy: "approved by {name}"
+  approvedByCapital: "Approved by {name}"
+  rejectedBy: "Rejected by {name}"
+  operator: an operator
+  quoted: "“{text}”"
+  attempt: "attempt {attempt}"
+  rejectReasonPlaceholder: Reason — the agent will see it (optional)
+  approve: Approve
+  reject: Reject
+  retry: Retry
+
+agentChat:
+  placeholder:
+    disabled: The agent is off — only operators will see the message
+    answer: Answer to the agent's question…
+    refineReply: "Ask the agent to adjust the reply: shorter, softer, add an apology…"
+    default: "Write to the agent: a clarification, a question, what to fix…"
+  answeringQuestion: "Answering: {question}"
+  dontAnswer: Don't answer the question
+  teamOnly: Visible to the team only
+  replyToCustomer: Reply to customer
+
+agentRuns:
+  mode:
+    triage: Analysis
+    refine: Refinement
+  status:
+    queued: queued
+    running: running
+    applied: applied
+    stale: stale
+    failed: error
+    cancelled: cancelled
+  trigger:
+    ticket_created: new ticket
+    customer_message: customer message
+    operator_message: operator message
+    question_answer: answer to a question
+    manual: manual
+    stale_rerun: rerun after changes
+    customer_linked: customer linked
+  dryRun: dry run
+  model: "Model: {model}"
+  configVersion: "Configuration version: {version}"
+  tokens: "Tokens: {input} → {output}"
+  cost: "Cost: {cost} {currency}"
+  tool: tool
+  duration: "{ms} ms"
+  stepTokens: "{input}→{output} tok."
+  inputOutput: input / output
+  prompt: Agent input (prompt)
+  result: Result
+
+agentMessage:
+  suggestionReason:
+    suggest_mode: the field is in suggestion mode
+    low_confidence: low confidence
+    locked: the field is pinned by an operator
+    filled_by_other_source: already filled from another source
+  analyzed: The agent analyzed the ticket
+  updated: The agent updated the analysis
+  newDraft: new reply draft
+  runDetails: Run details
+  failed: "Failed: {error}"
+  analysis: "Analysis: {department}, {percent}%"
+  departmentLabel: "Department:"
+  needsHuman: needs a human
+  sentToTriage: sent to triage
+  departmentSuggestion: Department
+  departmentChanged: Department changed
+  fieldFilled: Field filled in
+  accept: Accept
+  answer: Answer
+  skip: Skip
+  questionClosed: question closed
+  draftReady: Reply draft is ready
+
+members:
+  role:
+    admin: Administrator
+    operator: Operator
+    viewer: Viewer
+  name: Name
+  roleColumn: Role
+  removed: "{name} was removed from the workspace"
+  addFailed: Could not add the member
+  new: New member
+  newUserHint: If the user does not exist yet, enter a name and a password — the account will be created.
+
+departments:
+  department: Department
+  descriptionForAgent: Description for the agent
+  saved: Department saved
+  add: Add department
+  intro: A department is a queue of operators. The agent picks where to route a request by the description and examples. Tickets with low confidence go to the triage department.
+  triage: Triage
+  archived: Archived
+  empty:
+    title: No departments
+    description: Add at least one department and a triage department.
+  new: New department
+  keyHelp: Latin letters, cannot be changed
+  descriptionHelp: Which requests belong here
+  examples: Example requests
+  examplesHelp: One per line
+  instructions: Department instructions
+  instructionsHelp: Added to the prompt when the ticket is in this department
+  isTriage: Triage department (shared queue)
+  inArchive: Archived
+
+playbooks:
+  playbook: Playbook
+  when: When to apply
+  anyDepartment: Any
+  add: Add playbook
+  intro: "Playbooks for typical requests. The agent sees a catalog of “key — title — when to apply” and reads the full text once it recognizes the request type. Your own playbooks are written by the support team; playbooks from integrations come with the backend manifest and are updated with it — they can only be disabled."
+  disabled: disabled
+  empty:
+    title: No playbooks
+    description: "For example: “Points were not credited”, “The login code does not arrive”."
+  new: New playbook
+  fromIntegration: "From the integration “{integration}”"
+  fromIntegrationHint: The text is edited in the backend and updated on sync. Here the playbook can only be disabled.
+  keyHelp: Cannot be changed
+  whenHelp: One line for the catalog
+  whenPlaceholder: The customer says points were not credited for a purchase
+  body: Playbook text
+  bodyHelp: Analysis steps, what to check, what to reply, when to call a human
+  defaultDepartment: Default department
+  enabled: Enabled
+
+fieldsSettings:
+  type:
+    text: String
+    textarea: Text
+    number: Number
+    boolean: Yes/no
+    date: Date
+    datetime: Date and time
+    select: List
+    multiselect: Multi-select list
+    email: Email
+    phone: Phone
+    url: Link
+  fill:
+    manual: Operator only
+    agent_suggest: Agent suggests
+    agent_auto: Agent fills in
+  display:
+    sidebar: In the ticket card
+    list_column: As a queue column
+    filter: In filters
+  field: Field
+  typeColumn: Type
+  fillColumn: Filling
+  saved: Field saved
+  add: Add field
+  ticketFields: Ticket fields
+  customerFields: Customer fields
+  intro: "Custom fields for this project: department number, category, order number. They are filled in by the source, rules, the agent on a hint or an operator."
+  required: Required
+  empty: No fields
+  editTitle: "Field “{label}”"
+  new: New field
+  options: Options
+  optionValue: value
+  optionLabel: label
+  optionHint: hint for the agent (optional)
+  option: Option
+  integersOnly: Integers only
+  min: Minimum
+  max: Maximum
+  pattern: Pattern (regex)
+  patternHelp: "For example ^\\d{3}$"
+  whoFills: Who fills it in
+  minConfidence: Minimum agent confidence
+  agentHint: Hint for the agent
+  agentHintHelp: Where to look and how to normalize the value
+  agentHintPlaceholder: The employee's three-digit department number, usually in the email signature
+  whereToShow: Where to show
+  departmentsHelp: Empty — in all
+  requiredOnResolve: Required to resolve the ticket
+
+integrations:
+  status:
+    disabled: Disabled
+    syncError: Sync error
+    synced: "Synced {time}"
+    notSynced: Not synced
+  sync:
+    failed: Could not fetch the manifest
+    notModified: The manifest has not changed
+    added: "new playbooks: {count}"
+    updated: "updated: {count}"
+    removed: "removed: {count}"
+    skipped: "skipped: {playbooks}"
+    updatedTitle: Manifest updated
+    noPlaybookChanges: No playbook changes
+    error: Could not sync
+  departmentsCreated: "Departments created: {count}"
+  importFailed: Could not import
+  saved: Saved
+  savedHint: The address or secret changed — press “Sync” to check the connection.
+  confirmDelete: Delete the integration? Playbooks from its manifest will be deleted too.
+  noParams: no parameters
+  sections:
+    tools: "Data (tools): {count}"
+    actions: "Actions: {count}"
+    instructions: Knowledge for the agent
+    departments: "Suggested departments: {count}"
+  connect: Connect a backend
+  connectShort: Connect
+  intro: "A project backend speaking the Support Action Protocol: it gives the agent customer data (receipts, orders, coupons) and executes actions after an operator approves them. Its manifest provides knowledge for the agent and playbooks; departments can be imported. The manifest is checked automatically every few minutes."
+  empty:
+    title: No integrations
+    description: "For development you can connect the coffee shop simulator: it runs in docker compose at http://coffee-sim:3100."
+  protocol: "protocol v{version}"
+  identityTypes: "finds customers by: {types}"
+  syncNow: Sync
+  lastManifestInUse: The agent keeps working with the last received manifest.
+  noManifestYet: The manifest has never been received — check the address and the secret.
+  noCustomerNeeded: no customer
+  cache: "cache {seconds} s"
+  requiresApproval: approved by an operator
+  instructionsHint: Added to the agent prompt after the support policy. Edited in the backend.
+  departmentExists: "Already exists: {key}"
+  createDepartments: Create the selected departments
+  playbooksFromManifest: "Playbooks from the manifest: {count} —"
+  inPlaybooks: in Playbooks
+  canBeDisabled: ", they can be disabled there."
+  integration: Integration
+  address: Address
+  addressHelp: "Base URL of the protocol endpoints: …/manifest, …/tools/…"
+  secret: Signing secret
+  secretKeep: Leave empty to keep the current one
+  secretHelp: Shared with the backend, at least 16 characters
+  enabled: Enabled
+
+rules:
+  title: Routing rules
+  stage:
+    on_ingest:
+      title: On arrival
+      description: "A new ticket, before the agent: department, priority, tags, fields from regular expressions, turn the agent off."
+    after_agent:
+      title: After the agent
+      description: They see the agent's output (agent.*) and the fields it filled in.
+  op:
+    eq: "="
+    neq: "≠"
+    in: one of
+    not_in: not one of
+    contains: contains
+    not_contains: does not contain
+    matches: regex
+    gt: ">"
+    gte: "≥"
+    lt: "<"
+    lte: "≤"
+    between: between
+    is_empty: is empty
+    is_not_empty: is not empty
+  effect:
+    set_department: Department
+    set_priority: Priority
+    add_tags: Add tags
+    assign: Assign
+    set_field: Fill in a field
+    set_field_from_regex: Field from a regular expression
+    skip_agent: Do not run the agent
+    add: Action
+  invalidJson: "Conditions: invalid JSON"
+  and: and
+  or: or
+  not: "not ({condition})"
+  intro: Deterministic rules work together with the agent. Rules do not change a department pinned by an operator or fields the operator edited.
+  rule: Rule
+  empty: No rules.
+  checkOnTicket: Check on a ticket
+  check: Check
+  nothingMatched: nothing matched
+  checkedData: Data the conditions were checked against
+  new: New rule
+  stageLabel: Stage
+  conditions: Conditions
+  matchAll: all
+  matchAny: any
+  builder: Builder
+  condition: Condition
+  effects: Actions
+  fromSubject: from the subject
+  fromBody: from the body
+  position: Order
+  stop: Stop the following rules of the stage
+  enabled: Enabled
+
+agentSettings:
+  saved: Agent settings saved
+  trialFailed: The trial run failed
+  providerSaveFailed: Could not save the provider
+  addModel: Add a model to the provider
+  providerResponds: "{model} responds ({ms} ms)"
+  providerError: Provider error
+  deleteFailed: Could not delete
+  enabledTitle: Ticket analysis by the agent
+  enabledDescription: The agent picks the department, fills in fields, prepares a draft and asks questions. Only an operator sends anything to the customer.
+  model: Model
+  provider: Provider
+  notSelected: Not selected
+  temperature: Temperature
+  policy: Support policy
+  policyHelp: Tone, form of address, what must not be promised, when to call a human. Added to the agent's core rules.
+  policyPlaceholder: Address the customer formally. Do not promise credits or deadlines — an operator confirms them. If the customer threatens legal action or the press — needs_human.
+  behavior: Behavior
+  playbooksHelp: On demand — only the catalog is in the prompt
+  playbooksOnDemand: On demand (read_playbook)
+  playbooksInline: All texts in the prompt
+  threshold: Confidence threshold
+  thresholdHelp: Below it the ticket goes to the triage department
+  debounce: Pause before analysis, s
+  debounceHelp: Two messages in a row → one run
+  maxToolCalls: Tool call limit
+  maxOutputTokens: Response token limit
+  maxOutputTokensHelp: Reasoning models spend it on reasoning too
+  trialHelp: An analysis by the chosen model without applying it — to compare models before switching.
+  providerFromSettings: Provider from the settings
+  run: Run
+  seconds: "{seconds} s"
+  fullResult: Full result
+  providers: LLM providers
+  providersHelp: "Any OpenAI-compatible endpoint: OpenAI, OpenRouter, LiteLLM, vLLM, Ollama. The agent needs tool support; without it the agent works in JSON mode."
+  noModels: no models
+  noKey: no key
+  jsonMode: JSON mode
+  newProvider: New provider
+  apiKey: API key
+  keepCurrent: Empty — keep the current one
+  supportsTools: Supports tool calling
+  modelsAndPrices: Models and prices (per 1M tokens)
+  priceInput: input
+  priceOutput: output
+
+channels:
+  saveFailed: Could not save the channel
+  sandbox: Test mailbox
+  newSandbox: New test mailbox
+  mailbox: Mailbox
+  newMailbox: New mailbox
+  mailboxSaved: Mailbox saved
+  mailboxSaveFailed: Could not save the mailbox
+  ok: ok
+  connectionCheck: Connection check
+  checkFailed: The check failed
+  updateFailed: Could not update the channel
+  apiChannel: API channel
+  newApiChannel: New API channel
+  intro: "Sources of requests. An API channel receives requests from your services (an in-app form, a website), a mailbox receives emails. You can reply to a customer by email on tickets from the API too: through the default mailbox. A test mailbox sends nothing outside: emails are kept in its Outbox."
+  sandboxBadge: Test
+  defaultMailbox: Default for replies
+  channelId: Channel ID
+  metadataToFields: metadata → fields
+  sending: Sending
+  sandboxSending: to the Outbox, never leaves the system
+  noInbound: not receiving mail
+  sync: Sync
+  never: not yet
+  keyRotated: Key reissued
+  newKey: New key
+  webhookSecretRotated: Webhook secret reissued
+  newWebhookSecret: New webhook secret
+  testConnection: Test connection
+  pollStarted: Mail check started
+  poll: Check mail
+  defaultChosen: The mailbox is now the default for replies
+  makeDefault: Make default
+  empty:
+    title: No channels
+    description: Connect a mailbox or create an API channel.
+  apiNamePlaceholder: In-app form
+  webhook: Webhook for replies
+  webhookHelp: Operator replies and status changes are sent here (signed with HMAC)
+  metadataToTicketFields: metadata → ticket fields
+  senderName: Sender name
+  senderNamePlaceholder: Support
+  sandboxAlert:
+    title: Emails never leave the system
+    description: Replies through this mailbox are built as real emails and stored in its Outbox, so you can see what would be sent and to which address. Make it the default mailbox to reply this way on tickets from the API.
+  smtpLegend: SMTP — sending
+  imapLegend: IMAP — receiving
+  server: Server
+  port: Port
+  login: Login
+  folder: Folder
+  importExisting: Import the emails already in the mailbox
+  signature: Signature (HTML)
+  signatureHelp: Added to every reply
+  secrets:
+    title: Save the secrets
+    description: They are shown only once.
+    apiKey: Channel API key
+    webhookSecret: Webhook signing secret
+    verification: "Verification:"
+    example: Example request
+    saved: I have saved them
+
+outbox:
+  title: Outbox
+  ticket: Ticket
+  when: When
+  views:
+    html: Email
+    text: Text
+    headers: Headers
+  cleared:
+    one: "{count} email deleted"
+    other: "{count} emails deleted"
+  clearFailed: Could not clear
+  backToChannels: Back to channels
+  recipientAddress: Recipient address
+  notice: "Emails from {address} never leave the system. This is exactly what the customer would receive: recipients, thread headers, signature, attachments."
+  ccLine: "cc: {cc}"
+  noSubject: (no subject)
+  empty:
+    title: No emails
+    description: Reply to a customer by email through this mailbox and the email will appear here. To reply this way on tickets from the API, make this mailbox the default one.
+  from: From
+  downloadEml: Download .eml
+  ticketNumber: "Ticket T-{number}"
+  confirmClear:
+    title: Clear the outbox?
+    description: All emails of the test mailbox will be deleted. Tickets and their messages stay.
+
+api:
+  errors:
+    validation: Invalid data
+    unauthorized: Sign-in required
+    forbidden: Not enough permissions
+    notFound: Not found
+    internal: Internal error
+  unknownField: Unknown field
+  ticketNotFound: Ticket not found
+  assigneeMustBeOperator: The assignee must be an operator of the workspace
+  fillField: "Fill in “{label}”"
+  requiredFieldsBeforeResolve: Fill in the required fields before resolving the ticket
+  invalidFilterValue: Invalid filter value
+  noReplyMailbox: No mailbox to reply from
+  sourceHasNoWebhook: The ticket source has no webhook for replies
+  customerAddressMissing: The customer's address is missing
+  messageNotFound: Message not found
+  replyAlreadySending: The reply is already being sent — it cannot be cancelled
+  staleConversation: The customer sent a new message while you were writing. Check your reply and send it again.
+  channelNotFound: Channel not found
+  smtpPasswordRequired: An SMTP password is required
+  imapPasswordRequired: An IMAP password is required
+  keyOnlyForApiChannel: Only an API channel has a key
+  webhookOnlyForApiChannel: Only an API channel has a webhook
+  onlyMailboxCanBeDefault: Only a mailbox can be the default
+  onlySuperadminCreatesWorkspaces: Only a superadministrator can create workspaces
+  newUserNeedsNameAndPassword: A new user needs a name and a password
+  userNotFoundCreate: "User not found: enter a name and a password to create one"
+  alreadyMember: "{email} is already a member"
+  memberNotFound: Member not found
+  lastAdmin: The last administrator of the workspace cannot be removed
+  slugTaken: "The slug “{slug}” is already taken"
+  workspaceNotFound: Workspace not found
+  ruleNotFound: Rule not found
+  rule:
+    departmentNotFound: department not found
+    departmentPinned: department pinned by an operator
+    assigneeNotOperator: the assignee is not an operator of the workspace
+    assigneeAlreadySet: an assignee is already set
+    valueNotFound: value not found
+    fieldPinned: field pinned by an operator
+  ticketHasNoCustomer: The ticket has no customer — add the customer's contact first
+  manifestNotReceived: The integration manifest has not been received yet — sync the integration
+  customerNotFoundExternally: Customer not found in the external system
+  integrationFailed: "The integration did not respond: {error}"
+  integrationNotFound: Integration not found
+  playbookKeyTakenByIntegration: the key is taken by a playbook of another integration
+  playbookKeyTakenByUi: the key is taken by a playbook created in the interface
+  userExists: "User {email} already exists"
+  attachmentNotFound: Attachment not found
+  invalidChannelKey: Invalid channel key
+  channelDisabled: The channel is disabled
+  invalidCredentials: Invalid email or password
+  noSubject: No subject
+  defaultSubject: Request
+  fieldKeyExists: "A field with the key “{key}” already exists"
+  fieldNotFound: Field not found
+  departmentKeyExists: "A department with the key “{key}” already exists"
+  departmentNotFound: Department not found
+  departmentNotFoundOrArchived: Department not found or archived
+  fieldArchived: The field is archived
+  invalidValue: Invalid value
+  action:
+    stillExecuting: the backend is still executing the action
+    requestFailed: "the request did not reach the backend ({error})"
+    outcomeUnknown: "The outcome was not confirmed: {reason}. Retrying is safe — the backend will not execute the action twice."
+    notExecuted: The backend did not execute the action
+  proposalNotFound: Proposal not found
+  actionAlreadyInStatus: "The action is already “{status}”"
+  emailNotFound: Email not found
+  emptyEmail: (empty email)
+  emailNotDelivered: Email not delivered
+  imapMessageSkipped: "Email UID {uid} skipped: {error}"
+  testOnlyForMailbox: The check is only available for a mailbox
+  outboxOnlyForSandbox: Only a test mailbox has an outbox
+  llm:
+    cancelled: Request cancelled
+    network: "Network: {error}"
+    notJson: "The LLM returned non-JSON: {body}"
+    noChoices: "The LLM returned no choices: {body}"
+  providerNotFound: Provider not found
+  providerInUse: The provider is used by the agent — choose another one first
+  suggestedDraftNotFound: Suggested version not found
+  playbookKeyExists: "A playbook with the key “{key}” already exists"
+  playbookNotFound: Playbook not found
+  playbookFromIntegrationEdit: The playbook came from an integration and is edited in its backend — here it can only be disabled
+  playbookFromIntegrationDelete: The playbook came from an integration — it can be disabled here and deleted only in the backend
+  runNotFound: Run not found
+  agentDisabled: The agent is disabled in the workspace settings
+  noDepartmentSuggestion: There is no department suggestion
+  noFieldSuggestion: There is no suggestion for the field
+  questionNotFound: The question was not found or is already closed
+  agentNeedsModel: To enable the agent, choose a provider and a model
+  agentNotConfigured: "The agent is not configured: choose a provider and a model"
+  agent:
+    truncated: "The model's answer was cut off by the token limit ({limit}). Increase “Response token limit” in the agent settings."
+    invalidJson: "The model returned invalid JSON: {error}"
+    noSubmit: The model did not call the tool that finishes the analysis
+    invalidSubmit: "Invalid {tool}: {error}"
+    tooManySteps: The agent did not finish the analysis within the allowed number of steps

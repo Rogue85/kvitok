@@ -1,0 +1,25 @@
+id: receipt-not-on-card
+title: Чек не провели по карте — базовый кэшбек по сумме из обращения
+tags: [loyalty, points]
+guests:
+  - { id: anna, name: Анна, phone: '79000000001', email: anna@example.test, cashback_percent: 5, balance: 340 }
+transactions:
+  - id: anna-t1
+    guest: anna
+    at: 2026-10-14 15:22
+    place: okeania
+    total: 885
+    items:
+      - { name: Капучино L, group: Напитки на основе эспрессо, price: 290 }
+      - { name: Чизкейк, group: Десерты, price: 595 }
+ticket:
+  customer: anna
+  subject: Программа лояльности и мобильное приложение
+  body: Вчера вечером около 19:30 купила латте за 380 ₽, приложение не открылось, и баллы не пришли. Можно начислить?
+  sent_at: 2026-10-15 09:10
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 19, transaction_id: null, receipt_total: 380 } }
+  forbid_actions: [issue_coupon]
+  note: Чека на 380 ₽ по карте нет — его не провели; 380 × 5% = 19.

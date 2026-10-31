@@ -1,0 +1,19 @@
+{
+  "name": "kvitok",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "postinstall": "pnpm --filter @kvitok/i18n --filter @kvitok/shared --filter @kvitok/protocol --filter @kvitok/coffee-sim build",
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test && node --test 'scripts/*.test.mjs'",
+    "typecheck": "pnpm -r typecheck",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "eval": "pnpm --filter @kvitok/api eval"
+  }
+}

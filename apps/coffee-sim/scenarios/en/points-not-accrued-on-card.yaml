@@ -1,0 +1,33 @@
+id: points-not-accrued-on-card
+title: The receipt is on the card, but the points were not credited
+tags: [loyalty, points]
+guests:
+  - { id: boris, name: Boris, phone: '79000000002', cashback_percent: 7, balance: 1210 }
+transactions:
+  - id: boris-t1
+    guest: boris
+    at: 2026-10-13 18:47
+    place: kristall
+    total: 640
+    balance_add: 0
+    items:
+      - { name: Classic raf L, group: Drinks, price: 340 }
+      - { name: Chicken sandwich, group: Food, price: 300 }
+  - id: boris-t2
+    guest: boris
+    at: 2026-10-10 09:12
+    place: kristall
+    total: 260
+    items:
+      - { name: Americano M, group: Espresso drinks, price: 260 }
+ticket:
+  customer: boris
+  subject: Loyalty program and mobile app
+  body: On the evening of October 13 I got a raf and a sandwich at Kristall for 640 rubles, I tapped my card, and the points never came.
+  sent_at: 2026-10-14 21:05
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 44, transaction_id: boris-t1 } }
+  forbid_actions: [issue_coupon, accrue_cups]
+  note: The receipt is on the card, balance_add = 0; 640 × 7% = 44.

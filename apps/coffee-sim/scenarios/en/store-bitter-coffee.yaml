@@ -1,0 +1,23 @@
+id: store-bitter-coffee
+title: A complaint about a drink and the staff
+tags: [stores, no-action]
+guests:
+  - { id: maria, name: Maria, phone: '79000000012', cashback_percent: 5, balance: 300 }
+transactions:
+  - id: maria-t1
+    guest: maria
+    at: 2026-10-15 10:40
+    place: kristall
+    total: 380
+    items:
+      - { name: Caramel raf M, group: Promo drinks, price: 380 }
+ticket:
+  customer: maria
+  subject: Service complaints
+  body: Today at Kristall my raf was bitter, I asked them to remake it — the barista was rude and refused.
+  sent_at: 2026-10-15 11:05
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon]
+  note: The agent does not offer points as compensation on its own.

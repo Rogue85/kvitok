@@ -1,0 +1,23 @@
+id: store-bitter-coffee
+title: Жалоба на напиток и персонал
+tags: [stores, no-action]
+guests:
+  - { id: maria, name: Мария, phone: '79000000012', cashback_percent: 5, balance: 300 }
+transactions:
+  - id: maria-t1
+    guest: maria
+    at: 2026-10-15 10:40
+    place: kristall
+    total: 380
+    items:
+      - { name: Раф с карамелью M, group: Промо напитки, price: 380 }
+ticket:
+  customer: maria
+  subject: Жалобы на обслуживание
+  body: Сегодня в Кристалле раф был горький, попросила переделать — бариста ответил грубо и отказался.
+  sent_at: 2026-10-15 11:05
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon]
+  note: Компенсации баллами агент сам не предлагает.

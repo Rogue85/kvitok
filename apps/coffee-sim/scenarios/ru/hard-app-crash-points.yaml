@@ -1,0 +1,24 @@
+id: hard-app-crash-points
+title: Приложение вылетело на кассе — баллы за чек не по карте
+tags: [hard, loyalty, points, app]
+guests:
+  - { id: kostya, name: Костя, phone: '79000000024', cashback_percent: 5, balance: 310 }
+transactions:
+  - id: kostya-t1
+    guest: kostya
+    at: 2026-10-12 08:20
+    place: kristall
+    total: 260
+    items:
+      - { name: Американо M, group: Напитки на основе эспрессо, price: 260 }
+ticket:
+  customer: kostya
+  subject: Программа лояльности и мобильное приложение
+  body: Сегодня утром приложение вылетело прямо на кассе, кассир провёл без карты. Американо за 290. Зачислите баллы, и почините уже приложение.
+  sent_at: 2026-10-15 09:20
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 14, transaction_id: null, receipt_total: 290 } }
+  forbid_actions: [issue_coupon]
+  note: Суть — неначисление по чеку не по карте (290 × 5% = 14); про приложение — упомянуть оператору.

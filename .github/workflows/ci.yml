@@ -1,0 +1,47 @@
+# Every PR and push to main: typecheck, tests (including API e2e on Postgres and Redis,
+# the coffee-sim simulator and the protocol checks against it) and a build of all packages.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: kvitok
+          POSTGRES_PASSWORD: kvitok
+          POSTGRES_DB: kvitok
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U kvitok"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kvitok:kvitok@localhost:5432/kvitok
+      REDIS_URL: redis://localhost:6379
+      APP_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check

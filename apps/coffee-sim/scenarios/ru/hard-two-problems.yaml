@@ -1,0 +1,30 @@
+id: hard-two-problems
+title: Две проблемы в одном письме — баллы и кружка по одному чеку
+tags: [hard, loyalty, points, cups]
+guests:
+  - { id: polina, name: Полина, phone: '79000000016', cashback_percent: 5, balance: 88 }
+cups:
+  - { guest: polina, at: 2026-10-01 09:00, delta: 1, reason: opening }
+transactions:
+  - id: polina-t1
+    guest: polina
+    at: 2026-10-14 13:20
+    place: arbat
+    total: 480
+    balance_add: 0
+    cups_counted: 0
+    items:
+      - { name: Латте L, group: Напитки на основе эспрессо, price: 320 }
+      - { name: Круассан, group: Выпечка, price: 160 }
+ticket:
+  customer: polina
+  subject: Программа лояльности и мобильное приложение
+  body: Вчера днём на Арбате брала латте с круассаном, карту показывала. Не пришли ни баллы, ни кружка в акции. Посмотрите, пожалуйста, оба.
+  sent_at: 2026-10-15 08:30
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_points, params: { basis: base_cashback, amount: 24, transaction_id: polina-t1 } }
+    - { type: accrue_cups, params: { basis: drinks_not_counted, count: 1, transaction_id: polina-t1 } }
+  forbid_actions: [issue_coupon]
+  note: По чеку по карте balance_add = 0 (480 × 5% = 24) и напиток не засчитан — нужны оба действия.

@@ -1,0 +1,26 @@
+id: cups-not-counted
+title: Drinks from a receipt on the card were not counted towards the "6th cup"
+tags: [loyalty, cups]
+guests:
+  - { id: zoya, name: Zoya, phone: '79000000008', cashback_percent: 5, balance: 77 }
+cups:
+  - { guest: zoya, at: 2026-10-01 09:00, delta: 2, reason: opening }
+transactions:
+  - id: zoya-t1
+    guest: zoya
+    at: 2026-10-14 08:15
+    place: kristall
+    total: 520
+    cups_counted: 0
+    items:
+      - { name: Cappuccino M, group: Espresso drinks, price: 260, amount: 2 }
+ticket:
+  customer: zoya
+  subject: Loyalty program and mobile app
+  body: Yesterday morning I bought two cappuccinos, but the promo cups in the app did not go up — it was 2 and it stayed that way.
+  sent_at: 2026-10-15 09:30
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_cups, params: { basis: drinks_not_counted, count: 2, transaction_id: zoya-t1 } }
+  forbid_actions: [accrue_points, issue_coupon]

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Message format and no AI-assistant attribution — the rules are in CONTRIBUTING.md.
+exec node "$(git rev-parse --show-toplevel)/scripts/check-commit-msg.mjs" "$1"

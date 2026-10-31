@@ -1,0 +1,13 @@
+id: job-application
+title: Вопрос не по адресу — работа бариста
+tags: [triage, no-action]
+ticket:
+  identities: { phone: '79000000014' }
+  name: Ольга
+  subject: Устройство на работу
+  body: Здравствуйте! Хочу работать бариста в Казани. Куда отправить резюме?
+  sent_at: 2026-10-15 10:00
+expect:
+  department: triage
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]

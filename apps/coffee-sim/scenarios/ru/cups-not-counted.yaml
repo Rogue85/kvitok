@@ -1,0 +1,26 @@
+id: cups-not-counted
+title: Напитки из чека по карте не засчитались в «6-ю кружку»
+tags: [loyalty, cups]
+guests:
+  - { id: zoya, name: Зоя, phone: '79000000008', cashback_percent: 5, balance: 77 }
+cups:
+  - { guest: zoya, at: 2026-10-01 09:00, delta: 2, reason: opening }
+transactions:
+  - id: zoya-t1
+    guest: zoya
+    at: 2026-10-14 08:15
+    place: kristall
+    total: 520
+    cups_counted: 0
+    items:
+      - { name: Капучино M, group: Напитки на основе эспрессо, price: 260, amount: 2 }
+ticket:
+  customer: zoya
+  subject: Программа лояльности и мобильное приложение
+  body: Вчера утром купила два капучино, а в приложении кружки в акции не прибавились — как было 2, так и осталось.
+  sent_at: 2026-10-15 09:30
+expect:
+  department: loyalty
+  actions:
+    - { type: accrue_cups, params: { basis: drinks_not_counted, count: 2, transaction_id: zoya-t1 } }
+  forbid_actions: [accrue_points, issue_coupon]

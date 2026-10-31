@@ -1,0 +1,827 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkspaceRole {
+  admin
+  operator
+  viewer
+}
+
+model User {
+  id             String           @id
+  email          String           @unique
+  name           String
+  passwordHash   String           @map("password_hash")
+  isSuperadmin   Boolean          @default(false) @map("is_superadmin")
+  disabledAt     DateTime?        @map("disabled_at") @db.Timestamptz
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  sessions       Session[]
+  memberships    Membership[]
+  assigned       Ticket[]         @relation("TicketAssignee")
+  messages       Message[]
+  decidedActions ActionProposal[]
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id
+  tokenHash  String   @unique @map("token_hash")
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent  String?  @map("user_agent")
+  ip         String?
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Workspace {
+  id               String            @id
+  name             String
+  slug             String            @unique
+  locale           String            @default("ru")
+  settings         Json              @default("{}")
+  /// Counter for ticket numbers (#T-123) within the workspace.
+  ticketSeq        Int               @default(0) @map("ticket_seq")
+  /// Mailbox for email replies on tickets that did not come by email.
+  defaultMailboxId String?           @map("default_mailbox_id")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+  memberships      Membership[]
+  agentSettings    AgentSettings?
+  llmProviders     LlmProvider[]
+  playbooks        Playbook[]
+  integrations     Integration[]
+  routingRules     RoutingRule[]
+  departments      Department[]
+  channels         Channel[]
+  customers        Customer[]
+  tickets          Ticket[]
+  fieldDefinitions FieldDefinition[]
+
+  @@map("workspaces")
+}
+
+model Membership {
+  workspaceId String        @map("workspace_id")
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String        @map("user_id")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+enum ChannelType {
+  api
+  email
+}
+
+enum TicketStatus {
+  new
+  open
+  pending
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum AgentState {
+  idle
+  queued
+  running
+  failed
+}
+
+enum MessageAuthorType {
+  customer
+  operator
+  agent
+  system
+}
+
+enum MessageVisibility {
+  public
+  internal
+}
+
+/// Where a message came from or was created.
+enum MessageSource {
+  email
+  api
+  ui
+}
+
+enum DeliveryKind {
+  email
+  webhook
+}
+
+enum DeliveryStatus {
+  queued
+  sending
+  sent
+  failed
+  cancelled
+}
+
+enum ParticipantRole {
+  customer
+  cc
+}
+
+enum FieldEntity {
+  ticket
+  customer
+}
+
+enum FieldType {
+  text
+  textarea
+  number
+  boolean
+  date
+  datetime
+  select
+  multiselect
+  email
+  phone
+  url
+}
+
+enum FieldFillMode {
+  manual
+  agent_suggest
+  agent_auto
+}
+
+model Department {
+  id           String    @id
+  workspaceId  String    @map("workspace_id")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key          String
+  title        String
+  /// Description for routing by the agent.
+  description  String    @default("")
+  examples     String[]  @default([])
+  instructions String    @default("")
+  isTriage     Boolean   @default(false) @map("is_triage")
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  tickets      Ticket[]
+
+  @@unique([workspaceId, key])
+  @@map("departments")
+}
+
+model Channel {
+  id            String      @id
+  workspaceId   String      @map("workspace_id")
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type          ChannelType
+  name          String
+  enabled       Boolean     @default(true)
+  /// Non-secret settings: for api — metadata → fields mapping, for email — hosts, ports, address.
+  config        Json        @default("{}")
+  /// Encrypted secrets (SMTP/IMAP passwords, webhook secret).
+  secrets       String?
+  /// sha256 of the channel API key (api type).
+  apiKeyHash    String?     @unique @map("api_key_hash")
+  apiKeyPrefix  String?     @map("api_key_prefix")
+  /// IMAP cursor: uidValidity and the last processed UID.
+  syncState     Json        @default("{}") @map("sync_state")
+  lastSyncAt    DateTime?   @map("last_sync_at") @db.Timestamptz
+  lastSyncError String?     @map("last_sync_error")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  tickets       Ticket[]
+  messages      Message[]
+  deliveries    Delivery[]
+  sandboxEmails SandboxEmail[]
+
+  @@index([workspaceId])
+  @@map("channels")
+}
+
+model Customer {
+  id          String             @id
+  workspaceId String             @map("workspace_id")
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String?
+  fields      Json               @default("{}")
+  fieldMeta   Json               @default("{}") @map("field_meta")
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  identities  CustomerIdentity[]
+  links       CustomerLink[]
+  tickets     Ticket[]
+
+  @@index([workspaceId])
+  @@map("customers")
+}
+
+model CustomerIdentity {
+  id          String   @id
+  workspaceId String   @map("workspace_id")
+  customerId  String   @map("customer_id")
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// Any type from the workspace settings: email, phone, employee_id…
+  type        String
+  /// Normalized value.
+  value       String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([workspaceId, type, value])
+  @@index([customerId])
+  @@map("customer_identities")
+}
+
+model Ticket {
+  id                     String           @id
+  workspaceId            String           @map("workspace_id")
+  workspace              Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  number                 Int
+  channelId              String?          @map("channel_id")
+  channel                Channel?         @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  customerId             String?          @map("customer_id")
+  customer               Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  subject                String
+  status                 TicketStatus     @default(new)
+  priority               TicketPriority   @default(normal)
+  departmentId           String?          @map("department_id")
+  department             Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  departmentLocked       Boolean          @default(false) @map("department_locked")
+  assigneeId             String?          @map("assignee_id")
+  assignee               User?            @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  tags                   String[]         @default([])
+  fields                 Json             @default("{}")
+  fieldMeta              Json             @default("{}") @map("field_meta")
+  /// Grows on every event that affects the agent input.
+  revision               Int              @default(0)
+  agentState             AgentState       @default(idle) @map("agent_state")
+  agentRerunPending      Boolean          @default(false) @map("agent_rerun_pending")
+  /// Id of the BullMQ job waiting to run the agent on this ticket.
+  agentJobId             String?          @map("agent_job_id")
+  /// An on_ingest rule turned automatic analysis off; the agent can still be run manually.
+  agentSkipped           Boolean          @default(false) @map("agent_skipped")
+  analysis               Json?
+  /// Agent triggers accumulated while a run is going or waiting for debounce: { mode, triggers[] }.
+  agentPending           Json?            @map("agent_pending")
+  /// Conversation id in the external source (API channel).
+  conversationExternalId String?          @map("conversation_external_id")
+  lastMessageAt          DateTime         @default(now()) @map("last_message_at") @db.Timestamptz
+  firstResponseAt        DateTime?        @map("first_response_at") @db.Timestamptz
+  resolvedAt             DateTime?        @map("resolved_at") @db.Timestamptz
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  participants           Participant[]
+  messages               Message[]
+  events                 TicketEvent[]
+  deliveries             Delivery[]
+  agentRuns              AgentRun[]
+  agentQuestions         AgentQuestion[]
+  drafts                 ReplyDraft[]
+  actionProposals        ActionProposal[]
+  sandboxEmails          SandboxEmail[]
+
+  @@unique([workspaceId, number])
+  @@unique([channelId, conversationExternalId])
+  @@index([workspaceId, status, lastMessageAt])
+  @@index([workspaceId, departmentId])
+  @@index([workspaceId, assigneeId])
+  @@map("tickets")
+}
+
+model Participant {
+  ticketId  String          @map("ticket_id")
+  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  email     String
+  name      String?
+  role      ParticipantRole
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([ticketId, email])
+  @@map("participants")
+}
+
+model Message {
+  id                String            @id
+  workspaceId       String            @map("workspace_id")
+  ticketId          String            @map("ticket_id")
+  ticket            Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  channelId         String?           @map("channel_id")
+  channel           Channel?          @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  authorType        MessageAuthorType @map("author_type")
+  authorUserId      String?           @map("author_user_id")
+  authorUser        User?             @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  visibility        MessageVisibility
+  source            MessageSource
+  subject           String?
+  bodyText          String            @map("body_text")
+  bodyHtml          String?           @map("body_html")
+  /// Text without quotes and signature — this is what the agent sees.
+  bodyClean         String?           @map("body_clean")
+  fromEmail         String?           @map("from_email")
+  fromName          String?           @map("from_name")
+  to                String[]          @default([])
+  cc                String[]          @default([])
+  /// Message id in the external source (API channel), for deduplication.
+  externalId        String?           @map("external_id")
+  /// RFC 5322 Message-ID (incoming and our outgoing emails) — for deduplication and threading.
+  rfcMessageId      String?           @map("rfc_message_id")
+  inReplyTo         String?           @map("in_reply_to")
+  references        String[]          @default([])
+  /// An auto-reply or service email: does not reopen the ticket and does not run the agent.
+  isAutomated       Boolean           @default(false) @map("is_automated")
+  /// An operator's note answering an agent question.
+  answersQuestionId String?           @map("answers_question_id")
+  headers           Json?
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  attachments       Attachment[]
+  deliveries        Delivery[]
+
+  @@unique([channelId, externalId])
+  @@unique([workspaceId, rfcMessageId])
+  @@index([ticketId, createdAt])
+  @@map("messages")
+}
+
+model Attachment {
+  id          String   @id
+  workspaceId String   @map("workspace_id")
+  messageId   String?  @map("message_id")
+  message     Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  filename    String
+  contentType String   @map("content_type")
+  size        Int
+  storageKey  String   @map("storage_key")
+  contentId   String?  @map("content_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([messageId])
+  @@map("attachments")
+}
+
+/// An outbound delivery: an email to the customer or a webhook to the source.
+model Delivery {
+  id                String         @id
+  workspaceId       String         @map("workspace_id")
+  ticketId          String?        @map("ticket_id")
+  ticket            Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  messageId         String?        @map("message_id")
+  message           Message?       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  channelId         String         @map("channel_id")
+  channel           Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  kind              DeliveryKind
+  /// For webhooks: message.created, ticket.status_changed…
+  event             String?
+  payload           Json?
+  status            DeliveryStatus @default(queued)
+  attempts          Int            @default(0)
+  lastError         String?        @map("last_error")
+  responseStatus    Int?           @map("response_status")
+  scheduledAt       DateTime       @default(now()) @map("scheduled_at") @db.Timestamptz
+  sentAt            DateTime?      @map("sent_at") @db.Timestamptz
+  providerMessageId String?        @map("provider_message_id")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  sandboxEmail      SandboxEmail?
+
+  @@index([messageId])
+  @@index([ticketId])
+  @@index([status, scheduledAt])
+  @@map("deliveries")
+}
+
+/// An email of a test mailbox: the built MIME is stored here instead of being sent over SMTP.
+model SandboxEmail {
+  id           String    @id
+  workspaceId  String    @map("workspace_id")
+  channelId    String    @map("channel_id")
+  channel      Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  /// The delivery that "sent" the email; unique so a delivery retry does not duplicate the email.
+  deliveryId   String?   @unique @map("delivery_id")
+  delivery     Delivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+  ticketId     String?   @map("ticket_id")
+  ticket       Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  fromAddress  String    @map("from_address")
+  fromName     String?   @map("from_name")
+  to           String[]  @default([])
+  cc           String[]  @default([])
+  subject      String
+  rfcMessageId String?   @map("rfc_message_id")
+  inReplyTo    String?   @map("in_reply_to")
+  references   String[]  @default([])
+  html         String?
+  text         String
+  /// [{ filename, contentType, size }]
+  attachments  Json      @default("[]")
+  /// [{ key, value }] in the order of the email
+  headers      Json      @default("[]")
+  /// The whole email (.eml).
+  raw          Bytes
+  size         Int
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([channelId, createdAt])
+  @@index([ticketId])
+  @@map("sandbox_emails")
+}
+
+model TicketEvent {
+  id          String   @id
+  workspaceId String   @map("workspace_id")
+  ticketId    String   @map("ticket_id")
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type        String
+  /// user | system | channel | rule | agent
+  actorType   String   @map("actor_type")
+  actorId     String?  @map("actor_id")
+  data        Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_events")
+}
+
+model FieldDefinition {
+  id                 String        @id
+  workspaceId        String        @map("workspace_id")
+  workspace          Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entity             FieldEntity
+  key                String
+  label              String
+  type               FieldType
+  /// [{ value, label, agentHint? }] for select and multiselect.
+  options            Json          @default("[]")
+  /// { maxLength?, min?, max?, integer?, pattern? }
+  validation         Json          @default("{}")
+  agentHint          String        @default("") @map("agent_hint")
+  fillMode           FieldFillMode @default(manual) @map("fill_mode")
+  agentMinConfidence Float         @default(0.8) @map("agent_min_confidence")
+  /// resolve | agent_done
+  requiredOn         String[]      @default([]) @map("required_on")
+  /// Empty — the field applies to all departments.
+  scopeDepartmentIds String[]      @default([]) @map("scope_department_ids")
+  /// sidebar | list_column | filter
+  display            String[]      @default(["sidebar"])
+  passToIntegration  Boolean       @default(false) @map("pass_to_integration")
+  position           Int           @default(0)
+  archivedAt         DateTime?     @map("archived_at") @db.Timestamptz
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([workspaceId, entity, key])
+  @@map("field_definitions")
+}
+
+enum AgentRunMode {
+  triage
+  refine
+}
+
+enum AgentRunStatus {
+  queued
+  running
+  applied
+  stale
+  failed
+  cancelled
+}
+
+enum DraftSource {
+  agent
+  operator
+}
+
+enum DraftStatus {
+  current
+  suggested
+  superseded
+  sent
+  discarded
+}
+
+enum AgentQuestionStatus {
+  open
+  answered
+  dismissed
+}
+
+enum RuleStage {
+  on_ingest
+  after_agent
+}
+
+/// An OpenAI-compatible endpoint: OpenAI, OpenRouter, LiteLLM, vLLM, Ollama…
+model LlmProvider {
+  id           String    @id
+  workspaceId  String    @map("workspace_id")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name         String
+  kind         String    @default("openai_compatible")
+  baseUrl      String    @map("base_url")
+  /// Encrypted { apiKey, headers? }.
+  secrets      String?
+  /// [{ id, inputPerMillion?, outputPerMillion?, currency? }]
+  models       Json      @default("[]")
+  /// { tools, jsonMode, vision }
+  capabilities Json      @default("{}")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([workspaceId])
+  @@map("llm_providers")
+}
+
+model AgentSettings {
+  workspaceId         String    @id @map("workspace_id")
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  enabled             Boolean   @default(false)
+  providerId          String?   @map("provider_id")
+  model               String?
+  /// Model for "rewrite the reply"; empty — the main one.
+  /// Support policy: tone, what must not be promised, when to call a human.
+  policy              String    @default("")
+  /// inline | on_demand
+  playbookMode        String    @default("on_demand") @map("playbook_mode")
+  maxToolCalls        Int       @default(8) @map("max_tool_calls")
+  maxOutputTokens     Int       @default(4000) @map("max_output_tokens")
+  temperature         Float     @default(0.2)
+  confidenceThreshold Float     @default(0.6) @map("confidence_threshold")
+  /// Pause before analyzing a new customer message: two emails in a row → one run.
+  debounceSeconds     Int       @default(30) @map("debounce_seconds")
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("agent_settings")
+}
+
+model Playbook {
+  id            String       @id
+  workspaceId   String       @map("workspace_id")
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key           String
+  title         String
+  /// When to apply — the catalog line for the agent.
+  when          String
+  body          String
+  departmentId  String?      @map("department_id")
+  /// ui — written in the interface; manifest — came from an integration.
+  source        String       @default("ui")
+  integrationId String?      @map("integration_id")
+  integration   Integration? @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  enabled       Boolean      @default(true)
+  version       Int          @default(1)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([workspaceId, key])
+  @@index([integrationId])
+  @@map("playbooks")
+}
+
+/// A project backend speaking the Support Action Protocol: customer data, read tools, actions (docs/protocol.md).
+model Integration {
+  id            String           @id
+  workspaceId   String           @map("workspace_id")
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name          String
+  baseUrl       String           @map("base_url")
+  /// Encrypted { secret }.
+  secrets       String
+  enabled       Boolean          @default(true)
+  /// The last manifest that passed the protocol schema. json, not jsonb: keeps the field order of argument schemas.
+  manifest      Json?            @db.Json
+  manifestEtag  String?          @map("manifest_etag")
+  /// sha256 of the manifest content — part of the agent configuration version.
+  manifestHash  String?          @map("manifest_hash")
+  /// When the manifest was last fetched or confirmed (304).
+  syncedAt      DateTime?        @map("synced_at") @db.Timestamptz
+  lastSyncAt    DateTime?        @map("last_sync_at") @db.Timestamptz
+  lastSyncError String?          @map("last_sync_error")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  playbooks     Playbook[]
+  customerLinks CustomerLink[]
+  actions       ActionProposal[]
+
+  @@index([workspaceId])
+  @@map("integrations")
+}
+
+/// An immutable snapshot of everything that affects the agent's behavior. Created automatically when the configuration changes.
+model AgentConfigVersion {
+  id          String     @id
+  workspaceId String     @map("workspace_id")
+  number      Int
+  hash        String
+  snapshot    Json
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  runs        AgentRun[]
+
+  @@unique([workspaceId, number])
+  @@unique([workspaceId, hash])
+  @@map("agent_config_versions")
+}
+
+model AgentRun {
+  id              String              @id
+  workspaceId     String              @map("workspace_id")
+  ticketId        String              @map("ticket_id")
+  ticket          Ticket              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  mode            AgentRunMode
+  /// { type: ticket_created | customer_message | operator_message | question_answer | manual | stale_rerun, messageId?, userId? }
+  trigger         Json
+  status          AgentRunStatus      @default(queued)
+  /// A run without applying the result (checking a new prompt version).
+  dryRun          Boolean             @default(false) @map("dry_run")
+  inputRevision   Int                 @map("input_revision")
+  configVersionId String?             @map("config_version_id")
+  configVersion   AgentConfigVersion? @relation(fields: [configVersionId], references: [id], onDelete: SetNull)
+  model           String?
+  inputSnapshot   Json?               @map("input_snapshot")
+  output          Json?
+  error           String?
+  tokensIn        Int                 @default(0) @map("tokens_in")
+  tokensOut       Int                 @default(0) @map("tokens_out")
+  cost            Float?
+  currency        String?
+  startedAt       DateTime?           @map("started_at") @db.Timestamptz
+  finishedAt      DateTime?           @map("finished_at") @db.Timestamptz
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  steps           AgentStep[]
+  questions       AgentQuestion[]
+
+  @@index([ticketId, createdAt])
+  @@map("agent_runs")
+}
+
+model AgentStep {
+  id         String   @id
+  runId      String   @map("run_id")
+  run        AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  index      Int
+  /// llm | tool
+  kind       String
+  name       String?
+  input      Json?
+  output     Json?
+  error      String?
+  tokensIn   Int?     @map("tokens_in")
+  tokensOut  Int?     @map("tokens_out")
+  durationMs Int      @map("duration_ms")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([runId, index])
+  @@map("agent_steps")
+}
+
+model AgentQuestion {
+  id              String              @id
+  workspaceId     String              @map("workspace_id")
+  ticketId        String              @map("ticket_id")
+  ticket          Ticket              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  runId           String              @map("run_id")
+  run             AgentRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  text            String
+  status          AgentQuestionStatus @default(open)
+  answerMessageId String?             @map("answer_message_id")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([ticketId, status])
+  @@map("agent_questions")
+}
+
+model ReplyDraft {
+  id              String      @id
+  workspaceId     String      @map("workspace_id")
+  ticketId        String      @map("ticket_id")
+  ticket          Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  version         Int
+  source          DraftSource
+  runId           String?     @map("run_id")
+  userId          String?     @map("user_id")
+  bodyHtml        String      @map("body_html")
+  basedOnRevision Int         @map("based_on_revision")
+  status          DraftStatus
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([ticketId, version])
+  @@index([ticketId, status])
+  @@map("reply_drafts")
+}
+
+model RoutingRule {
+  id          String    @id
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  stage       RuleStage
+  position    Int       @default(0)
+  conditions  Json
+  effects     Json
+  /// Stop processing the following rules of this stage.
+  stop        Boolean   @default(false)
+  enabled     Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([workspaceId, stage, position])
+  @@map("routing_rules")
+}
+
+/// A support customer ↔ a customer in an external system (result of resolve or of an operator's manual choice).
+model CustomerLink {
+  id             String      @id
+  workspaceId    String      @map("workspace_id")
+  customerId     String      @map("customer_id")
+  customer       Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  integrationId  String      @map("integration_id")
+  integration    Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  /// found | not_found | ambiguous
+  status         String
+  customerRef    String?     @map("customer_ref")
+  displayName    String?     @map("display_name")
+  /// [{ customerRef, displayName, hint }] when ambiguous
+  candidates     Json        @default("[]")
+  /// auto — by the customer's identities; manual — chosen by an operator, never revised automatically.
+  source         String      @default("auto")
+  /// Fingerprint of the identities searched by: if they change, search again.
+  identitiesHash String?     @map("identities_hash")
+  lastError      String?     @map("last_error")
+  resolvedAt     DateTime    @map("resolved_at") @db.Timestamptz
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([customerId, integrationId])
+  @@index([integrationId])
+  @@map("customer_links")
+}
+
+/// An action in an external system proposed by the agent: validate → operator decision → execute.
+model ActionProposal {
+  id               String      @id
+  workspaceId      String      @map("workspace_id")
+  ticketId         String      @map("ticket_id")
+  ticket           Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// The run that proposed the action.
+  runId            String?     @map("run_id")
+  integrationId    String      @map("integration_id")
+  integration      Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  /// Action name in the manifest and its title at the time of the proposal.
+  action           String
+  title            String
+  customerRef      String      @map("customer_ref")
+  params           Json
+  /// Parameters after validate — these are executed.
+  normalizedParams Json?       @map("normalized_params")
+  preview          String?
+  warnings         Json        @default("[]")
+  reason           String
+  calculation      String?
+  /// proposed | approved | executing | executed | failed | rejected | superseded
+  status           String      @default("proposed")
+  decidedById      String?     @map("decided_by_id")
+  decidedBy        User?       @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt        DateTime?   @map("decided_at") @db.Timestamptz
+  decisionComment  String?     @map("decision_comment")
+  /// Idempotency key of execute: one per proposal, so a retry is safe.
+  idempotencyKey   String?     @unique @map("idempotency_key")
+  attempts         Int         @default(0)
+  executedAt       DateTime?   @map("executed_at") @db.Timestamptz
+  result           Json?
+  externalRef      String?     @map("external_ref")
+  error            String?
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([ticketId, createdAt])
+  @@map("action_proposals")
+}
