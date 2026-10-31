@@ -90,6 +90,22 @@ export async function runConformance(profile: ConformanceProfile): Promise<Confo
     if (result.status !== 'found') fail(`expected found, got ${result.status}`);
     customerRef = (result as { customer_ref: string }).customer_ref;
   });
+  await check('resolve.matched_by', 'matched_by lists only the requested identity types', async () => {
+    const result = await client.resolve(profile.customer.identities);
+    if (result.status !== 'found' || result.matched_by === undefined) return 'skip';
+    const extra = result.matched_by.filter((type) => !(type in profile.customer.identities));
+    if (extra.length > 0) fail(`matched_by has types that were not requested: ${extra.join(', ')}`);
+    if (result.matched_by.length === 0) fail('matched_by is empty for a found customer');
+  });
+  await check('resolve.unmatched_ignored', 'an identity that matches nobody does not hide the customer found by the others', async () => {
+    const m = manifest as Manifest | null;
+    const extraType = m?.identity_types.map((i) => i.type).find((type) => !(type in profile.customer.identities));
+    if (!extraType) return 'skip';
+    const value = extraType === 'phone' ? '70000000000' : extraType === 'email' ? `conformance-${randomUUID()}@example.invalid` : `conformance-${randomUUID()}`;
+    const result = await client.resolve({ ...profile.customer.identities, [extraType]: value });
+    if (result.status !== 'found') fail(`expected found with an extra unknown ${extraType}, got ${result.status}`);
+    if (result.matched_by?.includes(extraType)) fail(`matched_by includes ${extraType}, which matched nobody`);
+  });
   await check('resolve.not_found', 'resolve does not find a nonexistent customer', async () => {
     const identities =
       profile.unknownIdentities ??

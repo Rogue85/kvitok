@@ -57,7 +57,7 @@ describe.each(SIM_LOCALES)('scenarios (%s)', (locale) => {
 });
 
 /** Keys whose string values are human text and differ between languages. */
-const TEXT_KEYS = new Set(['title', 'name', 'city', 'guest_city', 'description', 'group', 'drink_groups', 'subject', 'body', 'note', 'lines', 'when', 'examples', 'instructions']);
+const TEXT_KEYS = new Set(['title', 'label', 'name', 'city', 'guest_city', 'description', 'group', 'drink_groups', 'subject', 'body', 'note', 'lines', 'when', 'examples', 'instructions']);
 
 /** Human text → the numbers in it: a translation may reword, but not change amounts, dates or counts. */
 const numbers = (text: string) => (text.match(/\d+/g) ?? []).sort();

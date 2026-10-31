@@ -1,4 +1,4 @@
-import type { DepartmentDto, FieldDefinitionDto, MemberDto, TicketEventDto, TicketPriority, TicketStatus } from '@kvitok/shared';
+import type { DepartmentDto, FieldDefinitionDto, IdentityTypeDto, MemberDto, PendingOption, TicketEventDto, TicketPriority, TicketStatus } from '@kvitok/shared';
 import { formatFieldValue, priorityLabel, statusLabel } from './format';
 import { t } from './i18n';
 
@@ -32,6 +32,9 @@ export function eventIcon(event: TicketEventDto): string {
     agent_analyzed: 'i-lucide-sparkles',
     agent_failed: 'i-lucide-bot-off',
     customer_linked: 'i-lucide-link',
+    identities_found: 'i-lucide-scan-search',
+    customer_identification: 'i-lucide-user-search',
+    identification_rejected: 'i-lucide-user-x',
     action_approved: 'i-lucide-check',
     action_rejected: 'i-lucide-x',
     action_retried: 'i-lucide-rotate-ccw',
@@ -105,6 +108,12 @@ export function eventText(event: TicketEventDto, lookups: EventLookups): string 
       });
       return d.source === 'manual' ? `${text} ${t('events.linkedByOperator')}` : text;
     }
+    case 'identities_found':
+      return t('events.identitiesFound', { identities: identitiesText(d.identities) });
+    case 'customer_identification':
+      return identificationText(event);
+    case 'identification_rejected':
+      return t('events.identificationRejected', { identities: identitiesText(d.identities) });
     case 'action_approved':
       return `${t('events.actionApproved', { action })}${d.comment ? ` ${t('events.approvalComment', { comment: String(d.comment) })}` : ''}`;
     case 'action_rejected':
@@ -119,5 +128,37 @@ export function eventText(event: TicketEventDto, lookups: EventLookups): string 
       return t('events.agentFailed', { error: String(d.error ?? '') });
     default:
       return event.type;
+  }
+}
+
+const KNOWN_IDENTITIES = ['phone', 'email', 'card_number'] as const;
+
+/** The name of an identity type: the label from the integration manifest, a known one, or the type itself. */
+export function identityLabel(type: string, types: IdentityTypeDto[] = []): string {
+  const label = types.find((i) => i.type === type)?.label;
+  if (label) return label;
+  const known = KNOWN_IDENTITIES.find((k) => k === type);
+  return known ? t(`customerLinks.identity.${known}`) : type;
+}
+
+function identitiesText(value: unknown): string {
+  const list = Array.isArray(value) ? (value as Array<{ type: string; value: string; ruleName?: string | null }>) : [];
+  return list.map((i) => `${identityLabel(i.type)} ${i.value}${i.ruleName ? ` (${t('events.byRule', { rule: i.ruleName })})` : ''}`).join(', ');
+}
+
+/** A line about customer identification: linked automatically, nobody found, or a decision the card asked for. */
+export function identificationText(event: TicketEventDto): string {
+  const d = event.data as { kind?: string; integration?: string; identities?: unknown; options?: PendingOption[]; displayName?: string | null };
+  const identities = identitiesText(d.identities);
+  const customers = (d.options ?? []).map((o) => o.displayName ?? o.customerRef).join(' / ');
+  switch (d.kind) {
+    case 'linked':
+      return t('events.identification.linked', { identities, customer: d.displayName ?? customers });
+    case 'not_found':
+      return t('events.identification.notFound', { identities });
+    case 'ignored':
+      return t('events.identification.ignored', { identities, customer: customers });
+    default:
+      return t('events.identification.asked', { identities, customer: customers });
   }
 }

@@ -1,0 +1,16 @@
+id: id-card-in-text
+title: A guest's card in the text of an email from an unknown address — the operator decides
+tags: [loyalty, identification, no-action]
+guests:
+  - { id: lazar, name: Lazar, phone: '79000000041', email: lazar@example.test, cashback_percent: 5, balance: 120 }
+ticket:
+  identities: { email: lazar.work@example.test }
+  name: Lazar
+  subject: Points were not credited
+  body: Hello! I am writing from my work email. Yesterday I bought a raf for 320 ₽, the points did not arrive. My card is 700000041.
+  sent_at: 2026-10-15 09:20
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: The guest is found only by the card 700000041 from the email — the operator confirms them in the timeline; the agent does not ask for the card again and proposes nothing without the guest's data.

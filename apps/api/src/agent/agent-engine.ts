@@ -176,6 +176,8 @@ export class AgentEngine {
         now: replay?.at,
         record: (step) => this.saveStep(run.id, stepIndex++, step),
         recorded: replay?.calls,
+        // A dry run must not link customers or touch the values from messages.
+        checkClaims: !dryRun,
       });
       const context: AssembledContext = assembleContext({
         snapshot,
@@ -187,6 +189,7 @@ export class AgentEngine {
         draft: draftState.draft,
         supportsTools: providerInfo.capabilities.tools,
         integrations: integrations.views,
+        serviceTools: integrations.serviceTools,
         actions,
       });
       if (replay) {

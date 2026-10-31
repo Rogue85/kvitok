@@ -123,7 +123,7 @@ export class RuleApplier {
     value: unknown,
     ruleId: string,
     note: (r: { result: 'applied' | 'skipped'; reason?: string }) => void,
-    event: (type: string, data: Record<string, unknown>) => Promise<void>,
+    event: (type: string, data: Record<string, unknown>) => Promise<unknown>,
   ): Promise<Ticket> {
     const result = applyFieldValues({
       definitions,

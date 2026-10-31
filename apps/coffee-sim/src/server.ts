@@ -181,24 +181,32 @@ export function createSimServer(options: SimServerOptions): SimServer {
       api.post('/customers/resolve', async (request, reply) =>
         withFault('resolve', reply, (): ResolveResponse => {
           const { identities } = parseOrThrow(ResolveRequestSchema, request.body, l);
-          // Strong identities first; the following ones only narrow the matches.
-          let matches: Guest[] | null = null;
+          // Identities that match nobody are ignored; the rest must point to one guest.
+          const matchedBy = new Map<Guest, string[]>();
+          let common: Guest[] | null = null;
           for (const type of ['phone', 'card_number', 'email']) {
             const value = identities[type];
             if (!value) continue;
             const found = store.findGuests(type, value);
             if (found.length === 0) continue;
-            if (matches === null) matches = found;
-            else {
-              const narrowed: Guest[] = matches.filter((g) => found.includes(g));
-              if (narrowed.length > 0) matches = narrowed;
-            }
+            for (const guest of found) matchedBy.set(guest, [...(matchedBy.get(guest) ?? []), type]);
+            common = common === null ? found : common.filter((g) => found.includes(g));
           }
-          if (!matches || matches.length === 0) return { status: 'not_found' };
-          if (matches.length === 1) return { status: 'found', customer_ref: matches[0]!.id, display_name: matches[0]!.name };
+          if (common === null) return { status: 'not_found' };
+          if (common.length === 1) return { status: 'found', customer_ref: common[0]!.id, display_name: common[0]!.name, matched_by: matchedBy.get(common[0]!)! };
+          // Several guests share an identity, or identities point to different guests.
+          const candidates = common.length > 1 ? common : [...matchedBy.keys()];
           return {
             status: 'ambiguous',
-            candidates: [...matches].sort((x, y) => x.id.localeCompare(y.id)).slice(0, 20).map((g) => ({ customer_ref: g.id, display_name: g.name, hint: l({ en: `card …${g.cardNumber.slice(-4)}, phone …${g.phone.slice(-4)}`, ru: `карта …${g.cardNumber.slice(-4)}, телефон …${g.phone.slice(-4)}` }) })),
+            candidates: [...candidates]
+              .sort((x, y) => x.id.localeCompare(y.id))
+              .slice(0, 20)
+              .map((g) => ({
+                customer_ref: g.id,
+                display_name: g.name,
+                hint: l({ en: `card …${g.cardNumber.slice(-4)}, phone …${g.phone.slice(-4)}`, ru: `карта …${g.cardNumber.slice(-4)}, телефон …${g.phone.slice(-4)}` }),
+                matched_by: matchedBy.get(g)!,
+              })),
           };
         }),
       );

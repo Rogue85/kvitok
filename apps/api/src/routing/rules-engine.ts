@@ -37,7 +37,8 @@ export function evaluateRules(rules: EvaluableRule[], ctx: RuleContextData): Eva
   return matched;
 }
 
-export function evaluateCondition(condition: RuleCondition, ctx: RuleContextData): boolean {
+/** `ctx` is any data object: routing rules check RuleContextData, identification rules — the message context. */
+export function evaluateCondition(condition: RuleCondition, ctx: object): boolean {
   if ('all' in condition) {
     return condition.all.every((c) => evaluateCondition(c, ctx));
   }
@@ -50,7 +51,7 @@ export function evaluateCondition(condition: RuleCondition, ctx: RuleContextData
   return evaluateLeaf(condition, getPath(ctx, condition.field));
 }
 
-export function getPath(ctx: RuleContextData, path: string): unknown {
+export function getPath(ctx: object, path: string): unknown {
   let node: unknown = ctx;
   for (const part of path.split('.')) {
     if (node === null || node === undefined || typeof node !== 'object') {

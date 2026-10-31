@@ -23,7 +23,7 @@ export interface ApplyFieldValuesParams {
   meta: FieldMeta;
   input: Record<string, unknown>;
   source: FieldValueSource;
-  actor?: Pick<FieldMetaEntry, 'userId' | 'runId' | 'ruleId' | 'confidence' | 'evidence'>;
+  actor?: Pick<FieldMetaEntry, 'userId' | 'runId' | 'ruleId' | 'confidence' | 'evidence' | 'integrationId' | 'customerRef'>;
   now?: Date;
 }
 

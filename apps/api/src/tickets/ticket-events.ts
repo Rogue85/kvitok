@@ -14,10 +14,11 @@ export const SYSTEM_ACTOR: Actor = { type: 'system' };
 export async function recordEvent(
   db: Prisma.TransactionClient,
   params: { workspaceId: string; ticketId: string; type: string; actor: Actor; data?: Record<string, unknown>; at?: Date },
-): Promise<void> {
+): Promise<string> {
+  const id = newId();
   await db.ticketEvent.create({
     data: {
-      id: newId(),
+      id,
       workspaceId: params.workspaceId,
       ticketId: params.ticketId,
       type: params.type,
@@ -27,4 +28,5 @@ export async function recordEvent(
       ...(params.at ? { createdAt: params.at } : {}),
     },
   });
+  return id;
 }

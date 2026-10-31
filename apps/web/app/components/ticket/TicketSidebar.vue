@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import {
   TICKET_PRIORITIES,
+  type CustomerLinkDto,
   type FieldDefinitionDto,
   type TicketDto,
   type TicketPriority,
   type UpdateTicketInput,
 } from '@kvitok/shared';
 
-const props = defineProps<{ ticket: TicketDto }>();
-const emit = defineEmits<{ update: [patch: UpdateTicketInput] }>();
+const props = defineProps<{ ticket: TicketDto; links: CustomerLinkDto[] }>();
+const emit = defineEmits<{ update: [patch: UpdateTicketInput]; changed: [] }>();
 
 const { can } = useWorkspace();
 const { departments, members, ticketFields, customerFields } = useWorkspaceData();
@@ -119,7 +120,7 @@ function requiredMark(field: FieldDefinitionDto): string {
             <dd class="truncate">{{ formatFieldValue(ticket.customer.fields[field.key], field.options) }}</dd>
           </div>
         </dl>
-        <TicketCustomerLinks :ticket="ticket" />
+        <TicketCustomerLinks :ticket="ticket" :links="links" @changed="emit('changed')" />
       </template>
       <p v-else class="text-sm text-(--ui-text-muted)">{{ t('ticket.sidebar.noCustomer') }}</p>
     </section>

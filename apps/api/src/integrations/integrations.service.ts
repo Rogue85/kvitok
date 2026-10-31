@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { IntegrationClient, IntegrationError, ManifestSchema, type InputSchema, type Manifest } from '@kvitok/protocol';
 import {
   CreateDepartmentSchema,
+  type ClaimLinking,
   type CreateIntegrationInput,
   type DepartmentDto,
   type IntegrationDto,
@@ -100,6 +101,9 @@ export class IntegrationsService {
         ...(input.baseUrl === undefined ? {} : { baseUrl: input.baseUrl }),
         ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
         ...(input.secret === undefined ? {} : { secrets: this.box.encrypt({ secret: input.secret } satisfies IntegrationSecrets) }),
+        ...(input.claimLinking === undefined ? {} : { claimLinking: input.claimLinking }),
+        ...(input.textIdentities === undefined ? {} : { textIdentities: input.textIdentities }),
+        ...(input.fieldMapping === undefined ? {} : { fieldMapping: json(input.fieldMapping) }),
         ...(endpointChanged ? { manifestEtag: null } : {}),
       },
     });
@@ -261,8 +265,15 @@ export class IntegrationsService {
 }
 
 /** What the audit log keeps about an integration: no secret and no manifest (its sync is recorded separately). */
-function auditView(row: Integration): { name: string; baseUrl: string; enabled: boolean } {
-  return { name: row.name, baseUrl: row.baseUrl, enabled: row.enabled };
+function auditView(row: Integration): Record<string, unknown> {
+  return {
+    name: row.name,
+    baseUrl: row.baseUrl,
+    enabled: row.enabled,
+    claimLinking: row.claimLinking,
+    textIdentities: row.textIdentities,
+    fieldMapping: row.fieldMapping,
+  };
 }
 
 /** The stored manifest has already passed the schema; parsing it again fills in the defaults. */
@@ -285,6 +296,9 @@ export function toIntegrationDto(row: Integration, departmentKeys: Set<string>):
     lastSyncError: row.lastSyncError,
     manifestEtag: row.manifestEtag,
     manifest: manifest ? toManifestDto(manifest, departmentKeys) : null,
+    claimLinking: row.claimLinking as ClaimLinking,
+    textIdentities: row.textIdentities,
+    fieldMapping: row.fieldMapping as Record<string, string>,
   };
 }
 
@@ -293,7 +307,13 @@ function toManifestDto(manifest: Manifest, departmentKeys: Set<string>): Integra
     name: manifest.name,
     title: manifest.title,
     protocolVersion: manifest.protocol_version,
-    identityTypes: manifest.identity_types,
+    identityTypes: manifest.identity_types.map((i) => ({
+      type: i.type,
+      label: i.label ?? null,
+      pattern: i.pattern ?? null,
+      normalize: i.normalize ?? null,
+      description: i.description ?? null,
+    })),
     instructions: manifest.instructions,
     tools: manifest.tools.map((t) => ({
       name: t.name,

@@ -45,6 +45,7 @@ nav:
   agent: Агент
   playbooks: Плейбуки
   rules: Правила
+  identification: Определение клиента
   tokens: Токены доступа
   audit: Журнал изменений
 
@@ -135,6 +136,14 @@ events:
   actionExecuted: "Исполнено: {action}"
   actionFailed: "Не исполнено: {action} — {error}"
   agentFailed: "Агент не смог разобрать тикет: {error}"
+  identitiesFound: "Найдено в сообщении: {identities}"
+  byRule: "правило «{rule}»"
+  identificationRejected: "Данные из сообщений отклонены: {identities}"
+  identification:
+    linked: "Клиент определён по данным {identities}: {customer}"
+    notFound: "Никто не найден по данным {identities}"
+    ignored: "По данным {identities} найден {customer} — привязка по данным из сообщений выключена"
+    asked: "Кто клиент: {customer} по данным {identities}"
 
 validation:
   minLength: "Не короче {min} символов"
@@ -155,6 +164,8 @@ validation:
   max: "Не больше {max}"
   unknownOption: Нет такого варианта
   phone: Некорректный телефон
+  extractSource: "subject, body или header:<имя>"
+  extractEmailRequired: Чтобы взять клиента из текста, извлеките email
 
 tickets:
   views:
@@ -235,6 +246,11 @@ reply:
     email: "Почтовый ящик «{channel}», через который пришёл тикет, выключен. Включите его или выберите почтовый ящик по умолчанию в настройках каналов."
     noChannel: У тикета нет канала-источника. Подключите почтовый ящик по умолчанию в настройках каналов.
   viaSource: "В источник ({channel})"
+  unconfirmedCustomer:
+    title: "Клиент {customer} не подтверждён"
+    description: Он найден по данным из сообщений. Проверьте, кто это, прежде чем отправлять его данные.
+    conflict: Сообщения указывают и на другого клиента. Проверьте, кто это, прежде чем отправлять его данные.
+    show: Показать решение
   emailTo: "Email → {to}"
   noRecipient: нет адресата
   ccCount: ", копия: {count}"
@@ -290,6 +306,14 @@ customerLinks:
   findBy: Найти по…
   find: Найти
   searchAgain: Искать заново по контактам
+  unconfirmed: не подтверждён
+  linkedByMessages: "найден по данным из сообщений: {types}"
+  claims: Найдено в сообщениях
+  pending:
+    suggestion: Клиент, найденный по данным из сообщений, ждёт вашего решения
+    conflict: Сообщения указывают на другого клиента — решите в ленте
+    candidates: Подходят несколько клиентов — выберите в ленте
+    confirm: Привязан без подтверждения — подтвердите в ленте
 
 action:
   status:
@@ -312,6 +336,7 @@ action:
   attempt: "попытка {attempt}"
   rejectReasonPlaceholder: Причина — её увидит агент (необязательно)
   approve: Подтвердить
+  confirmCustomerFirst: "Сначала подтвердите клиента: он найден по данным из сообщений"
   reject: Отклонить
   retry: Повторить
 
@@ -445,6 +470,8 @@ audit:
     llm_provider: LLM-провайдер
     playbook: Плейбук
     routing_rule: Правило маршрутизации
+    identification_rule: Правило определения клиента
+    identification_settings: Настройки определения клиента
     channel: Канал
     integration: Интеграция
   action:
@@ -585,6 +612,25 @@ integrations:
     description: "Для разработки можно подключить симулятор кофейни: в docker compose он доступен по адресу http://coffee-sim:3100."
   protocol: "протокол v{version}"
   identityTypes: "клиента ищет по: {types}"
+  claimLinkingShort: "клиенты из сообщений: {policy}"
+  claimLinkingLabel: Привязка по данным из сообщений
+  claimLinkingHelp: "Что делать, когда бэкенд нашёл клиента только по значениям, которые набрал человек: карта или телефон в письме, форма."
+  claimLinking:
+    off:
+      label: Выключена
+      description: Только строка в ленте; оператор привязывает клиента вручную.
+    suggest:
+      label: Предлагать
+      description: Оператор подтверждает клиента одним кликом на карточке в ленте.
+    corroborated:
+      label: Привязывать, если сходятся два идентификатора
+      description: Привязывать сразу, когда два типа идентификаторов указывают на одного клиента (телефон и карта); иначе предлагать.
+    auto:
+      label: Привязывать без подтверждения
+      description: Привязывать сразу с отметкой «не подтверждён»; действия по клиенту ждут подтверждения оператора.
+  fieldMappingLabel: Поля клиента из карточки
+  fieldMappingHelp: "Ключи fields из карточки клиента в бэкенде → поля клиента. Ключ, совпадающий с полем клиента, берётся как есть. Записывается только для подтверждённого клиента."
+  fieldMappingAdd: Поле
   syncNow: Синхронизировать
   lastManifestInUse: Агент продолжает работать с последним полученным manifest.
   noManifestYet: Manifest ещё ни разу не получен — проверьте адрес и секрет.
@@ -663,6 +709,105 @@ rules:
   stop: Остановить следующие правила стадии
   enabled: Включено
 
+identification:
+  title: Определение клиента
+  intro: "Кто клиент сообщения и какие идентификаторы в нём есть. Значения, которые набрал человек (карта или телефон в письме, поле формы), не считаются доверенными: ядро проверяет их в бэкенде, а политика интеграции решает, привязать клиента сразу или спросить оператора в ленте тикета."
+  saved: Настройки сохранены
+  sender:
+    title: Отправитель письма
+    description: Считать ли адрес From собственным контактом клиента.
+  trustSender:
+    always:
+      label: Всегда доверять
+      description: Адрес отправителя определяет клиента, как раньше.
+    authenticated:
+      label: Только если принимающий сервер его проверил
+      description: "Прошёл DMARC или DKIM домена отправителя. Иначе адрес проверяется как значение из текста: поддельный From не откроет чужие данные."
+  rules:
+    title: Правила
+    description: "Работают на каждом сообщении клиента до того, как клиент известен: формы, размеченные строки, номера в теме."
+    empty: "Правил нет: клиент — отправитель, идентификаторы ищутся по шаблонам интеграций."
+  customerFromLabel: Кто клиент
+  customerFrom:
+    sender:
+      label: Отправитель
+      description: Клиент — адрес From.
+      short: отправитель
+    reply_to:
+      label: Reply-To (письмо из формы)
+      description: Письмо пришло из формы; клиент и адрес для ответа — в Reply-To.
+      short: из Reply-To
+    extracted_email:
+      label: Email из текста
+      description: Email клиента берётся из текста строкой извлечения с типом email.
+      short: email из текста
+  trust:
+    trusted: доверенный
+    claimed: нужна проверка
+  extractSource:
+    body: из текста
+    subject: из темы
+    header: из заголовка
+  nameType: Имя клиента
+  extract:
+    title: Что взять из сообщения
+    description: "Регулярное выражение: значение — именованная группа value, иначе группа 1. Доверенные значения сразу становятся идентификаторами клиента, остальные проверяются в бэкенде."
+    add: Значение
+  presets:
+    form: Письмо из формы
+    subject: Номер в теме
+    formName: Письмо из формы
+    subjectName: Номер в теме
+    namePattern: "Имя:\\s*(.+)"
+    phonePattern: "Телефон:\\s*(.+)"
+  stop: Остановить следующие правила
+  check:
+    noRules: Ни одно правило не сработало
+    customer: "Клиент:"
+  fromIntegrations:
+    title: Из интеграций
+    description: Типы идентификаторов, по которым ищут бэкенды. Те, у которых есть шаблон, ищутся в каждом сообщении клиента.
+    empty: Нет интеграций с манифестом.
+    policy: "Привязка по данным из сообщений: {policy}"
+    change: изменить
+    textIdentities: Искать в тексте сообщений
+    searchedInText: ищется в тексте
+  source:
+    sender: отправитель
+    api: API-источник
+    rule: правило
+    manifest: шаблон интеграции
+    agent: нашёл агент
+    operator: оператор
+  claimStatus:
+    pending: не проверено
+    matched: ждёт решения
+    not_found: никто не найден
+    confirmed: подтверждено
+    rejected: отклонено
+  card:
+    title:
+      suggestion: Клиент найден по данным из сообщений
+      conflict: Сообщения указывают на разных клиентов
+      candidates: Подходят несколько клиентов
+      confirm: Клиент привязан без подтверждения
+    choose:
+      suggestion: Привязать
+      conflict: Это он
+      candidates: Выбрать
+      confirm: Подтвердить
+    reject:
+      suggestion: Не тот клиент
+      conflict: Никто
+      candidates: Никто из них
+      confirm: Не тот клиент
+    current: по контактам отправителя
+    matchedBy: "по: {type}"
+    conflictHint: Пока вы не решите, действия по текущему клиенту заблокированы.
+    confirmHint: Агент уже видит данные этого клиента; действия по нему заблокированы до подтверждения.
+    linked: Клиент привязан
+    rejected: Данные из сообщений отклонены
+
 agentSettings:
   saved: Настройки агента сохранены
   trialFailed: Пробный прогон не удался
@@ -728,6 +873,8 @@ channels:
   defaultMailbox: Ответы по умолчанию
   channelId: ID канала
   metadataToFields: metadata → поля
+  identification: Клиент
+  identificationSender: отправитель сообщения
   sending: Отправка
   sandboxSending: в «Исходящие», наружу не уходит
   noInbound: не принимаем почту
@@ -850,6 +997,9 @@ api:
   ticketHasNoCustomer: У тикета нет клиента — сначала укажите контакт клиента
   manifestNotReceived: Manifest интеграции ещё не получен — синхронизируйте её
   customerNotFoundExternally: Клиент не найден во внешней системе
+  identificationNothingPending: По этому клиенту решать уже нечего
+  identificationUnknownOption: Такого клиента не предлагали
+  customerNotConfirmed: Сначала подтвердите клиента — он найден по данным из сообщений
   integrationFailed: "Интеграция не ответила: {error}"
   integrationNotFound: Интеграция не найдена
   playbookKeyTakenByIntegration: ключ занят плейбуком другой интеграции

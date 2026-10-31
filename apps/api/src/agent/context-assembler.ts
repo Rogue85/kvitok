@@ -13,7 +13,7 @@ import type {
 import type { LlmMessage, LlmTool } from '../llm/llm.types';
 import { htmlToPlainText } from '../mail/html';
 import { CHAT_TRIGGERS, type AgentTrigger } from './agent-trigger.types';
-import { MAX_TOOL_RESULT_CHARS, type IntegrationView } from './integration-runtime';
+import { IDENTIFY_CUSTOMER, MAX_TOOL_RESULT_CHARS, type IntegrationView } from './integration-runtime';
 import type { AgentConfigSnapshot } from './config-snapshot.service';
 import { corePrompt } from './core-prompt';
 import {
@@ -47,6 +47,8 @@ export interface AssembleInput {
   supportsTools: boolean;
   /** Integrations: the customer in an external system, the card, stored facts, tools. */
   integrations?: IntegrationView[];
+  /** Service tools of the run, such as identify_customer. */
+  serviceTools?: LlmTool[];
   /** Proposed actions (except replaced ones): awaiting decision, executed, rejected. */
   actions?: ActionProposal[];
 }
@@ -117,10 +119,11 @@ export function assembleContext(input: AssembleInput): AssembledContext {
   }
 
   const integrations = input.integrations ?? [];
+  const canIdentify = (input.serviceTools ?? []).some((t) => t.name === IDENTIFY_CUSTOMER);
   const user = [
     ticketSection(input),
     customerSection(input),
-    ...integrations.map(integrationSection),
+    ...integrations.map((view) => integrationSection(view, canIdentify)),
     previousAnalysisSection(ticket),
     factsSection(integrations),
     actionsSection(input.actions ?? []),
@@ -138,7 +141,7 @@ export function assembleContext(input: AssembleInput): AssembledContext {
       { role: 'user', content: user },
     ],
     tools: input.supportsTools
-      ? [...(onDemand ? [buildReadPlaybookTool(playbooks.map((p) => p.key))] : []), ...integrations.flatMap((i) => i.tools), submitTool]
+      ? [...(onDemand ? [buildReadPlaybookTool(playbooks.map((p) => p.key))] : []), ...(input.serviceTools ?? []), ...integrations.flatMap((i) => i.tools), submitTool]
       : [],
     submitTool: SUBMIT_RESULT,
     partial,
@@ -219,11 +222,22 @@ function customerSection({ ticket, snapshot }: AssembleInput): string {
 }
 
 /** The customer in an external system: found or not, the card from /context, what to do if not. */
-function integrationSection(view: IntegrationView): string {
+function integrationSection(view: IntegrationView, canIdentify: boolean): string {
   const lines = [`## Customer in "${view.title}"`];
   const c = view.customer;
+  const identify = canIdentify
+    ? `If the customer's messages contain an identity (a card number, a phone…), call ${IDENTIFY_CUSTOMER} with it before asking for anything. Who the customer is, the operator decides on the card in the timeline, not through your questions.`
+    : null;
   if (c.status === 'found') {
-    lines.push(`Found: ${c.displayName ?? 'no name'}${c.source === 'manual' ? ' (linked by the operator)' : ''}. Customer data is in the card below and available through tools.`);
+    const how = c.source === 'manual' ? ' (linked by the operator)' : c.source === 'claim' ? ` (identified by ${c.matchedBy.join(', ') || 'data'} from the messages)` : '';
+    lines.push(`Found: ${c.displayName ?? 'no name'}${how}. Customer data is in the card below and available through tools.`);
+    if (!c.confirmed) {
+      lines.push(
+        view.pendingDecision === 'conflict'
+          ? 'The messages point to another customer as well: the operator decides in the timeline who it is. Until then do not rely on this customer\'s data and do not propose actions.'
+          : 'Not confirmed by the operator yet: the operator confirms the customer in the timeline, their actions are locked until then. Do not disclose their personal data in the draft before that.',
+      );
+    }
     if (view.context) {
       const card = { title: view.context.data.title, summary: view.context.data.summary, sections: view.context.data.sections.map((s) => ({ title: s.title, data: s.data })) };
       lines.push(`<integration_data kind="customer_card" fetched_at="${view.context.fetchedAt.toISOString()}">${escape(JSON.stringify(card))}</integration_data>`);
@@ -232,19 +246,24 @@ function integrationSection(view: IntegrationView): string {
     }
   } else if (c.status === 'not_found') {
     const tried = Object.entries(c.identities).map(([type, value]) => `${type} ${value}`).join(', ');
-    lines.push(
-      `${tried ? `Not found by contacts: ${tried}.` : 'No contacts the system looks customers up by.'} Tools with customer data are unavailable.`,
-      'In the draft reply, ask for the phone or card number the account is linked to; tell the operator the customer was not found.',
-    );
+    lines.push(`${tried ? `Not found by contacts: ${tried}.` : 'No contacts the system looks customers up by.'} Tools with customer data are unavailable.`);
+    if (view.pendingDecision) {
+      lines.push('A customer found by data from the messages waits for the operator\'s decision in the timeline: do not ask the operator about it and do not ask the customer for an identity again.');
+    } else {
+      if (identify) lines.push(identify);
+      lines.push('If there is none, ask in the draft reply for the phone or card number the account is linked to; tell the operator the customer was not found.');
+    }
   } else if (c.status === 'ambiguous') {
-    lines.push(
-      `Several customers found by contacts: ${c.candidates.map((x) => `${x.displayName}${x.hint ? ` (${x.hint})` : ''}`).join('; ')}.`,
-      'The operator picks the right one in the ticket card — tell them so; until then customer data is unavailable.',
-    );
+    lines.push(`Several customers found by contacts: ${c.candidates.map((x) => `${x.displayName}${x.hint ? ` (${x.hint})` : ''}`).join('; ')}.`);
+    if (identify && !view.pendingDecision) lines.push(identify);
+    lines.push('Otherwise the operator picks the right one in the ticket card — tell them so; until then customer data is unavailable.');
   } else if (c.status === 'error') {
     lines.push(`The system is unavailable (${c.error}). Analyze without its data and note this for the operator.`);
   } else {
     lines.push('The ticket customer is not identified — customer data is unavailable.');
+  }
+  if (view.notFoundClaims.length > 0) {
+    lines.push(`Nobody was found by these values from the messages: ${view.notFoundClaims.map((x) => `${x.type} ${x.value}`).join(', ')}. Do not try them again; ask the customer to check them.`);
   }
   return lines.join('\n');
 }

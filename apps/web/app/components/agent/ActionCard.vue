@@ -2,7 +2,8 @@
 import type { ActionProposalDto, ActionStatus } from '@kvitok/shared';
 
 /** An action proposed by the agent: what will be done, why, the operator's decision and the execution result. */
-const props = defineProps<{ action: ActionProposalDto; ticketId: string }>();
+/** locked — the customer was found by data from the messages and is not confirmed yet: approval waits for the confirmation. */
+const props = defineProps<{ action: ActionProposalDto; ticketId: string; locked?: boolean }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const toast = useToast();
@@ -83,7 +84,9 @@ async function decide(kind: 'approve' | 'reject' | 'retry'): Promise<void> {
       <UInput v-if="rejecting" v-model="comment" size="xs" :placeholder="t('action.rejectReasonPlaceholder')" class="w-full" autofocus @keydown.enter.prevent="decide('reject')" />
       <div class="flex gap-1">
         <template v-if="!rejecting">
-          <UButton size="xs" icon="i-lucide-check" :loading="busy" @click="decide('approve')">{{ t('action.approve') }}</UButton>
+          <UTooltip :text="locked ? t('action.confirmCustomerFirst') : undefined" :disabled="!locked">
+            <UButton size="xs" icon="i-lucide-check" :loading="busy" :disabled="locked" @click="decide('approve')">{{ t('action.approve') }}</UButton>
+          </UTooltip>
           <UButton size="xs" color="neutral" variant="ghost" @click="rejecting = true">{{ t('action.reject') }}</UButton>
         </template>
         <template v-else>

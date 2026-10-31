@@ -72,30 +72,32 @@ model ApiToken {
 }
 
 model Workspace {
-  id               String            @id
-  name             String
-  slug             String            @unique
-  locale           String            @default("ru")
-  settings         Json              @default("{}")
+  id                  String               @id
+  name                String
+  slug                String               @unique
+  locale              String               @default("ru")
+  settings            Json                 @default("{}")
   /// Counter for ticket numbers (#T-123) within the workspace.
-  ticketSeq        Int               @default(0) @map("ticket_seq")
+  ticketSeq           Int                  @default(0) @map("ticket_seq")
   /// Mailbox for email replies on tickets that did not come by email.
-  defaultMailboxId String?           @map("default_mailbox_id")
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
-  memberships      Membership[]
-  apiTokens        ApiToken[]
-  auditLogs        AuditLog[]
-  agentSettings    AgentSettings?
-  llmProviders     LlmProvider[]
-  playbooks        Playbook[]
-  integrations     Integration[]
-  routingRules     RoutingRule[]
-  departments      Department[]
-  channels         Channel[]
-  customers        Customer[]
-  tickets          Ticket[]
-  fieldDefinitions FieldDefinition[]
+  defaultMailboxId    String?              @map("default_mailbox_id")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+  memberships         Membership[]
+  apiTokens           ApiToken[]
+  auditLogs           AuditLog[]
+  agentSettings       AgentSettings?
+  llmProviders        LlmProvider[]
+  playbooks           Playbook[]
+  integrations        Integration[]
+  routingRules        RoutingRule[]
+  identificationRules IdentificationRule[]
+  identityClaims      IdentityClaim[]
+  departments         Department[]
+  channels            Channel[]
+  customers           Customer[]
+  tickets             Ticket[]
+  fieldDefinitions    FieldDefinition[]
 
   @@map("workspaces")
 }
@@ -332,6 +334,7 @@ model Ticket {
   drafts                 ReplyDraft[]
   actionProposals        ActionProposal[]
   sandboxEmails          SandboxEmail[]
+  identityClaims         IdentityClaim[]
 
   @@unique([workspaceId, number])
   @@unique([channelId, conversationExternalId])
@@ -388,6 +391,7 @@ model Message {
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
   attachments       Attachment[]
   deliveries        Delivery[]
+  identityClaims    IdentityClaim[]
 
   @@unique([channelId, externalId])
   @@unique([workspaceId, rfcMessageId])
@@ -632,28 +636,34 @@ model Playbook {
 
 /// A project backend speaking the Support Action Protocol: customer data, read tools, actions (docs/protocol.md).
 model Integration {
-  id            String           @id
-  workspaceId   String           @map("workspace_id")
-  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name          String
-  baseUrl       String           @map("base_url")
+  id             String           @id
+  workspaceId    String           @map("workspace_id")
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name           String
+  baseUrl        String           @map("base_url")
   /// Encrypted { secret }.
-  secrets       String
-  enabled       Boolean          @default(true)
+  secrets        String
+  enabled        Boolean          @default(true)
   /// The last manifest that passed the protocol schema. json, not jsonb: keeps the field order of argument schemas.
-  manifest      Json?            @db.Json
-  manifestEtag  String?          @map("manifest_etag")
+  manifest       Json?            @db.Json
+  manifestEtag   String?          @map("manifest_etag")
   /// sha256 of the manifest content — part of the agent configuration version.
-  manifestHash  String?          @map("manifest_hash")
+  manifestHash   String?          @map("manifest_hash")
   /// When the manifest was last fetched or confirmed (304).
-  syncedAt      DateTime?        @map("synced_at") @db.Timestamptz
-  lastSyncAt    DateTime?        @map("last_sync_at") @db.Timestamptz
-  lastSyncError String?          @map("last_sync_error")
-  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz
-  playbooks     Playbook[]
-  customerLinks CustomerLink[]
-  actions       ActionProposal[]
+  syncedAt       DateTime?        @map("synced_at") @db.Timestamptz
+  lastSyncAt     DateTime?        @map("last_sync_at") @db.Timestamptz
+  lastSyncError  String?          @map("last_sync_error")
+  /// What to do when a customer is found only by identities people typed: off | suggest | corroborated | auto.
+  claimLinking   String           @default("suggest") @map("claim_linking")
+  /// Look for the manifest's identity patterns in message text.
+  textIdentities Boolean          @default(true) @map("text_identities")
+  /// `/context` fields → customer field keys: { "cashback_percent": "tier" }. A field missing here is taken by its own key.
+  fieldMapping   Json             @default("{}") @map("field_mapping")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  playbooks      Playbook[]
+  customerLinks  CustomerLink[]
+  actions        ActionProposal[]
 
   @@index([workspaceId])
   @@map("integrations")
@@ -782,6 +792,59 @@ model RoutingRule {
   @@map("routing_rules")
 }
 
+/// Who the customer of an inbound message is and which identities to take from it. Runs on every customer message.
+model IdentificationRule {
+  id           String    @id
+  workspaceId  String    @map("workspace_id")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name         String
+  position     Int       @default(0)
+  conditions   Json
+  /// sender | reply_to | extracted_email
+  customerFrom String    @default("sender") @map("customer_from")
+  /// [{ identityType, source, pattern, trust }]
+  extract      Json      @default("[]")
+  stop         Boolean   @default(false)
+  enabled      Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([workspaceId, position])
+  @@map("identification_rules")
+}
+
+/// An identity found in a ticket. Trusted ones are also customer identities; claimed ones (typed by people)
+/// become identities only after an operator or the linking policy confirms them.
+model IdentityClaim {
+  id            String    @id
+  workspaceId   String    @map("workspace_id")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ticketId      String    @map("ticket_id")
+  ticket        Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  messageId     String?   @map("message_id")
+  message       Message?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  type          String
+  value         String
+  /// sender | api | rule | manifest | agent | operator
+  source        String
+  /// trusted | claimed
+  trust         String
+  /// pending | matched | not_found | confirmed | rejected
+  status        String    @default("pending")
+  ruleId        String?   @map("rule_id")
+  ruleName      String?   @map("rule_name")
+  integrationId String?   @map("integration_id")
+  runId         String?   @map("run_id")
+  /// The text the value was found in.
+  evidence      String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([ticketId, type, value])
+  @@index([workspaceId, type, value])
+  @@map("identity_claims")
+}
+
 /// A support customer ↔ a customer in an external system (result of resolve or of an operator's manual choice).
 model CustomerLink {
   id             String      @id
@@ -798,6 +861,12 @@ model CustomerLink {
   candidates     Json        @default("[]")
   /// auto — by the customer's identities; manual — chosen by an operator, never revised automatically.
   source         String      @default("auto")
+  /// false — found only by identities people typed and not confirmed by an operator: actions are locked.
+  confirmed      Boolean     @default(true)
+  /// Identity types the backend matched the customer by.
+  matchedBy      String[]    @default([]) @map("matched_by")
+  /// A decision waiting for the operator: a suggestion, a conflict, candidates, a confirmation (PendingIdentification).
+  pending        Json?
   /// Fingerprint of the identities searched by: if they change, search again.
   identitiesHash String?     @map("identities_hash")
   lastError      String?     @map("last_error")

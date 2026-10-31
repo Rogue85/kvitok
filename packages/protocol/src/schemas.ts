@@ -65,13 +65,51 @@ export const DepartmentSuggestionSchema = z.object({
 });
 export type DepartmentSuggestion = z.infer<typeof DepartmentSuggestionSchema>;
 
+/** Identity type names: phone, email, card_number… */
+export const IdentityTypeNameSchema = z.string().regex(/^[a-z][a-z0-9_]{0,31}$/, 'lowercase Latin letters, digits and _');
+
+/** How identity values are compared: digits only (phones, cards), lowercase (emails), as is. */
+export const IDENTITY_NORMALIZATIONS = ['digits', 'lowercase', 'none'] as const;
+
+/**
+ * An identity type the backend resolves by. `pattern` lets the core find such values in message text:
+ * a JavaScript regular expression, case-insensitive; the value is the named group `value`, otherwise group 1, otherwise the whole match.
+ */
+export const IdentityTypeDefinitionSchema = z.object({
+  type: IdentityTypeNameSchema,
+  /** For the operator: "Loyalty card". */
+  label: z.string().trim().min(1).max(100).optional(),
+  pattern: z
+    .string()
+    .min(1)
+    .max(500)
+    .refine((pattern) => compiles(pattern), 'not a valid regular expression')
+    .optional(),
+  normalize: z.enum(IDENTITY_NORMALIZATIONS).optional(),
+  /** For the agent: what the value looks like, "16 digits starting with 7777". */
+  description: z.string().trim().max(1000).optional(),
+});
+export type IdentityTypeDefinition = z.infer<typeof IdentityTypeDefinitionSchema>;
+
+function compiles(pattern: string): boolean {
+  try {
+    new RegExp(pattern, 'gi');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const ManifestSchema = z
   .object({
     protocol_version: z.literal(PROTOCOL_VERSION),
     name: NameSchema,
     title: z.string().trim().min(1).max(200),
-    /** Identity types resolve works with: phone, email, card_number… */
-    identity_types: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,31}$/)).max(20).default([]),
+    /** Identity types resolve works with: a name (`"phone"`) or a definition with a label and a pattern. */
+    identity_types: z
+      .array(z.union([IdentityTypeNameSchema, IdentityTypeDefinitionSchema]).transform((v): IdentityTypeDefinition => (typeof v === 'string' ? { type: v } : v)))
+      .max(20)
+      .default([]),
     /** How the domain works and how to read tool data — the "integration knowledge" layer of the prompt. */
     instructions: z.string().max(50_000).default(''),
     tools: z.array(ToolDefinitionSchema).max(100).default([]),
@@ -80,6 +118,13 @@ export const ManifestSchema = z
     suggested_departments: z.array(DepartmentSuggestionSchema).max(50).default([]),
   })
   .superRefine((manifest, ctx) => {
+    const types = new Set<string>();
+    manifest.identity_types.forEach((identity, index) => {
+      if (types.has(identity.type)) {
+        ctx.addIssue({ code: 'custom', path: ['identity_types', index], message: `Duplicate identity type ${identity.type}` });
+      }
+      types.add(identity.type);
+    });
     for (const [list, label] of [
       [manifest.tools, 'tools'],
       [manifest.actions, 'actions'],
@@ -99,7 +144,7 @@ export type ManifestInput = z.input<typeof ManifestSchema>;
 
 /* ───────────── customer ───────────── */
 
-export const IdentitiesSchema = z.record(z.string().regex(/^[a-z][a-z0-9_]{0,31}$/), z.string().trim().min(1).max(320));
+export const IdentitiesSchema = z.record(IdentityTypeNameSchema, z.string().trim().min(1).max(320));
 export const CustomerRefSchema = z.string().min(1).max(200);
 
 export const ResolveRequestSchema = z.object({ identities: IdentitiesSchema });
@@ -110,10 +155,21 @@ export const CustomerCandidateSchema = z.object({
   display_name: z.string().max(200),
   /** What distinguishes the candidate: "card …0548, last receipt 14.10". */
   hint: z.string().max(500).optional(),
+  /** Which of the requested identities point to this candidate. */
+  matched_by: z.array(IdentityTypeNameSchema).max(20).optional(),
 });
 
+/**
+ * Several identities: those that match nobody are ignored; if all matching ones point to one customer — `found`,
+ * if to different customers (or one identity to several) — `ambiguous`. `matched_by` lists the identity types that matched.
+ */
 export const ResolveResponseSchema = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('found'), customer_ref: CustomerRefSchema, display_name: z.string().max(200).optional() }),
+  z.object({
+    status: z.literal('found'),
+    customer_ref: CustomerRefSchema,
+    display_name: z.string().max(200).optional(),
+    matched_by: z.array(IdentityTypeNameSchema).max(20).optional(),
+  }),
   z.object({ status: z.literal('not_found') }),
   z.object({ status: z.literal('ambiguous'), candidates: z.array(CustomerCandidateSchema).min(2).max(20) }),
 ]);
@@ -148,12 +204,17 @@ export const ContextSectionSchema = z.object({
   data: z.unknown(),
 });
 
+/** A customer attribute value: a scalar or a list of strings (for multiple choice). */
+export const ContextFieldValueSchema = z.union([z.string().max(1000), z.number(), z.boolean(), z.null(), z.array(z.string().max(200)).max(50)]);
+
 /** Customer card: a short summary and sections. */
 export const ContextResponseSchema = z.object({
   title: z.string().max(200).optional(),
   summary: z.string().max(2000).optional(),
   sections: z.array(ContextSectionSchema).max(20).default([]),
   refs: z.array(RefSchema).max(50).default([]),
+  /** Customer attributes the support system can store in its customer fields: tier, plan, employee number. */
+  fields: z.record(NameSchema, ContextFieldValueSchema).optional(),
 });
 export type ContextResponse = z.infer<typeof ContextResponseSchema>;
 

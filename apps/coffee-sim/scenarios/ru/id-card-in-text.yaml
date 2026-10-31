@@ -1,0 +1,16 @@
+id: id-card-in-text
+title: Карта гостя в тексте письма с незнакомого адреса — решение за оператором
+tags: [loyalty, identification, no-action]
+guests:
+  - { id: lazar, name: Лазарь, phone: '79000000041', email: lazar@example.test, cashback_percent: 5, balance: 120 }
+ticket:
+  identities: { email: lazar.work@example.test }
+  name: Лазарь
+  subject: Не начислились баллы
+  body: Здравствуйте! Пишу с рабочей почты. Вчера купил раф за 320 ₽, баллы не пришли. Моя карта 700000041.
+  sent_at: 2026-10-15 09:20
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: Гость найден только по карте 700000041 из письма — оператор подтверждает его в ленте; агент не просит карту повторно и без данных гостя ничего не предлагает.

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { DepartmentDto, IntegrationDto, IntegrationSyncResultDto, IntegrationToolDto } from '@kvitok/shared';
+import { CLAIM_LINKING, type ClaimLinking, type DepartmentDto, type IntegrationDto, type IntegrationSyncResultDto, type IntegrationToolDto } from '@kvitok/shared';
 import type { AccordionItem } from '@nuxt/ui';
 
 const toast = useToast();
 const { workspaceId, can } = useWorkspace();
-const { departments } = useWorkspaceData();
+const { departments, customerFields } = useWorkspaceData();
 const isAdmin = computed(() => can('admin'));
 const base = computed(() => `/workspaces/${workspaceId.value}/integrations`);
 
@@ -76,13 +76,36 @@ async function importDepartments(integration: IntegrationDto): Promise<void> {
 /* Form */
 
 const open = ref(false);
-const draft = reactive({ id: null as string | null, name: '', baseUrl: '', secret: '', enabled: true });
+const draft = reactive({
+  id: null as string | null,
+  name: '',
+  baseUrl: '',
+  secret: '',
+  enabled: true,
+  claimLinking: 'suggest' as ClaimLinking,
+  fieldMapping: [] as Array<{ from: string; to: string }>,
+});
+const CLAIM_LINKING_ITEMS = CLAIM_LINKING.map((value) => ({ value, label: t(`integrations.claimLinking.${value}.label`), description: t(`integrations.claimLinking.${value}.description`) }));
+const customerFieldItems = computed(() => customerFields.value.map((f) => ({ label: f.label, value: f.key })));
 const editing = computed(() => draft.id !== null);
 const formError = ref<string | null>(null);
 const saving = ref(false);
 
 function edit(integration: IntegrationDto | null): void {
-  Object.assign(draft, integration ? { id: integration.id, name: integration.name, baseUrl: integration.baseUrl, secret: '', enabled: integration.enabled } : { id: null, name: '', baseUrl: '', secret: '', enabled: true });
+  Object.assign(
+    draft,
+    integration
+      ? {
+          id: integration.id,
+          name: integration.name,
+          baseUrl: integration.baseUrl,
+          secret: '',
+          enabled: integration.enabled,
+          claimLinking: integration.claimLinking,
+          fieldMapping: Object.entries(integration.fieldMapping).map(([from, to]) => ({ from, to })),
+        }
+      : { id: null, name: '', baseUrl: '', secret: '', enabled: true, claimLinking: 'suggest', fieldMapping: [] },
+  );
   formError.value = null;
   open.value = true;
 }
@@ -92,7 +115,8 @@ async function save(): Promise<void> {
   saving.value = true;
   try {
     if (draft.id) {
-      const body = { name: draft.name, baseUrl: draft.baseUrl, enabled: draft.enabled, ...(draft.secret ? { secret: draft.secret } : {}) };
+      const fieldMapping = Object.fromEntries(draft.fieldMapping.filter((m) => m.from.trim() && m.to).map((m) => [m.from.trim(), m.to]));
+      const body = { name: draft.name, baseUrl: draft.baseUrl, enabled: draft.enabled, claimLinking: draft.claimLinking, fieldMapping, ...(draft.secret ? { secret: draft.secret } : {}) };
       replace(await api<IntegrationDto>(`${base.value}/${draft.id}`, { method: 'PATCH', body }));
       open.value = false;
       toast.add({ color: 'success', title: t('integrations.saved'), description: t('integrations.savedHint') });
@@ -166,7 +190,10 @@ function sections(integration: IntegrationDto): AccordionItem[] {
                 <p class="mt-0.5 truncate font-mono text-xs text-(--ui-text-muted)">{{ integration.baseUrl }}</p>
                 <p v-if="integration.manifest" class="mt-1 text-xs text-(--ui-text-muted)">
                   {{ integration.manifest.title }} · <code>{{ integration.manifest.name }}</code> · {{ t('integrations.protocol', { version: integration.manifest.protocolVersion }) }}
-                  <template v-if="integration.manifest.identityTypes.length"> · {{ t('integrations.identityTypes', { types: integration.manifest.identityTypes.join(', ') }) }}</template>
+                  <template v-if="integration.manifest.identityTypes.length">
+                    · {{ t('integrations.identityTypes', { types: integration.manifest.identityTypes.map((i) => identityLabel(i.type, integration.manifest!.identityTypes)).join(', ') }) }}
+                  </template>
+                  · {{ t('integrations.claimLinkingShort', { policy: t(`integrations.claimLinking.${integration.claimLinking}.label`) }) }}
                 </p>
               </div>
               <div v-if="isAdmin" class="flex items-center gap-2">
@@ -262,6 +289,24 @@ function sections(integration: IntegrationDto): AccordionItem[] {
               <UInput v-model="draft.secret" type="password" autocomplete="new-password" class="w-full" />
             </UFormField>
             <UCheckbox v-model="draft.enabled" :label="t('integrations.enabled')" />
+            <template v-if="editing">
+              <UFormField :label="t('integrations.claimLinkingLabel')" :help="t('integrations.claimLinkingHelp')">
+                <URadioGroup v-model="draft.claimLinking" :items="CLAIM_LINKING_ITEMS" />
+              </UFormField>
+              <UFormField :label="t('integrations.fieldMappingLabel')" :help="t('integrations.fieldMappingHelp')">
+                <div class="space-y-1.5">
+                  <div v-for="(row, index) in draft.fieldMapping" :key="index" class="flex items-center gap-2">
+                    <UInput v-model="row.from" placeholder="cashback_percent" size="sm" class="flex-1 font-mono" />
+                    <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-(--ui-text-muted)" />
+                    <USelect v-model="row.to" :items="customerFieldItems" size="sm" class="flex-1" />
+                    <UButton icon="i-lucide-x" size="sm" color="neutral" variant="ghost" @click="draft.fieldMapping.splice(index, 1)" />
+                  </div>
+                  <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="customerFieldItems.length === 0" @click="draft.fieldMapping.push({ from: '', to: customerFieldItems[0]?.value ?? '' })">
+                    {{ t('integrations.fieldMappingAdd') }}
+                  </UButton>
+                </div>
+              </UFormField>
+            </template>
             <UAlert v-if="formError" color="error" variant="subtle" :title="formError" />
           </form>
         </template>

@@ -5,6 +5,7 @@ import {
   type AgentQuestionDto,
   type AgentRunDetailDto,
   type CustomerLinkDto,
+  type DecideIdentificationInput,
   type DryRunInput,
   type LinkCustomerInput,
   type MessageDto,
@@ -75,6 +76,33 @@ export class AgentService {
     }
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
     return { outcome, link };
+  }
+
+  /**
+   * The operator's answer to an identification card. Choosing a customer links them (confirmed, by hand);
+   * rejecting drops the values from the messages. A changed link changes the agent input: revision++ and a refinement run.
+   */
+  async decideIdentification(workspaceId: string, ticketId: string, integrationId: string, input: DecideIdentificationInput, userId: string): Promise<CustomerLinkDto> {
+    const { link, changed, chosen, claims } = await this.links.decide(workspaceId, ticketId, integrationId, input);
+    await this.prisma.$transaction(async (tx) => {
+      if (changed) {
+        await tx.ticket.update({ where: { id: ticketId }, data: { revision: { increment: 1 } } });
+      }
+      await recordEvent(tx, {
+        workspaceId,
+        ticketId,
+        type: chosen ? 'customer_linked' : 'identification_rejected',
+        actor: { type: 'user', id: userId },
+        data: chosen
+          ? { integrationId, integration: link.integrationName, displayName: chosen.displayName, source: 'manual', via: 'identification' }
+          : { integrationId, integration: link.integrationName, identities: claims.map((c) => ({ type: c.type, value: c.value })) },
+      });
+    });
+    if (changed) {
+      await this.triggers.trigger(ticketId, { type: 'customer_linked', userId }, { mode: 'refine' });
+    }
+    await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
+    return link;
   }
 
   async ticketAgent(workspaceId: string, ticketId: string): Promise<TicketAgentDto> {
@@ -154,7 +182,7 @@ export class AgentService {
       this.prisma.agentQuestion.findMany({ where: { ticketId } }),
     ]);
     // The preview shows integration data too; calls to integrations are not recorded as run steps.
-    const integrations = await this.integrations.prepare(ticket, { record: async () => {} });
+    const integrations = await this.integrations.prepare(ticket, { record: async () => {}, checkClaims: false });
     const context = assembleContext({
       snapshot,
       ticket,
@@ -164,6 +192,7 @@ export class AgentService {
       triggers: [{ type: 'manual' }],
       supportsTools: snapshot.provider?.capabilities.tools ?? true,
       integrations: integrations.views,
+      serviceTools: integrations.serviceTools,
     });
     return {
       messages: context.messages.map((m) => ({ role: m.role, content: 'content' in m ? (m.content ?? '') : '' })),

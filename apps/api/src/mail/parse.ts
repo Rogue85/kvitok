@@ -1,4 +1,5 @@
 import { simpleParser, type AddressObject, type ParsedMail } from 'mailparser';
+import { senderAuthenticated } from './authentication';
 import { htmlToPlainText } from './html';
 
 export type AutomatedKind = 'auto_reply' | 'bounce' | 'list';
@@ -16,6 +17,9 @@ export interface ParsedInboundEmail {
   inReplyTo: string | null;
   references: string[];
   from: { email: string; name: string | null } | null;
+  replyTo: { email: string; name: string | null } | null;
+  /** The receiving server's verdict on `From` (DMARC/DKIM); null — it said nothing. */
+  senderAuthenticated: boolean | null;
   to: string[];
   cc: string[];
   subject: string;
@@ -28,16 +32,22 @@ export interface ParsedInboundEmail {
   bouncedMessageId: string | null;
   bounceReason: string | null;
   headers: Record<string, string>;
+  /** All headers (the first occurrence of each), names in lowercase: identification rules look at them, they are not stored. */
+  allHeaders: Record<string, string>;
 }
 
-const KEPT_HEADERS = ['auto-submitted', 'precedence', 'list-id', 'x-autoreply', 'x-autorespond', 'x-mailer', 'date'];
+const KEPT_HEADERS = ['auto-submitted', 'precedence', 'list-id', 'x-autoreply', 'x-autorespond', 'x-mailer', 'date', 'reply-to', 'authentication-results'];
 const SERVICE_PARTS = new Set(['message/delivery-status', 'message/rfc822', 'text/rfc822-headers', 'message/rfc822-headers']);
 
 export async function parseInboundEmail(raw: Buffer | string): Promise<ParsedInboundEmail> {
   const parsed = await simpleParser(raw, { skipImageLinks: true });
-  const headers = headerMap(parsed);
+  const allHeaders = firstHeaderLines(parsed);
+  const headers = headerMap(parsed, allHeaders);
   const from = parsed.from?.value[0]?.address
     ? { email: parsed.from.value[0].address.toLowerCase(), name: parsed.from.value[0].name || null }
+    : null;
+  const replyTo = parsed.replyTo?.value[0]?.address
+    ? { email: parsed.replyTo.value[0].address.toLowerCase(), name: parsed.replyTo.value[0].name || null }
     : null;
   const html = typeof parsed.html === 'string' ? parsed.html : null;
   const automated = classify(parsed, headers, from?.email ?? '');
@@ -48,6 +58,8 @@ export async function parseInboundEmail(raw: Buffer | string): Promise<ParsedInb
     inReplyTo: firstId(parsed.inReplyTo),
     references: toArray(parsed.references).flatMap(splitIds),
     from,
+    replyTo,
+    senderAuthenticated: from ? senderAuthenticated(allHeaders['authentication-results'] ?? null, from.email) : null,
     to: addresses(parsed.to),
     cc: addresses(parsed.cc),
     subject: (parsed.subject ?? '').trim(),
@@ -68,6 +80,7 @@ export async function parseInboundEmail(raw: Buffer | string): Promise<ParsedInb
     // mailparser merges message/delivery-status into the email text, so look there too.
     bounceReason: automated === 'bounce' ? bounceReason([...serviceParts, { content: Buffer.from(parsed.text ?? '') }]) : null,
     headers,
+    allHeaders,
   };
 }
 
@@ -97,13 +110,31 @@ function classify(parsed: ParsedMail, headers: Record<string, string>, from: str
   return null;
 }
 
-function headerMap(parsed: ParsedMail): Record<string, string> {
+function headerMap(parsed: ParsedMail, all: Record<string, string>): Record<string, string> {
   const result: Record<string, string> = {};
   for (const name of KEPT_HEADERS) {
     const value = parsed.headers.get(name);
     if (value === undefined) continue;
     result[name] =
-      value instanceof Date ? value.toISOString() : typeof value === 'object' ? String((value as { value?: unknown }).value ?? '') : String(value);
+      // Address headers and repeated ones keep the raw first line: "Anna <anna@example.com>", the topmost Authentication-Results.
+      name === 'reply-to' || name === 'authentication-results'
+        ? (all[name] ?? '')
+        : value instanceof Date
+          ? value.toISOString()
+          : typeof value === 'object'
+            ? String((value as { value?: unknown }).value ?? '')
+            : String(value);
+  }
+  return result;
+}
+
+/** The first occurrence of every header, unfolded: the topmost one is the one our receiving server added. */
+function firstHeaderLines(parsed: ParsedMail): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const { key, line } of parsed.headerLines) {
+    if (key in result) continue;
+    const colon = line.indexOf(':');
+    result[key.toLowerCase()] = (colon === -1 ? '' : line.slice(colon + 1)).replace(/\r?\n[ \t]+/g, ' ').trim();
   }
   return result;
 }

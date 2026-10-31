@@ -13,6 +13,7 @@ import { isUniqueViolation } from '../common/prisma-errors';
 import { CustomersService, type CustomerInput } from '../customers/customers.service';
 import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
+import { IdentificationService } from '../identification/identification.service';
 import type { Channel, Prisma, Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -48,6 +49,14 @@ export interface InboundMessage {
   references?: string[];
   fromEmail?: string | null;
   fromName?: string | null;
+  /** An email's Reply-To: the customer of a form email. */
+  replyTo?: { email: string; name: string | null } | null;
+  /** The receiving server's verdict on the sender (DMARC/DKIM); null — nothing was said. */
+  senderAuthenticated?: boolean | null;
+  /** All headers of an email for identification rules; not stored. */
+  allHeaders?: Record<string, string>;
+  /** Identities the API source does not vouch for: checked like values from the text. */
+  unverifiedIdentities?: Record<string, string>;
   to?: string[];
   cc?: string[];
   headers?: Record<string, unknown> | null;
@@ -82,6 +91,7 @@ export class InboundService {
     private readonly realtime: RealtimeService,
     private readonly rules: RoutingRulesService,
     private readonly ruleApplier: RuleApplier,
+    private readonly identification: IdentificationService,
     private readonly agent: AgentTriggerService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -95,6 +105,7 @@ export class InboundService {
       source: 'api',
       conversationExternalId: body.conversation_external_id,
       customer: { name: body.customer.name, identities: body.customer.identities ?? {}, fields: body.customer.fields },
+      unverifiedIdentities: body.customer.unverified_identities,
       subject: body.subject ?? '',
       bodyText: body.body,
       bodyHtml: body.body_html ?? null,
@@ -147,7 +158,32 @@ export class InboundService {
     const now = new Date();
     const sentAt = input.sentAt && input.sentAt < now ? input.sentAt : now;
 
-    const customer = await this.customers.resolve(tx, workspaceId, input.customer);
+    // Who the customer is: the sender, or the person a form email is about; values from the text become claims.
+    const identification = input.isAutomated
+      ? null
+      : await this.identification.identifyInbound(tx, {
+          workspaceId,
+          channel: { id: input.channel.id, type: input.channel.type },
+          source: input.source,
+          subject: input.subject,
+          body: input.bodyClean ?? input.bodyText,
+          fromEmail: input.fromEmail ?? null,
+          replyTo: input.replyTo ?? null,
+          senderAuthenticated: input.senderAuthenticated ?? null,
+          headers: input.allHeaders ?? {},
+          metadata: ((input.headers as { metadata?: Record<string, unknown> } | null)?.metadata ?? {}) as Record<string, unknown>,
+          customer: input.customer,
+          unverifiedIdentities: input.unverifiedIdentities,
+        });
+    const customer = await this.customers.resolve(tx, workspaceId, identification?.customer ?? input.customer);
+    const participants = identification?.customerParticipant
+      ? [
+          { email: identification.customerParticipant.email, name: identification.customerParticipant.name, role: 'customer' as const },
+          ...(input.participants ?? []).filter((p) => p.role !== 'customer' && p.email !== identification.customerParticipant!.email),
+        ]
+      : identification?.customerFrom && identification.customerFrom !== 'sender'
+        ? (input.participants ?? []).filter((p) => p.role !== 'customer')
+        : (input.participants ?? []);
     const rejectedFields: InboundResult['rejectedFields'] = [];
 
     if (customer !== null && input.customer.fields && Object.keys(input.customer.fields).length > 0) {
@@ -239,7 +275,29 @@ export class InboundService {
       },
     });
 
-    for (const participant of input.participants ?? []) {
+    if (identification && identification.claims.length > 0) {
+      const claims = await this.identification.recordClaims(tx, {
+        workspaceId,
+        ticketId: ticket.id,
+        messageId: message.id,
+        customerId: ticket.customerId ?? customer?.id ?? null,
+        claims: identification.claims,
+      });
+      if (claims.length > 0) {
+        await recordEvent(tx, {
+          workspaceId,
+          ticketId: ticket.id,
+          type: 'identities_found',
+          actor,
+          data: {
+            identities: claims.map((c) => ({ type: c.type, value: c.value, source: c.source, trust: c.trust, status: c.status, ruleName: c.ruleName })),
+            integrations: [...new Set(identification.claims.map((c) => c.integrationName).filter(Boolean))],
+          },
+        });
+      }
+    }
+
+    for (const participant of participants) {
       await tx.participant.upsert({
         where: { ticketId_email: { ticketId: ticket.id, email: participant.email } },
         update: {},

@@ -127,6 +127,9 @@ export interface FieldMetaEntry {
   ruleId?: string;
   confidence?: number;
   evidence?: string;
+  /** For values from an integration: which integration and which of its customers they came from. */
+  integrationId?: string;
+  customerRef?: string;
 }
 
 export type FieldValues = Record<string, unknown>;

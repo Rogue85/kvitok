@@ -6,6 +6,7 @@ export * from './channels.js';
 export * from './departments.js';
 export * from './errors.js';
 export * from './fields.js';
+export * from './identification.js';
 export * from './identities.js';
 export * from './integrations.js';
 export * from './ingest.js';

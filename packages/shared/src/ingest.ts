@@ -8,6 +8,8 @@ export const IngestMessageSchema = z.object({
   customer: z.object({
     name: z.string().trim().max(200).optional(),
     identities: IdentitiesSchema.default({}),
+    /** Identities the source does not vouch for (e.g. a phone typed into a form without sign-in): they are checked like values from message text. */
+    unverified_identities: IdentitiesSchema.optional(),
     fields: z.record(z.string(), z.unknown()).optional(),
   }),
   subject: z.string().trim().max(500).optional(),

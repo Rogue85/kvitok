@@ -29,6 +29,7 @@ const navItems = computed<NavigationMenuItem[]>(() => {
         { label: t('nav.agent'), to: `${base}/settings/agent` },
         { label: t('nav.playbooks'), to: `${base}/settings/playbooks` },
         { label: t('nav.rules'), to: `${base}/settings/rules` },
+        { label: t('nav.identification'), to: `${base}/settings/identification` },
         { label: t('nav.audit'), to: `${base}/settings/audit` },
         { label: t('nav.tokens'), to: `${base}/settings/tokens` },
       ],

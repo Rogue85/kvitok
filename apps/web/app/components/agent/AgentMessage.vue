@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { AgentAnalyzedEventData, TicketAgentDto, TicketDto, TicketEventDto } from '@kvitok/shared';
+import type { AgentAnalyzedEventData, CustomerLinkDto, TicketAgentDto, TicketDto, TicketEventDto } from '@kvitok/shared';
 
 /** An agent message in the ticket timeline: reply to the operator, analysis, questions and (on the latest analysis) suggestions. */
-const props = defineProps<{ event: TicketEventDto; ticket: TicketDto; agent: TicketAgentDto | null; latest: boolean }>();
+const props = defineProps<{ event: TicketEventDto; ticket: TicketDto; agent: TicketAgentDto | null; latest: boolean; links?: CustomerLinkDto[] }>();
 const emit = defineEmits<{ answer: [question: { id: string; text: string }]; openDraft: []; openRun: [runId: string]; changed: [] }>();
 
 const toast = useToast();
@@ -175,7 +175,14 @@ async function call(path: string, body: object = {}, success?: string): Promise<
         </div>
       </div>
 
-      <AgentActionCard v-for="action in actions" :key="action.id" :action="action" :ticket-id="ticket.id" @changed="emit('changed')" />
+      <AgentActionCard
+        v-for="action in actions"
+        :key="action.id"
+        :action="action"
+        :ticket-id="ticket.id"
+        :locked="links?.some((l) => l.integrationId === action.integrationId && l.status === 'found' && !l.confirmed) ?? false"
+        @changed="emit('changed')"
+      />
 
       <div
         v-for="question in questions"

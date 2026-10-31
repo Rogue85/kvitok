@@ -9,6 +9,8 @@ export const AUDIT_ENTITIES = [
   'llm_provider',
   'playbook',
   'routing_rule',
+  'identification_rule',
+  'identification_settings',
   'channel',
   'integration',
 ] as const;

@@ -64,7 +64,10 @@ export class AgentRunner {
       input.signal?.throwIfAborted();
       const started = Date.now();
       const onlySubmit = forceSubmit || toolCalls >= snapshot.settings.maxToolCalls;
-      const tools = onlySubmit ? context.tools.filter((t) => t.name === context.submitTool) : context.tools;
+      // Tools that opened during the run (the customer was identified) go before submit, like the others.
+      const added = input.tools?.added?.() ?? [];
+      const all = added.length > 0 ? [...context.tools.filter((t) => t.name !== context.submitTool), ...added, ...context.tools.filter((t) => t.name === context.submitTool)] : context.tools;
+      const tools = onlySubmit ? all.filter((t) => t.name === context.submitTool) : all;
       const toolChoice: LlmRequest['toolChoice'] = submitAsText ? 'none' : onlySubmit ? { name: context.submitTool } : 'auto';
       const request: LlmRequest = {
         model: input.model,

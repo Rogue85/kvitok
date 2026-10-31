@@ -13,6 +13,7 @@ import { ChannelsService } from '../../channels/channels.service';
 import { errors } from '../../common/errors';
 import { DepartmentsService } from '../../departments/departments.service';
 import { FieldsService } from '../../fields/fields.service';
+import { IdentificationService } from '../../identification/identification.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { htmlToPlainText } from '../../mail/html';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -45,6 +46,7 @@ export class ReadTools {
     private readonly rules: RoutingRulesService,
     private readonly channels: ChannelsService,
     private readonly integrations: IntegrationsService,
+    private readonly identification: IdentificationService,
     private readonly tickets: TicketsService,
     private readonly agent: AgentService,
     private readonly audit: AuditService,
@@ -73,14 +75,14 @@ export class ReadTools {
         title: 'Describe the workspace configuration',
         description:
           'The whole configuration in one call: the agent settings and support policy, LLM providers, departments, ticket and customer fields, ' +
-          'playbooks (bodies via get_playbook), routing rules, channels, integrations with a manifest summary (details via get_integration) ' +
+          'playbooks (bodies via get_playbook), routing rules, customer identification rules and settings, channels, integrations with a manifest summary (details via get_integration) ' +
           'and the current agent configuration version. Start here.',
         input: z.object({}),
         scope: 'read',
         role: 'viewer',
         readOnly: true,
         run: async (_args, { workspaceId }) => {
-          const [workspace, settings, providers, departments, fields, playbooks, rules, channels, integrations, config] = await Promise.all([
+          const [workspace, settings, providers, departments, fields, playbooks, rules, identificationRules, identificationSettings, channels, integrations, config] = await Promise.all([
             this.workspaces.get(workspaceId),
             this.settings.getDto(workspaceId),
             this.providers.list(workspaceId),
@@ -88,6 +90,8 @@ export class ReadTools {
             this.fields.list(workspaceId),
             this.playbooks.list(workspaceId),
             this.rules.list(workspaceId),
+            this.identification.list(workspaceId),
+            this.identification.settings(workspaceId),
             this.channels.list(workspaceId),
             this.integrations.list(workspaceId),
             this.snapshots.resolve(workspaceId),
@@ -101,6 +105,7 @@ export class ReadTools {
             fields,
             playbooks: playbooks.map(({ body, ...p }) => ({ ...p, bodyChars: body.length })),
             routingRules: rules,
+            identification: { ...identificationSettings, rules: identificationRules },
             channels,
             integrations: integrations.map((i) => ({
               ...i,

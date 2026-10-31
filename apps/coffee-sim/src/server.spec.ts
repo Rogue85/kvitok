@@ -33,6 +33,34 @@ describe('coffee-sim over the protocol', () => {
     expect(await client.resolve({ email: 'anna@example.test', phone: '79000000002' })).toMatchObject({ status: 'found', customer_ref: 'boris' });
   });
 
+  it('resolve: matched_by lists the matching identities; identities of different guests — ambiguous with their own matched_by', async () => {
+    const anna = sim.store.guests.get('anna')!;
+    const boris = sim.store.guests.get('boris')!;
+    expect(await client.resolve({ phone: anna.phone, card_number: anna.cardNumber, email: 'nobody@example.test' })).toEqual({
+      status: 'found',
+      customer_ref: 'anna',
+      display_name: anna.name,
+      matched_by: ['phone', 'card_number'],
+    });
+    expect(await client.resolve({ phone: anna.phone, card_number: boris.cardNumber })).toMatchObject({
+      status: 'ambiguous',
+      candidates: [
+        { customer_ref: 'anna', matched_by: ['phone'] },
+        { customer_ref: 'boris', matched_by: ['card_number'] },
+      ],
+    });
+  });
+
+  it('the manifest describes identity patterns that find values in text', async () => {
+    const { manifest } = (await client.manifest()) as { manifest: { identity_types: Array<{ type: string; pattern?: string }> } };
+    const find = (type: string, text: string) => {
+      const pattern = manifest.identity_types.find((i) => i.type === type)!.pattern!;
+      return [...text.matchAll(new RegExp(pattern, 'gi'))].map((m) => m.groups?.value ?? m[0]);
+    };
+    expect(find('card_number', 'Карта 700012345, чек 1700012345 и телефон 79170012345')).toEqual(['700012345']);
+    expect(find('phone', 'звоните +7 (912) 345-67-89 или 89123456789, заказ 5791234567890')).toEqual(['+7 (912) 345-67-89', '89123456789']);
+  });
+
   it('another guest\'s receipt via a tool is indistinguishable from a nonexistent one', async () => {
     await expect(client.callTool('get_receipt', 'anna', { transaction_id: 'boris-t1' })).rejects.toMatchObject({ code: 'not_found', status: 404 });
     const own = await client.callTool('get_receipt', 'boris', { transaction_id: 'boris-t1' });

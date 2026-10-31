@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, UseGuards } from '@n
 import {
   AcceptSuggestionSchema,
   AnswerQuestionSchema,
+  DecideIdentificationSchema,
   DryRunSchema,
   LinkCustomerSchema,
   RunAgentSchema,
@@ -9,6 +10,7 @@ import {
   type AcceptSuggestionInput,
   type AgentRunDetailDto,
   type CustomerLinkDto,
+  type DecideIdentificationInput,
   type DryRunInput,
   type LinkCustomerInput,
   type MessageDto,
@@ -61,6 +63,18 @@ export class AgentController {
     @CurrentAuth() auth: AuthContext,
   ): Promise<{ outcome: 'found' | 'not_found' | 'ambiguous'; link: CustomerLinkDto }> {
     return this.agent.linkCustomer(workspaceId, ticketId, integrationId, body, auth.user.id);
+  }
+
+  @Post('tickets/:ticketId/customer-links/:integrationId/decide')
+  @HttpCode(200)
+  decideIdentification(
+    @Param('workspaceId') workspaceId: string,
+    @Param('ticketId') ticketId: string,
+    @Param('integrationId') integrationId: string,
+    @Body(new ZodValidationPipe(DecideIdentificationSchema)) body: DecideIdentificationInput,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<CustomerLinkDto> {
+    return this.agent.decideIdentification(workspaceId, ticketId, integrationId, body, auth.user.id);
   }
 
   @Post('tickets/:ticketId/agent/run')

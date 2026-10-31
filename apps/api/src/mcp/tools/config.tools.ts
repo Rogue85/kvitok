@@ -5,17 +5,20 @@ import {
   CreateDepartmentSchema,
   CreateEmailChannelSchema,
   CreateFieldDefinitionSchema,
+  CreateIdentificationRuleSchema,
   CreateIntegrationSchema,
   CreateLlmProviderSchema,
   CreatePlaybookSchema,
   CreateRoutingRuleSchema,
   CreateWorkspaceSchema,
   FieldEntitySchema,
+  IdentificationSettingsSchema,
   ImportDepartmentsSchema,
   UpdateAgentSettingsSchema,
   UpdateChannelSchema,
   UpdateDepartmentSchema,
   UpdateFieldDefinitionSchema,
+  UpdateIdentificationRuleSchema,
   UpdateIntegrationSchema,
   UpdateLlmProviderSchema,
   UpdatePlaybookSchema,
@@ -31,6 +34,7 @@ import { ChannelsService } from '../../channels/channels.service';
 import { errors } from '../../common/errors';
 import { DepartmentsService } from '../../departments/departments.service';
 import { FieldsService } from '../../fields/fields.service';
+import { IdentificationService } from '../../identification/identification.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { RoutingRulesService } from '../../routing/routing-rules.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
@@ -53,6 +57,7 @@ export class ConfigTools {
     private readonly rules: RoutingRulesService,
     private readonly channels: ChannelsService,
     private readonly integrations: IntegrationsService,
+    private readonly identification: IdentificationService,
   ) {}
 
   specs(): ToolSpec[] {
@@ -233,6 +238,52 @@ export class ConfigTools {
           await this.rules.remove(workspaceId, ruleId);
           return { deleted: ruleId };
         },
+      }),
+      tool({
+        name: 'create_identification_rule',
+        title: 'Create a customer identification rule',
+        description:
+          'Who the customer of an inbound message is and which identities to take from it; runs on every customer message, before the customer is resolved. ' +
+          'customerFrom: sender (default) | reply_to (a form email: the customer is in Reply-To) | extracted_email (the customer email is an extracted value). ' +
+          'extract[]: { identityType, source: subject | body | header:<name>, pattern (group 1 or the named group value), trust: trusted | claimed }; ' +
+          'claimed values are checked against the backend under the integration\'s claimLinking policy. The pseudo-type name fills the customer name. ' +
+          `Check it with check_identification. ${CHANGES_APPLY}`,
+        input: CreateIdentificationRuleSchema,
+        scope: 'config:write',
+        role: 'admin',
+        run: (input, { workspaceId }) => this.identification.create(workspaceId, withoutWorkspace(input)),
+      }),
+      tool({
+        name: 'update_identification_rule',
+        title: 'Change a customer identification rule',
+        description: `Pass the rule id and only what changes. ${CHANGES_APPLY}`,
+        input: UpdateIdentificationRuleSchema.safeExtend({ ruleId: z.string() }),
+        scope: 'config:write',
+        role: 'admin',
+        run: ({ ruleId, ...input }, { workspaceId }) => this.identification.update(workspaceId, ruleId, withoutWorkspace(input)),
+      }),
+      tool({
+        name: 'delete_identification_rule',
+        title: 'Delete a customer identification rule',
+        description: 'Prefer update_identification_rule with enabled: false when the rule may be needed again.',
+        input: z.object({ ruleId: z.string() }),
+        scope: 'config:write',
+        role: 'admin',
+        destructive: true,
+        run: async ({ ruleId }, { workspaceId }) => {
+          await this.identification.remove(workspaceId, ruleId);
+          return { deleted: ruleId };
+        },
+      }),
+      tool({
+        name: 'update_identification_settings',
+        title: 'Change how far the email sender is trusted',
+        description:
+          'trustSender: always (the From address is the customer, as before) | authenticated (only when the receiving server reports DMARC or aligned DKIM pass; otherwise the From address is a claim checked like values from the text).',
+        input: IdentificationSettingsSchema,
+        scope: 'config:write',
+        role: 'admin',
+        run: (input, { workspaceId }) => this.identification.updateSettings(workspaceId, withoutWorkspace(input)),
       }),
       tool({
         name: 'create_api_channel',

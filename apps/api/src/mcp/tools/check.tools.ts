@@ -10,6 +10,7 @@ import { APP_CONFIG, type AppConfig } from '../../config/env';
 import { errors } from '../../common/errors';
 import { DepartmentsService } from '../../departments/departments.service';
 import { InboundService } from '../../ingest/inbound.service';
+import { IdentificationService } from '../../identification/identification.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { RoutingRulesService } from '../../routing/routing-rules.service';
 import { errorText, McpToolError, tool, withoutWorkspace, type ToolSpec } from '../mcp-tool';
@@ -35,6 +36,7 @@ export class CheckTools {
     private readonly inbound: InboundService,
     private readonly integrations: IntegrationsService,
     private readonly departments: DepartmentsService,
+    private readonly identification: IdentificationService,
     private readonly read: ReadTools,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -97,6 +99,17 @@ export class CheckTools {
         role: 'admin',
         readOnly: true,
         run: async (args, { workspaceId }) => this.rules.test(workspaceId, await this.read.ticketId(workspaceId, args)),
+      }),
+      tool({
+        name: 'check_identification',
+        title: 'Check customer identification on a ticket',
+        description:
+          "Applies the current identification rules and the integrations' identity patterns to the ticket's last customer message: which rules matched, who the customer would be, which identities would be taken and how far they are trusted. Writes nothing.",
+        input: z.object(TicketRef),
+        scope: 'read',
+        role: 'admin',
+        readOnly: true,
+        run: async (args, { workspaceId }) => this.identification.check(workspaceId, await this.read.ticketId(workspaceId, args)),
       }),
       tool({
         name: 'test_llm_provider',

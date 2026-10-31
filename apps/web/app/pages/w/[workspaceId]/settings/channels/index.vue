@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChannelDto, ChannelSecretsDto, MailTransport } from '@kvitok/shared';
+import type { ChannelDto, ChannelSecretsDto, IdentificationRuleDto, MailTransport, RuleCondition } from '@kvitok/shared';
 
 interface MailboxTestResult {
   smtp: { ok: boolean; error?: string };
@@ -11,6 +11,28 @@ const { workspaceId, can } = useWorkspace();
 const { channels } = useWorkspaceData();
 const isAdmin = computed(() => can('admin'));
 const origin = import.meta.client ? window.location.origin : '';
+
+/* Customer identification rules that can apply to a channel: those without a channel condition and those naming it. */
+const { data: identificationRules } = await useAsyncData(
+  () => `identification-rules:${workspaceId.value}`,
+  () => api<IdentificationRuleDto[]>(`/workspaces/${workspaceId.value}/identification/rules`).catch(() => []),
+  { default: () => [] },
+);
+function channelLeaves(condition: RuleCondition): Array<{ field: string; value: unknown }> {
+  if ('field' in condition) return condition.field.startsWith('channel.') ? [{ field: condition.field, value: condition.value }] : [];
+  if ('all' in condition) return condition.all.flatMap(channelLeaves);
+  if ('any' in condition) return condition.any.flatMap(channelLeaves);
+  return [];
+}
+function rulesFor(channel: ChannelDto): string[] {
+  return identificationRules.value
+    .filter((rule) => rule.enabled)
+    .filter((rule) => {
+      const leaves = channelLeaves(rule.conditions);
+      return leaves.length === 0 || leaves.some((l) => (l.field === 'channel.id' && l.value === channel.id) || (l.field === 'channel.type' && l.value === channel.type));
+    })
+    .map((rule) => rule.name);
+}
 
 function notifyError(e: unknown, fallback: string): void {
   const details = e instanceof ApiError && Array.isArray(e.details) ? (e.details as Array<{ path: string; message: string }>).map((d) => `${d.path}: ${d.message}`).join('; ') : '';
@@ -232,6 +254,16 @@ async function copy(text: string): Promise<void> {
                 </div>
               </template>
             </template>
+          </dl>
+          <dl class="mt-1 text-sm">
+            <div class="flex gap-2">
+              <dt class="w-32 shrink-0 text-(--ui-text-muted)">{{ t('channels.identification') }}</dt>
+              <dd class="min-w-0">
+                <NuxtLink :to="`/w/${workspaceId}/settings/identification`" class="underline decoration-dotted">
+                  {{ rulesFor(channel).join(', ') || t('channels.identificationSender') }}
+                </NuxtLink>
+              </dd>
+            </div>
           </dl>
           <UAlert v-if="channel.lastSyncError" class="mt-3" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="channel.lastSyncError" />
 

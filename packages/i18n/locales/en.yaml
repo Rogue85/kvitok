@@ -46,6 +46,7 @@ nav:
   agent: Agent
   playbooks: Playbooks
   rules: Rules
+  identification: Customer identification
   tokens: Access tokens
   audit: Change log
 
@@ -136,6 +137,14 @@ events:
   actionExecuted: "Executed: {action}"
   actionFailed: "Not executed: {action} — {error}"
   agentFailed: "The agent could not analyze the ticket: {error}"
+  identitiesFound: "Found in the message: {identities}"
+  byRule: "rule “{rule}”"
+  identificationRejected: "Data from the messages rejected: {identities}"
+  identification:
+    linked: "Customer identified by {identities}: {customer}"
+    notFound: "Nobody found by {identities}"
+    ignored: "Found by {identities}: {customer} — linking by data from messages is off"
+    asked: "Who is the customer: {customer} by {identities}"
 
 validation:
   minLength: "At least {min} characters"
@@ -156,6 +165,8 @@ validation:
   max: "At most {max}"
   unknownOption: No such option
   phone: Invalid phone number
+  extractSource: "subject, body or header:<name>"
+  extractEmailRequired: To take the customer from the text, extract an email
 
 tickets:
   views:
@@ -236,6 +247,11 @@ reply:
     email: "The mailbox “{channel}” the ticket came through is disabled. Enable it or choose a default mailbox in the channel settings."
     noChannel: The ticket has no source channel. Connect a default mailbox in the channel settings.
   viaSource: "To the source ({channel})"
+  unconfirmedCustomer:
+    title: "The customer {customer} is not confirmed"
+    description: They were found by data from the messages. Check who it is before sending their data.
+    conflict: The messages point to another customer as well. Check who it is before sending their data.
+    show: Show the decision
   emailTo: "Email → {to}"
   noRecipient: no recipient
   ccCount: ", cc: {count}"
@@ -291,6 +307,14 @@ customerLinks:
   findBy: Find by…
   find: Find
   searchAgain: Search again by contacts
+  unconfirmed: not confirmed
+  linkedByMessages: "found by {types} from the messages"
+  claims: Found in the messages
+  pending:
+    suggestion: A customer found by data from the messages waits for your decision
+    conflict: The messages point to another customer — decide in the timeline
+    candidates: Several customers match — choose in the timeline
+    confirm: Linked without confirmation — confirm in the timeline
 
 action:
   status:
@@ -313,6 +337,7 @@ action:
   attempt: "attempt {attempt}"
   rejectReasonPlaceholder: Reason — the agent will see it (optional)
   approve: Approve
+  confirmCustomerFirst: "Confirm the customer first: they were found by data from the messages"
   reject: Reject
   retry: Retry
 
@@ -446,6 +471,8 @@ audit:
     llm_provider: LLM provider
     playbook: Playbook
     routing_rule: Routing rule
+    identification_rule: Identification rule
+    identification_settings: Customer identification settings
     channel: Channel
     integration: Integration
   action:
@@ -586,6 +613,25 @@ integrations:
     description: "For development you can connect the coffee shop simulator: it runs in docker compose at http://coffee-sim:3100."
   protocol: "protocol v{version}"
   identityTypes: "finds customers by: {types}"
+  claimLinkingShort: "customers from messages: {policy}"
+  claimLinkingLabel: Linking by data from messages
+  claimLinkingHelp: "What to do when the backend finds a customer only by values people typed: a card or a phone in an email, a form."
+  claimLinking:
+    off:
+      label: Off
+      description: Only a line in the timeline; the operator links the customer by hand.
+    suggest:
+      label: Suggest
+      description: The operator confirms the customer with one click on the card in the timeline.
+    corroborated:
+      label: Link when two identities agree
+      description: Linked right away when two identity types point to the same customer (a phone and a card); otherwise suggested.
+    auto:
+      label: Link without confirmation
+      description: Linked right away and marked as not confirmed; the customer's actions wait for the operator's confirmation.
+  fieldMappingLabel: Customer fields from the card
+  fieldMappingHelp: "Keys of fields in the backend's customer card → customer fields. A key matching a customer field is taken as is. Stored only for a confirmed customer."
+  fieldMappingAdd: Field
   syncNow: Sync
   lastManifestInUse: The agent keeps working with the last received manifest.
   noManifestYet: The manifest has never been received — check the address and the secret.
@@ -664,6 +710,105 @@ rules:
   stop: Stop the following rules of the stage
   enabled: Enabled
 
+identification:
+  title: Customer identification
+  intro: "Who the customer of a message is and which identities it carries. Values people typed (a card or a phone in an email, a form field) are not trusted: the core checks them against the backend, and the integration's policy decides whether to link the customer right away or ask the operator in the ticket timeline."
+  saved: Settings saved
+  sender:
+    title: The email sender
+    description: "Whether the From address counts as the customer's own contact."
+  trustSender:
+    always:
+      label: Always trust
+      description: The sender's address identifies the customer, as before.
+    authenticated:
+      label: Only when the receiving server authenticated it
+      description: "DMARC or aligned DKIM passed. Otherwise the address is checked like a value from the text: a forged From cannot open someone else's data."
+  rules:
+    title: Rules
+    description: "Run on every customer message, before the customer is known: forms, labelled lines, numbers in the subject."
+    empty: "No rules: the customer is the sender, identities are searched by the integrations' patterns."
+  customerFromLabel: Who is the customer
+  customerFrom:
+    sender:
+      label: The sender
+      description: The From address is the customer.
+      short: the sender
+    reply_to:
+      label: Reply-To (a form email)
+      description: The email comes from a form; the customer and the reply address are in Reply-To.
+      short: from Reply-To
+    extracted_email:
+      label: The email from the text
+      description: The customer's email is taken from the text by an extraction row with the email type.
+      short: email from the text
+  trust:
+    trusted: trusted
+    claimed: needs a check
+  extractSource:
+    body: from the body
+    subject: from the subject
+    header: from a header
+  nameType: Customer name
+  extract:
+    title: What to take from the message
+    description: "A regular expression: the value is the named group value, otherwise group 1. Trusted values become the customer's identities right away, the rest are checked against the backend."
+    add: Value
+  presets:
+    form: Form email
+    subject: Number in the subject
+    formName: Form email
+    subjectName: Number in the subject
+    namePattern: "Name:\\s*(.+)"
+    phonePattern: "Phone:\\s*(.+)"
+  stop: Stop the following rules
+  check:
+    noRules: No rules matched
+    customer: "Customer:"
+  fromIntegrations:
+    title: From integrations
+    description: Identity types the backends resolve by. Those with a pattern are searched in every customer message.
+    empty: No integrations with a manifest.
+    policy: "Linking by data from messages: {policy}"
+    change: change
+    textIdentities: Look in message text
+    searchedInText: searched in text
+  source:
+    sender: sender
+    api: API source
+    rule: rule
+    manifest: integration pattern
+    agent: found by the agent
+    operator: the operator
+  claimStatus:
+    pending: not checked
+    matched: waits for a decision
+    not_found: nobody found
+    confirmed: confirmed
+    rejected: rejected
+  card:
+    title:
+      suggestion: A customer found by data from the messages
+      conflict: The messages point to different customers
+      candidates: Several customers match
+      confirm: The customer is linked without confirmation
+    choose:
+      suggestion: Link
+      conflict: This one
+      candidates: Choose
+      confirm: Confirm
+    reject:
+      suggestion: Not this customer
+      conflict: Neither
+      candidates: None of them
+      confirm: Not this customer
+    current: by the sender's contacts
+    matchedBy: "by {type}"
+    conflictHint: Until you decide, the current customer's actions are locked.
+    confirmHint: The agent already sees this customer's data; their actions are locked until you confirm.
+    linked: Customer linked
+    rejected: Data from the messages rejected
+
 agentSettings:
   saved: Agent settings saved
   trialFailed: The trial run failed
@@ -729,6 +874,8 @@ channels:
   defaultMailbox: Default for replies
   channelId: Channel ID
   metadataToFields: metadata → fields
+  identification: Customer
+  identificationSender: the sender of the message
   sending: Sending
   sandboxSending: to the Outbox, never leaves the system
   noInbound: not receiving mail
@@ -849,6 +996,9 @@ api:
   ticketHasNoCustomer: The ticket has no customer — add the customer's contact first
   manifestNotReceived: The integration manifest has not been received yet — sync the integration
   customerNotFoundExternally: Customer not found in the external system
+  identificationNothingPending: Nothing to decide about this customer any more
+  identificationUnknownOption: This customer was not offered
+  customerNotConfirmed: Confirm the customer first — they were found by data from the messages
   integrationFailed: "The integration did not respond: {error}"
   integrationNotFound: Integration not found
   playbookKeyTakenByIntegration: the key is taken by a playbook of another integration

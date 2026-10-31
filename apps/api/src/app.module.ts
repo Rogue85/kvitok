@@ -17,6 +17,7 @@ import { HealthController } from './health/health.controller';
 import { MetaController } from './health/meta.controller';
 import { MailModule } from './mail/mail.module';
 import { McpModule } from './mcp/mcp.module';
+import { IdentificationModule } from './identification/identification.module';
 import { IngestModule } from './ingest/ingest.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { QueueRootModule } from './queue.module';
@@ -52,6 +53,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AgentConfigModule,
     IntegrationsModule,
     RoutingModule,
+    IdentificationModule,
     AgentModule,
     McpModule,
   ],

@@ -1,5 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { z } from 'zod';
+import { IntegrationIdentificationSchema, type ClaimLinking, type IdentityClaimDto, type PendingIdentification } from './identification.js';
+import type { IdentityTypeDto } from './identities.js';
 import { patchOf } from './patch.js';
 
 /* Integrations: backends speaking the Support Action Protocol (docs/protocol.md). */
@@ -16,10 +18,12 @@ export const CreateIntegrationSchema = IntegrationBase.extend({
 });
 export type CreateIntegrationInput = z.input<typeof CreateIntegrationSchema>;
 
-export const UpdateIntegrationSchema = patchOf(IntegrationBase).extend({
-  /** Not passed — the current one stays. */
-  secret: z.string().min(16, { error: () => t('validation.minLength', { min: 16 }) }).max(500).optional(),
-});
+export const UpdateIntegrationSchema = patchOf(IntegrationBase)
+  .extend({
+    /** Not passed — the current one stays. */
+    secret: z.string().min(16, { error: () => t('validation.minLength', { min: 16 }) }).max(500).optional(),
+  })
+  .extend(IntegrationIdentificationSchema.partial().shape);
 export type UpdateIntegrationInput = z.input<typeof UpdateIntegrationSchema>;
 
 export const SyncIntegrationSchema = z.object({
@@ -55,7 +59,7 @@ export interface IntegrationManifestDto {
   name: string;
   title: string;
   protocolVersion: number;
-  identityTypes: string[];
+  identityTypes: IdentityTypeDto[];
   instructions: string;
   tools: IntegrationToolDto[];
   actions: IntegrationActionDto[];
@@ -75,6 +79,9 @@ export interface IntegrationDto {
   lastSyncError: string | null;
   manifestEtag: string | null;
   manifest: IntegrationManifestDto | null;
+  claimLinking: ClaimLinking;
+  textIdentities: boolean;
+  fieldMapping: Record<string, string>;
 }
 
 export interface IntegrationSyncResultDto {
@@ -96,12 +103,20 @@ export interface CustomerLinkDto {
   customerRef: string | null;
   displayName: string | null;
   candidates: Array<{ customerRef: string; displayName: string; hint: string | null }>;
-  /** manual — chosen by an operator: never revised automatically. */
-  source: 'auto' | 'manual' | null;
+  /** manual — chosen by an operator: never revised automatically; claim — found by data from the messages. */
+  source: 'auto' | 'manual' | 'claim' | null;
+  /** false — found by identities people typed and not confirmed: actions are locked. */
+  confirmed: boolean;
+  /** Identity types the backend matched the customer by. */
+  matchedBy: string[];
+  /** A decision waiting for the operator. */
+  pending: PendingIdentification | null;
   resolvedAt: string | null;
   lastError: string | null;
   /** Identities the backend can search by. */
-  identityTypes: string[];
+  identityTypes: IdentityTypeDto[];
+  /** Identities found in this ticket's messages. */
+  claims: IdentityClaimDto[];
 }
 
 /**

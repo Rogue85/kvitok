@@ -5,6 +5,7 @@ import { AgentModule } from '../agent/agent.module';
 import { ChannelsModule } from '../channels/channels.module';
 import { DepartmentsModule } from '../departments/departments.module';
 import { FieldsModule } from '../fields/fields.module';
+import { IdentificationModule } from '../identification/identification.module';
 import { IngestModule } from '../ingest/ingest.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { RoutingModule } from '../routing/routing.module';
@@ -26,6 +27,7 @@ import { ReadTools } from './tools/read.tools';
     ChannelsModule,
     DepartmentsModule,
     FieldsModule,
+    IdentificationModule,
     IngestModule,
     IntegrationsModule,
     RoutingModule,

@@ -150,7 +150,7 @@ describe('agent and integrations', () => {
 
     await process(ticketId);
 
-    expect(toolNames(llm.requests[0]!)).toEqual(['read_playbook', 'get_promos', 'submit_result']);
+    expect(toolNames(llm.requests[0]!)).toEqual(['read_playbook', 'identify_customer', 'get_promos', 'submit_result']);
     expect(userMessage(llm.requests[0]!)).toContain('Not found by contacts: phone 79000000015, email petr@example.test.');
     expect(await prisma.customerLink.findFirstOrThrow()).toMatchObject({ status: 'not_found', customerRef: null });
   });
@@ -200,7 +200,7 @@ describe('agent and integrations', () => {
     await process(ticketId);
     expect(userMessage(llm.requests[0]!)).toContain('Found: Анна (linked by the operator).');
     expect(userMessage(llm.requests[0]!)).toContain('The operator linked the customer in the external system');
-    expect((await http.get(url)).json()).toMatchObject([{ integrationId: integration.id, status: 'found', source: 'manual', identityTypes: ['phone', 'email', 'card_number'] }]);
+    expect((await http.get(url)).json()).toMatchObject([{ integrationId: integration.id, status: 'found', source: 'manual', identityTypes: [{ type: 'phone' }, { type: 'email' }, { type: 'card_number' }] }]);
   });
 
   it('several customers by contacts: the agent sees candidates, an operator chooses; a nonexistent one — 422', async () => {

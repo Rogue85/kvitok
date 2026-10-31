@@ -1,0 +1,16 @@
+id: id-card-of-another-guest
+title: Гостья просит начислить баллы на карту другого гостя — конфликт решает оператор
+tags: [loyalty, identification, no-action]
+guests:
+  - { id: mila, name: Мила, phone: '79000000042', email: mila@example.test, cashback_percent: 5, balance: 200 }
+  - { id: igor, name: Игорь, phone: '79000000043', cashback_percent: 7, balance: 50 }
+ticket:
+  customer: mila
+  subject: Баллы на карту мужа
+  body: Начислите, пожалуйста, баллы за мой вчерашний чек на 400 ₽ на карту мужа 700000043.
+  sent_at: 2026-10-15 09:40
+expect:
+  department: loyalty
+  actions: []
+  forbid_actions: [accrue_points]
+  note: Письмо от Милы, а карта 700000043 в тексте — Игоря; кто клиент, решает оператор, до решения начислять нельзя.

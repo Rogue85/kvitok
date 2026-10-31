@@ -2,6 +2,7 @@
 import {
   TICKET_STATUSES,
   type AgentAnalyzedEventData,
+  type CustomerLinkDto,
   type MessageDto,
   type TicketAgentDto,
   type TicketDto,
@@ -33,6 +34,12 @@ const { data: agent, refresh: refreshAgent } = await useAsyncData(
   () => api<TicketAgentDto>(`${base.value}/agent`),
   { watch: [ticketId] },
 );
+/** The customer in integrations: the sidebar, the identification cards, locked actions and the reply warning. */
+const { data: links, refresh: refreshLinks } = await useAsyncData(
+  () => `customer-links:${ticketId.value}`,
+  () => api<CustomerLinkDto[]>(`${base.value}/customer-links`).catch(() => []),
+  { watch: [ticketId], default: () => [] },
+);
 const runsOpen = ref(false);
 const runId = ref<string | null>(null);
 function openRun(id: string | null): void {
@@ -44,6 +51,7 @@ const refreshAll = debounce(() => {
   void refreshTicket();
   void refreshTimeline();
   void refreshAgent();
+  void refreshLinks();
 }, 300);
 useRealtime((event) => {
   if (event.ticketId === ticketId.value) refreshAll();
@@ -62,6 +70,14 @@ const lastSeenMessageId = computed(() => {
 });
 
 const AGENT_EVENTS = new Set(['agent_analyzed', 'agent_failed']);
+/** Identification events that asked the operator a question: shown as a card while the decision is open. */
+const IDENTIFICATION_CARDS = new Set(['suggestion', 'conflict', 'candidates', 'confirm']);
+function isIdentificationCard(event: { type: string; data: Record<string, unknown> }): boolean {
+  return event.type === 'customer_identification' && IDENTIFICATION_CARDS.has(String(event.data.kind));
+}
+function linkOf(event: { data: Record<string, unknown> }): CustomerLinkDto | null {
+  return links.value.find((l) => l.integrationId === event.data.integrationId) ?? null;
+}
 /** Id of the last agent message — it carries the suggestions and the draft button. */
 const latestAgentEventId = computed(() => {
   for (let i = timeline.value.length - 1; i >= 0; i--) {
@@ -250,11 +266,20 @@ watch(
                   </div>
                   <TicketMessageCard v-else :message="item.message" :workspace-id="workspaceId" @cancel="cancelFromTimeline" />
                 </template>
+                <TicketIdentificationCard
+                  v-else-if="isIdentificationCard(item.event)"
+                  :id="`event-${item.event.id}`"
+                  :event="item.event"
+                  :link="linkOf(item.event)"
+                  :ticket-id="ticket.id"
+                  @changed="refreshAll"
+                />
                 <AgentMessage
                   v-else-if="AGENT_EVENTS.has(item.event.type)"
                   :event="item.event"
                   :ticket="ticket"
                   :agent="agent ?? null"
+                  :links="links"
                   :latest="item.event.id === latestAgentEventId"
                   @answer="replyTo = $event"
                   @open-draft="openReply"
@@ -282,6 +307,7 @@ watch(
                 :ticket="ticket"
                 :last-seen-message-id="lastSeenMessageId"
                 :agent="agent ?? null"
+                :links="links"
                 @sent="onSent"
                 @changed="refreshAll"
                 @close="replyOpen = false"
@@ -303,7 +329,7 @@ watch(
         </div>
 
         <aside v-if="propsOpen" class="w-80 shrink-0 overflow-y-auto border-l border-(--ui-border) p-6">
-          <TicketSidebar :ticket="ticket" @update="update" />
+          <TicketSidebar :ticket="ticket" :links="links" @update="update" @changed="refreshAll" />
         </aside>
         <AgentRunsModal v-if="agent" v-model:open="runsOpen" :runs="agent.runs" :run-id="runId" />
       </div>

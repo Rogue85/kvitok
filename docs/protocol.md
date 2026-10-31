@@ -50,8 +50,8 @@ Paths are relative to the integration's base URL.
 | Method and path | Body | Response |
 |---|---|---|
 | `GET /manifest` | — | the manifest, an `ETag` header; `304` on `If-None-Match` with the same ETag |
-| `POST /customers/resolve` | `{ identities: { phone?, email?, card_number?, … } }` | `{ status: found, customer_ref, display_name? }` · `{ status: not_found }` · `{ status: ambiguous, candidates: [{ customer_ref, display_name, hint? }] }` |
-| `POST /context` | `{ customer_ref }` | the customer card: `{ title?, summary?, sections: [{ key, title, display, data }], refs }` |
+| `POST /customers/resolve` | `{ identities: { phone?, email?, card_number?, … } }` | `{ status: found, customer_ref, display_name?, matched_by? }` · `{ status: not_found }` · `{ status: ambiguous, candidates: [{ customer_ref, display_name, hint?, matched_by? }] }` |
+| `POST /context` | `{ customer_ref }` | the customer card: `{ title?, summary?, sections: [{ key, title, display, data }], refs, fields? }` |
 | `POST /tools/{name}` | `{ customer_ref \| null, args }` | `{ summary?, data, display?, refs }` |
 | `POST /actions/{name}/validate` | `{ customer_ref, params }` | `{ ok, normalized_params?, preview?, warnings[], errors[{ path?, message }] }` |
 | `POST /actions/{name}/execute` | `{ customer_ref, params }` + the `Idempotency-Key` header | `{ status: executed \| failed, result?, external_ref?, error? }` |
@@ -64,7 +64,11 @@ Paths are relative to the integration's base URL.
   "protocol_version": 1,
   "name": "acme_coffee",
   "title": "Acme Coffee",
-  "identity_types": ["phone", "email", "card_number"],
+  "identity_types": [
+    "email",
+    { "type": "phone", "label": "Phone", "normalize": "digits" },
+    { "type": "card_number", "label": "Loyalty card", "pattern": "(?<!\\d)(?<value>7777\\d{12})(?!\\d)", "normalize": "digits", "description": "16 digits starting with 7777" }
+  ],
   "instructions": "How points, promos and the journal work… (markdown)",
   "tools": [{
     "name": "get_transactions",
@@ -90,6 +94,11 @@ Paths are relative to the integration's base URL.
 ```
 
 - The `name` of tools, actions, playbooks and departments is lowercase Latin letters, digits and `_`.
+- `identity_types` lists what resolve searches by. An entry is a type name or an object:
+  - `label` — how the support UI names the identity;
+  - `pattern` — a JavaScript regular expression (matched case-insensitively) that finds such values in message text; the value is the named group `value`, otherwise group 1, otherwise the whole match. Values found this way are not trusted: the core sends them to resolve and the support team decides what a match means;
+  - `normalize` — how values compare: `digits` (phones, cards), `lowercase` (emails), `none`;
+  - `description` — for the agent: what the value looks like.
 - `input_schema` is the JSON Schema of an object. The model sees it as the tool's argument schema, so write field descriptions for the model.
 - `display` is how the UI shows the result: `kv`, `table`, `timeline`, `markdown`, `json`.
 - `requires_customer: false` marks reference data (promos, menu) available without a resolved customer; the core passes `customer_ref: null`.
@@ -97,12 +106,19 @@ Paths are relative to the integration's base URL.
 - `examples` are used for documentation, a test call in the UI and conformance checks.
 - `instructions` and `playbooks` are domain knowledge for the agent: how to read tool data and how to handle typical requests. The policy for talking to customers is set by the support team in its own interface and does not belong here.
 
+### Customer resolve
+
+- The core sends every identity it has: the trusted ones (the email sender, identities from the source) and values people typed in messages. An identity that matches nobody is ignored.
+- All matching identities point to one customer — `found`; to different customers (or one identity to several) — `ambiguous` with the candidates.
+- `matched_by` lists the identity types that point to the customer (in `found` and in every candidate). It lets the core tell a customer confirmed by the sender's email from one found only by a card number someone typed. Without it, the core treats a match as made by the typed values only and asks the support team more often.
+
 ### Data: tools and context
 
 - `data` goes to the model as is: compact JSON with clear keys. Times carry a time zone or a convention stated in `instructions`.
 - `refs` are links to objects in the backend admin: `{ type, id, title?, url? }`.
 - The core truncates large responses and tells the model the data was cut. It is better to limit the selection right away (`limit`, a period).
 - Another customer's object is `404 not_found`, the same as a nonexistent one.
+- The customer card may carry `fields`: customer attributes the support system can store in its customer fields (a tier, a plan, an employee number) — `{ "<key>": value }`, where a value is a string, a number, a boolean, `null` or a list of strings. The support team maps the keys to its fields; values are stored only for a customer the team trusts.
 
 ### Actions
 
@@ -140,7 +156,7 @@ Paths are relative to the integration's base URL.
 The check suite in `packages/protocol` verifies:
 - the manifest and ETag;
 - the signature: missing, with a foreign secret, expired, from another endpoint;
-- resolve;
+- resolve, `matched_by` and that an identity matching nobody does not hide the customer;
 - the customer card;
 - tool responses;
 - error codes;

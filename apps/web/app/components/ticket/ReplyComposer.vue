@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { MessageDto, ReplyDraftDto, TicketAgentDto, TicketDto } from '@kvitok/shared';
+import type { CustomerLinkDto, MessageDto, ReplyDraftDto, TicketAgentDto, TicketDto } from '@kvitok/shared';
 import type { DropdownMenuItem, EditorToolbarItem } from '@nuxt/ui';
 
-const props = defineProps<{ ticket: TicketDto; lastSeenMessageId: string | null; agent: TicketAgentDto | null }>();
+const props = defineProps<{ ticket: TicketDto; lastSeenMessageId: string | null; agent: TicketAgentDto | null; links?: CustomerLinkDto[] }>();
 const emit = defineEmits<{ sent: [message: MessageDto]; changed: []; close: [] }>();
 
 const toast = useToast();
@@ -10,6 +10,13 @@ const toast = useToast();
 const sentDrafts = new Map<string, { html: string; toastId: string | number }>();
 const { workspaceId } = useWorkspace();
 const base = computed(() => `/workspaces/${workspaceId.value}/tickets/${props.ticket.id}`);
+
+/** A customer found by data from the messages and not confirmed: the draft may carry someone else's data. */
+const unconfirmed = computed(() => props.links?.find((l) => l.status === 'found' && !l.confirmed) ?? null);
+function showDecision(): void {
+  const eventId = unconfirmed.value?.pending?.eventId;
+  if (eventId) document.getElementById(`event-${eventId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 const html = ref('');
 const sending = ref(false);
@@ -210,6 +217,15 @@ defineExpose({ cancel, flush });
     </div>
 
     <div class="space-y-3 p-3">
+      <UAlert
+        v-if="unconfirmed"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-user-search"
+        :title="t('reply.unconfirmedCustomer.title', { customer: unconfirmed.displayName ?? unconfirmed.customerRef ?? '' })"
+        :description="unconfirmed.pending?.kind === 'conflict' ? t('reply.unconfirmedCustomer.conflict') : t('reply.unconfirmedCustomer.description')"
+        :actions="unconfirmed.pending ? [{ label: t('reply.unconfirmedCustomer.show'), color: 'warning', variant: 'outline', onClick: showDecision }] : []"
+      />
       <UAlert
         v-if="!canReply"
         color="warning"

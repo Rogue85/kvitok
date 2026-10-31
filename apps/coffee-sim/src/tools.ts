@@ -327,5 +327,6 @@ export function buildContext(store: SimStore, guest: Guest, locale: SimLocale = 
       { key: 'transactions', title: l({ en: 'Recent receipts', ru: 'Последние чеки' }), display: 'table', data: store.transactionsOf(guest.id).slice(0, 5).map((t) => transactionRow(store, t)) },
     ],
     refs: [{ type: 'guest', id: guest.id, title: guest.name }],
+    fields: { cashback_percent: guest.cashbackPercent, balance: guest.balance, city: guest.city },
   };
 }

@@ -52,7 +52,24 @@ export function buildManifest(locale: SimLocale = DEFAULT_SIM_LOCALE): Manifest 
     protocol_version: PROTOCOL_VERSION,
     name: 'coffee_sim',
     title: l({ en: 'Coffee shop chain (simulator)', ru: 'Сеть кофеен (симулятор)' }),
-    identity_types: ['phone', 'email', 'card_number'],
+    identity_types: [
+      {
+        type: 'phone',
+        label: l({ en: 'Phone', ru: 'Телефон' }),
+        // A Russian mobile number in any common spelling: +7 (912) 345-67-89, 89123456789.
+        pattern: String.raw`(?<![\d+])(?<value>(?:\+7|8|7)[\s\-(]*9\d{2}[\s\-)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2})(?!\d)`,
+        normalize: 'digits',
+        description: l({ en: 'Russian mobile number, 11 digits starting with 7', ru: 'Российский мобильный номер, 11 цифр, начинается с 7' }),
+      },
+      { type: 'email', label: 'Email', normalize: 'lowercase' },
+      {
+        type: 'card_number',
+        label: l({ en: 'Loyalty card', ru: 'Карта лояльности' }),
+        pattern: String.raw`(?<!\d)(?<value>70\d{7})(?!\d)`,
+        normalize: 'digits',
+        description: l({ en: '9 digits starting with 70, printed on the card and shown in the app', ru: '9 цифр, начинается с 70, напечатан на карте и виден в приложении' }),
+      },
+    ],
     instructions: readFileSync(join(contentDir, 'instructions.md'), 'utf8').trim(),
     tools: simTools(locale).map((t) => ({
       name: t.name,

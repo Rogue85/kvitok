@@ -30,6 +30,7 @@ export class ActionsService {
 
   async approve(workspaceId: string, ticketId: string, id: string, userId: string, comment?: string): Promise<ActionProposalDto> {
     const row = await this.decide(workspaceId, ticketId, id, ['proposed'], async (tx, proposal) => {
+      await assertCustomerConfirmed(tx, id);
       await tx.actionProposal.update({
         where: { id },
         // The key is the proposal id: the backend will not execute the same proposal twice.
@@ -92,5 +93,18 @@ export class ActionsService {
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
     const row = await this.prisma.actionProposal.findUniqueOrThrow({ where: { id }, include: ACTION_INCLUDE });
     return toActionDto(row);
+  }
+}
+
+/** A customer found only by data from the messages and not confirmed yet: their actions wait for the operator's confirmation. */
+async function assertCustomerConfirmed(tx: Prisma.TransactionClient, proposalId: string): Promise<void> {
+  const proposal = await tx.actionProposal.findUniqueOrThrow({ where: { id: proposalId }, select: { integrationId: true, ticket: { select: { customerId: true } } } });
+  if (!proposal.ticket.customerId) return;
+  const link = await tx.customerLink.findUnique({
+    where: { customerId_integrationId: { customerId: proposal.ticket.customerId, integrationId: proposal.integrationId } },
+    select: { status: true, confirmed: true },
+  });
+  if (link && !link.confirmed) {
+    throw errors.conflict(t('api.customerNotConfirmed'));
   }
 }
