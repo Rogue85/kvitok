@@ -6,11 +6,12 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ### Changed
 
+- **Breaking:** `VAPID_SUBJECT` must now be `mailto:…` or an https URL, or the API does not start. If you set it to a bare address such as `you@example.com`, change it to `mailto:you@example.com` before updating, or remove it to use the default. `deploy/.env.example` now lists the VAPID settings.
 - The web interface works on phones. Below tablet landscape width a tab bar at the bottom leads to tickets, analytics and notifications, and "More" opens the full menu. The ticket queue is a list of cards with the status, priority, department, assignee and list fields, and sorting and bulk actions take less room. A ticket fills the screen: the properties open as a sheet, the header keeps the number and the subject, and the composers fit the width. Settings, administration and the profile show their tables as cards on phones, and their forms and dialogs stack into one column. On iPhone the app respects the notch and the home indicator when installed on the Home Screen, and fields no longer zoom the page on focus. Desktop layouts are unchanged.
 
 ### Fixed
 
-- Web push to iPhone and iPad failed with `403 BadJwtToken` when `VAPID_SUBJECT` was not set and `WEB_ORIGIN` was not https: Apple rejects the `mailto:admin@localhost` contact sent then. The contact now defaults to `WEB_ORIGIN` on a public https domain, else to the first superadmin's email, and the API logs a warning when neither is public. `VAPID_SUBJECT` must now be `mailto:…` or an https URL, or the API does not start.
+- Web push to iPhone and iPad failed with `403 BadJwtToken` when `VAPID_SUBJECT` was not set and `WEB_ORIGIN` was not https: Apple rejects the `mailto:admin@localhost` contact sent then. The contact now defaults to `WEB_ORIGIN` on a public https domain, else to the first superadmin's email, and the API logs a warning when neither is public.
 
 ## [0.3.0] - 2026-11-01
 
