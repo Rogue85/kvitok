@@ -1,5 +1,5 @@
-import { canSeeDepartment } from '@kvitok/shared';
-import { memberScope } from '../departments/department-access';
+import { canSeeDepartment, type DepartmentScope } from '@kvitok/shared';
+import { memberScope, triageDepartmentId } from '../departments/department-access';
 import type { Prisma } from '../generated/prisma/client';
 import { recordEvent, type Actor } from './ticket-events';
 
@@ -30,4 +30,56 @@ export async function recordDepartmentChange(
     data: { from: ticket.assigneeId, to: null, reason: 'department_access', departmentId: to, ...data },
   });
   return { unassign: true };
+}
+
+/** What a change of the triage department changed: unassigned tickets and the members whose access to tickets without a department changed. */
+export interface TriageChange {
+  unassigned: string[];
+  members: string[];
+}
+
+/**
+ * Follows up a change that may have moved the triage flag: the triage department decides who sees tickets without
+ * a department. Their assignees who no longer see them are unassigned, and the restricted members of the old and the
+ * new triage department are returned, so their open pages and streams reload access. `before` — the triage department
+ * before the change.
+ */
+export async function applyTriageChange(
+  tx: Prisma.TransactionClient,
+  workspaceId: string,
+  before: string | null,
+  actor: Actor,
+): Promise<TriageChange> {
+  const after = await triageDepartmentId(tx, workspaceId);
+  if (after === before) {
+    return { unassigned: [], members: [] };
+  }
+  const tickets = await tx.ticket.findMany({
+    where: { workspaceId, departmentId: null, assigneeId: { not: null }, status: { notIn: ['resolved', 'closed'] } },
+    select: { id: true, assigneeId: true },
+  });
+  const scopes = new Map<string, DepartmentScope | null>();
+  const unassigned: string[] = [];
+  for (const ticket of tickets) {
+    const assigneeId = ticket.assigneeId!;
+    if (!scopes.has(assigneeId)) scopes.set(assigneeId, await memberScope(tx, workspaceId, assigneeId));
+    const scope = scopes.get(assigneeId)!;
+    if (scope !== null && canSeeDepartment(scope, null)) continue;
+    await tx.ticket.update({ where: { id: ticket.id }, data: { assigneeId: null } });
+    await recordEvent(tx, {
+      workspaceId,
+      ticketId: ticket.id,
+      type: 'assignee_changed',
+      actor,
+      data: { from: assigneeId, to: null, reason: 'triage_changed' },
+    });
+    unassigned.push(ticket.id);
+  }
+  // Administrators always have every department, so they are never among the restricted members.
+  const members = await tx.membershipDepartment.findMany({
+    where: { workspaceId, departmentId: { in: [before, after].filter((id): id is string => id !== null) }, membership: { allDepartments: false } },
+    select: { userId: true },
+    distinct: ['userId'],
+  });
+  return { unassigned, members: members.map((m) => m.userId) };
 }

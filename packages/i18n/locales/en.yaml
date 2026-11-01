@@ -192,6 +192,7 @@ events:
   assigneeChanged: "Assignee: {from} → {to}"
   unassignedNoAccess: "{name} was unassigned: no access to {department}"
   unassignedAccessRemoved: "{name} was unassigned: access to {department} was removed"
+  unassignedTriageChanged: "{name} was unassigned: after the triage department changed, no access to tickets without a department"
   tagsChanged: "Tags: {tags}"
   subjectChanged: "Subject: “{subject}”"
   fieldChanged: "{label}: {from} → {to}"

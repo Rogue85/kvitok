@@ -191,6 +191,7 @@ events:
   assigneeChanged: "Исполнитель: {from} → {to}"
   unassignedNoAccess: "Назначение {name} снято: нет доступа к отделу «{department}»"
   unassignedAccessRemoved: "Назначение {name} снято: доступ к отделу «{department}» отозван"
+  unassignedTriageChanged: "Назначение {name} снято: после смены отдела сортировки нет доступа к тикетам без отдела"
   tagsChanged: "Теги: {tags}"
   subjectChanged: "Тема: «{subject}»"
   fieldChanged: "{label}: {from} → {to}"

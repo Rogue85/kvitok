@@ -2,9 +2,10 @@ import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { ModulesContainer } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newId } from '../../src/common/ids';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { RealtimeService } from '../../src/realtime/realtime.service';
 import { StorageService } from '../../src/storage/storage.service';
 import {
   client,
@@ -99,6 +100,10 @@ describe('department access', () => {
 
   beforeEach(async () => {
     await resetDb(app);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   afterAll(async () => {
@@ -388,6 +393,36 @@ describe('department access', () => {
     const audit = (await http.get(`${base}/audit?entity=member`)).json().find((e: { entity: string; action: string }) => e.entity === 'member' && e.action === 'update');
     expect(audit.before.departments).toEqual({ allDepartments: true, departmentIds: [] });
     expect(audit.after.departments).toEqual({ allDepartments: false, departmentIds: [departments.a.id] });
+  });
+
+  it('moving the triage flag unassigns tickets without a department from those who no longer see them', async () => {
+    const { base, http, admin, tickets, departments, members } = await setup();
+    // A member of the triage department T sees tickets without a department.
+    expect((await http.patch(`${base}/tickets/${tickets.none.id}`, { assigneeId: members.opAT.user.id })).statusCode).toBe(200);
+    const publish = vi.spyOn(app.get(RealtimeService), 'publish');
+
+    expect((await http.patch(`${base}/departments/${departments.b.id}`, { isTriage: true })).statusCode).toBe(200);
+
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: tickets.none.id } })).assigneeId).toBeNull();
+    expect(await prisma.ticketEvent.findFirst({ where: { ticketId: tickets.none.id, type: 'assignee_changed' }, orderBy: { createdAt: 'desc' } })).toMatchObject({
+      actorType: 'user',
+      actorId: admin.id,
+      data: { from: members.opAT.user.id, to: null, reason: 'triage_changed' },
+    });
+    expect((await members.opAT.http.get(`${base}/tickets/${tickets.none.id}`)).statusCode).toBe(404);
+    expect((await members.viewerB.http.get(`${base}/tickets/${tickets.none.id}`)).statusCode).toBe(200);
+
+    // The members of the old and the new triage department reload their access.
+    const published = publish.mock.calls.map(([, event]) => event);
+    expect(published).toContainEqual({ type: 'ticket.updated', ticketId: tickets.none.id });
+    expect(published.filter((event) => event.type === 'access.changed').map((event) => 'userId' in event && event.userId).sort()).toEqual(
+      [members.opAT.user.id, members.viewerB.user.id].sort(),
+    );
+
+    // A change that keeps the triage department changes nobody's access.
+    publish.mockClear();
+    expect((await http.patch(`${base}/departments/${departments.b.id}`, { title: 'B2' })).statusCode).toBe(200);
+    expect(publish.mock.calls.filter(([, event]) => event.type === 'access.changed')).toEqual([]);
   });
 
   it('validates departments: own workspace only, a list or every one, administrators always every one', async () => {
