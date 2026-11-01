@@ -205,7 +205,7 @@ All settings are environment variables in `.env`. The compose file passes all of
 | `INTEGRATION_SYNC_MINUTES` | `15` | How often integration manifests are synced |
 | `MIGRATE_ON_START` | `true` | Migrations on start of the `api` container |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generated | Web push keys (base64url, `npx web-push generate-vapid-keys`). Without them the keys are generated on first use and stored encrypted with `APP_SECRET`; changing either invalidates every browser subscription |
-| `VAPID_SUBJECT` | `mailto:admin@localhost` | A contact for push services: `mailto:you@example.com` or an https URL |
+| `VAPID_SUBJECT` | `WEB_ORIGIN` or the superadmin's email | A contact for push services: `mailto:you@example.com` or an https URL. Apple rejects notifications to iPhone and iPad (`403 BadJwtToken`) without a real one, so the default is `WEB_ORIGIN` when it is https on a public domain, else the email of the first superadmin; set it when neither is public |
 
 ## Building the image
 

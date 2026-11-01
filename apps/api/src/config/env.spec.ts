@@ -24,6 +24,14 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...base, COOKIE_SECURE: 'false' })).toMatchObject({ cookieSecure: false });
   });
 
+  it('accepts only a mailto or https VAPID subject', () => {
+    expect(loadConfig({ ...base, VAPID_SUBJECT: 'mailto:you@example.com' }).vapidSubject).toBe('mailto:you@example.com');
+    expect(loadConfig({ ...base, VAPID_SUBJECT: 'https://support.example.com' }).vapidSubject).toBe('https://support.example.com');
+    expect(loadConfig(base).vapidSubject).toBeNull();
+    expect(() => loadConfig({ ...base, VAPID_SUBJECT: 'you@example.com' })).toThrow(/VAPID_SUBJECT/);
+    expect(() => loadConfig({ ...base, VAPID_SUBJECT: 'mailto: you@example.com' })).toThrow(/VAPID_SUBJECT/);
+  });
+
   it('fails with a clear error on a short secret', () => {
     expect(() => loadConfig({ ...base, APP_SECRET: 'short' })).toThrow(/APP_SECRET/);
   });

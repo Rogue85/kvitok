@@ -32,13 +32,13 @@ export class WebPushSender implements NotifierChannel {
 
   /** Sends to one browser; returns the error text, or null when the push service accepted it. */
   async send(subscription: PushSubscription, payload: PushPayload, urgent = false): Promise<string | null> {
-    const keys = await this.vapid.get();
+    const [keys, subject] = await Promise.all([this.vapid.get(), this.vapid.subject()]);
     try {
       await webpush.sendNotification(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
         JSON.stringify(payload),
         {
-          vapidDetails: { subject: this.vapid.subject, publicKey: keys.publicKey, privateKey: keys.privateKey },
+          vapidDetails: { subject, publicKey: keys.publicKey, privateKey: keys.privateKey },
           TTL: TTL_SECONDS,
           urgency: urgent ? 'high' : 'normal',
           timeout: TIMEOUT_MS,

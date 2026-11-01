@@ -4,6 +4,10 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+### Fixed
+
+- Web push to iPhone and iPad failed with `403 BadJwtToken` when `VAPID_SUBJECT` was not set and `WEB_ORIGIN` was not https: Apple rejects the `mailto:admin@localhost` contact sent then. The contact now defaults to `WEB_ORIGIN` on a public https domain, else to the first superadmin's email, and the API logs a warning when neither is public. `VAPID_SUBJECT` must now be `mailto:…` or an https URL, or the API does not start.
+
 ## [0.3.0] - 2026-11-01
 
 ### Added

@@ -28,8 +28,11 @@ const EnvSchema = z.object({
   /** VAPID keys for web push (base64url); without them the keys are generated once and stored in the database. */
   VAPID_PUBLIC_KEY: z.string().min(1).optional(),
   VAPID_PRIVATE_KEY: z.string().min(1).optional(),
-  /** A contact for push services: `mailto:` or an https URL; WEB_ORIGIN when it is https. */
-  VAPID_SUBJECT: z.string().min(1).optional(),
+  /** A contact for push services: `mailto:` or an https URL. Without it — WEB_ORIGIN or the superadmin's email (`VapidKeysService`). */
+  VAPID_SUBJECT: z
+    .string()
+    .regex(/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/, 'must be mailto:you@example.com or an https URL')
+    .optional(),
 });
 
 export interface AppConfig {
@@ -58,7 +61,8 @@ export interface AppConfig {
   /** Timeout of a single request to an integration. */
   integrationTimeoutMs: number;
   vapid: { publicKey: string; privateKey: string } | null;
-  vapidSubject: string;
+  /** Set explicitly; null — chosen by `VapidKeysService`. */
+  vapidSubject: string | null;
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -92,6 +96,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     integrationSyncMinutes: e.INTEGRATION_SYNC_MINUTES,
     integrationTimeoutMs: e.INTEGRATION_TIMEOUT_MS,
     vapid: e.VAPID_PUBLIC_KEY && e.VAPID_PRIVATE_KEY ? { publicKey: e.VAPID_PUBLIC_KEY, privateKey: e.VAPID_PRIVATE_KEY } : null,
-    vapidSubject: e.VAPID_SUBJECT ?? (e.WEB_ORIGIN.startsWith('https://') ? e.WEB_ORIGIN : 'mailto:admin@localhost'),
+    vapidSubject: e.VAPID_SUBJECT ?? null,
   };
 }
