@@ -4,6 +4,8 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-01
+
 ### Added
 
 - The ticket queue has filters by assignee, department, priority, channel, tags, agent state, creation and last message dates, and custom fields marked "In filters", each with several values. A "Waiting for a decision" filter finds tickets with an open question from the agent, a proposed action or a customer to confirm, and the queue marks such tickets. The queue can be sorted by the oldest message, creation date or priority, and the tabs show ticket counts.
