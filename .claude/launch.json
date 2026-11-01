@@ -4,8 +4,23 @@
     {
       "name": "dev",
       "runtimeExecutable": "docker",
-      "runtimeArgs": ["compose", "up"],
+      "runtimeArgs": [
+        "compose",
+        "up"
+      ],
       "port": 3000
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4000",
+        "-d",
+        "_site"
+      ],
+      "port": 4000
     }
   ]
 }

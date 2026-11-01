@@ -24,3 +24,6 @@ eval-reports/
 
 # Private working notes (design, implementation plan), kept out of the repository
 .private/
+
+# The website build (pnpm site:build)
+_site/

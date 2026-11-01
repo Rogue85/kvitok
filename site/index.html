@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kvitok · customer support with an AI agent</title>
+    <meta
+      name="description"
+      content="Kvitok is an open-source customer support system with an AI agent. The agent reads your backend, drafts a reply and proposes actions; an operator approves them and your backend executes them."
+    />
+    <meta property="og:title" content="Kvitok · customer support with an AI agent" />
+    <meta
+      property="og:description"
+      content="Open-source support system: the AI agent reads your backend, drafts replies and proposes actions, people approve, your backend executes."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="assets/brand/kvitok-icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script>
+      // Before the first paint, so a saved theme does not flash.
+      try {
+        const theme = localStorage.getItem('kvitok-theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <!-- Shared gradients and arrowheads for the inline diagrams. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="k-ai" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" class="s1" />
+          <stop offset="0.5" class="s2" />
+          <stop offset="1" class="s3" />
+        </linearGradient>
+        <linearGradient id="k-ai-fill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" class="t1" />
+          <stop offset="0.5" class="t2" />
+          <stop offset="1" class="t3" />
+        </linearGradient>
+        <marker id="k-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0 1 L10 5 L0 9 z" class="d-head" />
+        </marker>
+      </defs>
+    </svg>
+
+    <header class="header">
+      <div class="wrap">
+        <a class="logo" href="#top" aria-label="Kvitok">
+          <svg viewBox="60 -816 3690 832" aria-hidden="true">
+            <path
+              id="k-wordmark"
+              fill="currentColor"
+              d="M245 -151 194 -168 521 -570H720L227 0H60V-770H245ZM359 -279 497 -380 735 0H524ZM1112 -87 1047 -88 1253 -570H1451L1182 0H971L702 -570H907ZM1484 -578 1576 -559 1669 -578V0H1484ZM1577 -630Q1528 -630 1497 -655.5Q1466 -681 1466 -723Q1466 -766 1497 -791Q1528 -816 1577 -816Q1627 -816 1657 -791Q1687 -766 1687 -723Q1687 -681 1657 -655.5Q1627 -630 1577 -630ZM1704 -432V-513L1822 -556L1902 -722H2008V-570H2254V-432H2008V-244Q2008 -180 2034 -154.5Q2060 -129 2127 -129Q2170 -129 2202.5 -136.5Q2235 -144 2264 -157V-16Q2234 -4 2185.5 6Q2137 16 2085 16Q1994 16 1935.5 -13Q1877 -42 1849.5 -94.5Q1822 -147 1822 -218V-432ZM2652 16Q2544 16 2463 -22Q2382 -60 2337 -128Q2292 -196 2292 -285Q2292 -375 2337 -442.5Q2382 -510 2463.5 -548Q2545 -586 2652 -586Q2760 -586 2841.5 -548Q2923 -510 2968 -442.5Q3013 -375 3013 -285Q3013 -195 2968 -127.5Q2923 -60 2841.5 -22Q2760 16 2652 16ZM2652 -124Q2707 -124 2745.5 -143.5Q2784 -163 2804.5 -199Q2825 -235 2825 -285Q2825 -335 2804.5 -371Q2784 -407 2745.5 -426.5Q2707 -446 2652 -446Q2599 -446 2560 -426.5Q2521 -407 2500 -371Q2479 -335 2479 -285Q2479 -235 2500 -199Q2521 -163 2560 -143.5Q2599 -124 2652 -124ZM3260 -151 3209 -168 3536 -570H3735L3242 0H3075V-770H3260ZM3374 -279 3512 -380 3750 0H3539Z"
+            />
+          </svg>
+        </a>
+        <nav class="nav" aria-label="Sections">
+          <a href="#how">How it works</a>
+          <a href="#onboarding">Onboarding</a>
+          <a href="#protocol">Protocol</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#start">Get started</a>
+        </nav>
+        <div class="header-links">
+          <a class="hide-sm" href="https://github.com/Rogue85/kvitok/tree/main/docs">Docs</a>
+          <button class="icon-button" type="button" id="theme" aria-label="Switch theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+          </button>
+          <a class="icon-button" href="https://github.com/Rogue85/kvitok" aria-label="Kvitok on GitHub">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="hero wrap">
+        <span class="badge"><b>v{{version}}</b> Open source · early development</span>
+        <h1>Support where the <span class="ai-text">AI agent</span> finishes the job</h1>
+        <p class="lead">
+          Requests come in by email or over an API. The agent reads the customer's data in your backend, drafts a reply and
+          proposes actions such as crediting points or issuing a coupon. An operator approves them, and your backend executes
+          them.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#start">Get started</a>
+          <a class="button" href="https://github.com/Rogue85/kvitok">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+        <div class="shot">
+          <img class="only-light" src="assets/screenshots/ticket.webp" width="2000" height="1250" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator" />
+          <img class="only-dark" src="assets/screenshots/ticket-dark.webp" width="2000" height="1250" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator" />
+        </div>
+        <p class="caption">
+          A guest got neither points nor a promo cup for a purchase. The agent found the receipt in the backend, worked out what
+          was missing and proposed two actions. Each one waits for the operator.
+        </p>
+      </div>
+
+      <section class="alt" id="features">
+        <div class="wrap">
+          <p class="eyebrow">Why Kvitok</p>
+          <h2>A full support loop, not a one-shot script</h2>
+          <p class="section-lead">
+            AI in support often means a job that sends a request to a model once and posts its guess to a chat. An operator then
+            repeats the actions by hand and the customer hears nothing. Kvitok covers the whole path from the request to an
+            executed action and a reply.
+          </p>
+          <div class="grid four">
+            <div class="card">
+              <span class="mark ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></span>
+              <h3>The whole loop</h3>
+              <p>The agent works on the ticket while it is open. Approved actions run in your backend and the reply goes back through the channel the request came from.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15h10M7 9h10" /><rect x="3" y="4" width="18" height="16" rx="3" /></svg></span>
+              <h3>Any backend</h3>
+              <p>Kvitok knows nothing about your business. A backend describes its data and actions through a small signed HTTP protocol, one workspace per project.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /></svg></span>
+              <h3>A chat with the agent</h3>
+              <p>The ticket works like a chat. The operator writes "offer a coupon instead" and the agent changes only what the message affects.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg></span>
+              <h3>The agent only proposes</h3>
+              <p>A person approves every action. The backend validates it when proposed and again before executing it, once per idempotency key.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" /></svg></span>
+              <h3>Your model, known cost</h3>
+              <p>Any OpenAI-compatible endpoint with tool calling. Every run has a cost, broken down by ticket, department, model and day.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg></span>
+              <h3>Rules around the agent</h3>
+              <p>Deterministic routing before and after the agent. Low-confidence tickets go to triage; a department set by a person stays fixed.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></span>
+              <h3>Measured, not guessed</h3>
+              <p><code>pnpm eval</code> runs test scenarios against a real model and reports which passed and what they cost.</p>
+            </div>
+            <div class="card">
+              <span class="mark ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /></svg></span>
+              <h3>Set up by your agent</h3>
+              <p>An MCP server lets Claude Code, Cursor or any other MCP client connect your project and tune the support agent.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="wrap">
+          <p class="eyebrow">How it works</p>
+          <h2>From the first email to points on the card</h2>
+          <p class="section-lead">
+            Rules route the request, the agent reads your backend and proposes a reply and actions, and the operator corrects it
+            in a chat and approves. Color shows who does what.
+          </p>
+          <div class="legend">
+            <span><i class="l-ai"></i> the agent</span>
+            <span><i class="l-human"></i> a person</span>
+            <span><i class="l-box"></i> Kvitok or your backend</span>
+          </div>
+          <div class="diagram diagram-frame">
+            <img class="only-light" src="assets/diagrams/how-it-works.svg" width="1112" height="448" alt="A request in six steps across four lanes. The customer writes in; Kvitok finds the customer in your backend and applies routing rules; the agent calls read tools and proposes a draft and actions that the backend validates; the operator reviews the ticket in a chat with the agent, which revises the draft; the operator approves, the backend executes the actions and the customer gets the reply" />
+            <img class="only-dark" src="assets/diagrams/how-it-works-dark.svg" width="1112" height="448" alt="A request in six steps across four lanes. The customer writes in; Kvitok finds the customer in your backend and applies routing rules; the agent calls read tools and proposes a draft and actions that the backend validates; the operator reviews the ticket in a chat with the agent, which revises the draft; the operator approves, the backend executes the actions and the customer gets the reply" />
+          </div>
+
+          <div class="split">
+            <div>
+              <h3>An example: 44 missing points</h3>
+              <p>A guest writes through the app form that the points for a 640-ruble receipt never came.</p>
+              <p>
+                The agent finds the guest by phone, fetches the receipts and sees that receipt 4112 earned nothing. It proposes
+                crediting 44 points, the guest's 7% tier, the backend validates the action, and the agent drafts a reply.
+              </p>
+              <p class="quote">"The points are credited. Update the reply: say they are already on his card."</p>
+              <p>
+                The operator approves, the backend credits the points, and after one more message the agent rewrites only the
+                draft. The reply goes out by email and the ticket is resolved.
+              </p>
+            </div>
+            <div class="shot">
+              <img src="assets/screenshots/ticket-chat.webp" loading="lazy" alt="The whole ticket: the guest's message, the agent's proposal, two operator messages to the agent, the executed action and the reply sent by email" />
+            </div>
+          </div>
+
+          <div class="split flip">
+            <div>
+              <h3>The queue after the agent's first pass</h3>
+              <p>
+                Each ticket gets a department and a confidence score. Where the agent is not sure enough, the ticket waits in
+                triage for a person to decide.
+              </p>
+            </div>
+            <div class="shot">
+              <img class="only-light" src="assets/screenshots/queue.webp" loading="lazy" alt="The ticket queue with departments set by the agent" />
+              <img class="only-dark" src="assets/screenshots/queue-dark.webp" loading="lazy" alt="The ticket queue with departments set by the agent" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="onboarding">
+        <div class="wrap">
+          <p class="eyebrow ai">Onboarding</p>
+          <h2>Your coding agent connects your project</h2>
+          <p class="section-lead">
+            Kvitok serves an MCP endpoint. Open your backend's repository in an agent that speaks MCP, connect it to Kvitok,
+            and ask it to set Kvitok up for the project. It works in both places at once: it writes the protocol module in your
+            code and configures the workspace in Kvitok.
+          </p>
+          <div class="clients">
+            <span>Claude Code</span>
+            <span>Cursor</span>
+            <span>Claude Desktop</span>
+            <span>any MCP client with HTTP headers</span>
+          </div>
+
+          <div class="diagram diagram-frame">
+            <svg viewBox="0 0 1000 350" role="img" aria-label="Onboarding: you review the plan; your coding agent reads your backend repository and adds a protocol module and a manifest, and over MCP creates and configures a Kvitok workspace; Kvitok then calls the new endpoints in your backend over signed HTTP">
+              <rect x="20" y="60" width="300" height="220" rx="14" class="d-lane" />
+              <text x="40" y="90" class="d-title">Your backend repository</text>
+              <rect x="40" y="104" width="260" height="32" rx="8" class="d-box" />
+              <text x="56" y="125" class="d-chip">Existing support flow and data</text>
+              <rect x="40" y="144" width="260" height="32" rx="8" class="d-box" />
+              <text x="56" y="165" class="d-chip">Loaders and action services</text>
+              <rect x="40" y="184" width="260" height="32" rx="8" class="d-ai" />
+              <text x="56" y="205" class="d-chip">+ Protocol module, signed</text>
+              <rect x="40" y="224" width="260" height="32" rx="8" class="d-ai" />
+              <text x="56" y="245" class="d-chip">+ Manifest and playbooks (.md)</text>
+
+              <rect x="680" y="60" width="300" height="220" rx="14" class="d-lane" />
+              <text x="700" y="90" class="d-title">Kvitok</text>
+              <rect x="700" y="104" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="125" class="d-chip">New workspace</text>
+              <rect x="700" y="144" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="165" class="d-chip">Backend connected and checked</text>
+              <rect x="700" y="184" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="205" class="d-chip">Departments, fields, rules, policy</text>
+              <rect x="700" y="224" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="245" class="d-chip">Test tickets and agent runs</text>
+
+              <rect x="400" y="10" width="200" height="56" rx="10" class="d-human" />
+              <text x="500" y="34" text-anchor="middle" class="d-title">You</text>
+              <text x="500" y="52" text-anchor="middle" class="d-sub">review the plan and the result</text>
+              <path d="M500 68 V128" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+
+              <rect x="380" y="130" width="240" height="66" rx="10" class="d-ai" />
+              <text x="500" y="158" text-anchor="middle" class="d-title">Your coding agent</text>
+              <text x="500" y="178" text-anchor="middle" class="d-sub">Claude Code, Cursor and others</text>
+              <path d="M380 163 H322" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="351" y="154" text-anchor="middle" class="d-sub">code</text>
+              <path d="M620 163 H678" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="649" y="154" text-anchor="middle" class="d-sub">MCP</text>
+
+              <path d="M830 282 V320 H170 V284" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              <text x="500" y="312" text-anchor="middle" class="d-sub">Kvitok calls the new endpoints over signed HTTP</text>
+            </svg>
+          </div>
+
+          <ol class="steps">
+            <li>
+              <h3>Study the project</h3>
+              <p>Where requests come from, how customers are identified, what operators look at, what actions support performs.</p>
+              <span class="where">In your repository</span>
+            </li>
+            <li class="human">
+              <h3>Show you a plan</h3>
+              <p>What goes into the backend manifest, what into the support policy, which departments, fields and rules to create.</p>
+              <span class="where">Nothing changes before you agree</span>
+            </li>
+            <li>
+              <h3>Implement the protocol</h3>
+              <p>A module with signed endpoints that reuses your loaders and services, its own tests, then the conformance suite.</p>
+              <span class="where">In your repository</span>
+            </li>
+            <li>
+              <h3>Configure Kvitok</h3>
+              <p>A workspace for the project, the integration, departments with examples, fields, routing rules and the policy.</p>
+              <span class="where">Over MCP</span>
+            </li>
+            <li>
+              <h3>Check on test data</h3>
+              <p>Writes test requests, including vague ones and prompt injections, sends them in and reads how the agent handled them.</p>
+              <span class="where">Over MCP, on staging customers</span>
+            </li>
+            <li class="human">
+              <h3>Hand over to you</h3>
+              <p>You add the model key yourself, so it never passes through the agent, then hand out channel secrets and turn on real traffic.</p>
+              <span class="where">In the Kvitok interface</span>
+            </li>
+          </ol>
+
+          <div class="grid two" style="margin-top: 56px">
+            <div>
+              <h3>Then keep tuning it</h3>
+              <p style="color: var(--muted)">
+                Ask the same agent why the support agent got some tickets wrong. It reads where operators corrected it, changes
+                the instructions and replays past tickets with the new configuration, using the backend data those tickets saw.
+                Every change lands in the change log under the token that made it.
+              </p>
+            </div>
+            <div class="diagram" style="margin: 0">
+              <svg viewBox="0 0 520 210" role="img" aria-label="The tuning loop: the quality report shows what operators corrected, the agent finds the cause, changes the instructions and replays past tickets, and repeats until the replays match what operators did" style="min-width: 0">
+                <rect x="10" y="10" width="230" height="60" rx="10" class="d-box" />
+                <text x="125" y="36" text-anchor="middle" class="d-mono">quality_report</text>
+                <text x="125" y="55" text-anchor="middle" class="d-sub">what operators corrected</text>
+                <rect x="280" y="10" width="230" height="60" rx="10" class="d-ai" />
+                <text x="395" y="36" text-anchor="middle" class="d-title">Find the cause</text>
+                <text x="395" y="55" text-anchor="middle" class="d-sub">tickets and agent runs</text>
+                <rect x="280" y="120" width="230" height="60" rx="10" class="d-ai" />
+                <text x="395" y="146" text-anchor="middle" class="d-title">Change instructions</text>
+                <text x="395" y="165" text-anchor="middle" class="d-sub">policy, playbooks, manifest</text>
+                <rect x="10" y="120" width="230" height="60" rx="10" class="d-box" />
+                <text x="125" y="146" text-anchor="middle" class="d-mono">replay</text>
+                <text x="125" y="165" text-anchor="middle" class="d-sub">rerun past tickets</text>
+                <path d="M240 40 H278" class="d-line" marker-end="url(#k-arrow)" />
+                <path d="M395 70 V118" class="d-line" marker-end="url(#k-arrow)" />
+                <path d="M280 150 H242" class="d-line" marker-end="url(#k-arrow)" />
+                <path d="M125 120 V72" class="d-line d-dash" marker-end="url(#k-arrow)" />
+                <text x="135" y="100" class="d-sub">repeat</text>
+              </svg>
+            </div>
+          </div>
+
+          <p class="note">
+            Changes over MCP apply at once and every one is recorded with values before and after. Customer messages reach the
+            external agent marked as data, never as instructions. For analyzing production tickets, give a token only the
+            <code>read</code> scope. Details in <a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">docs/mcp.md</a>.
+          </p>
+        </div>
+      </section>
+
+      <section id="configure">
+        <div class="wrap">
+          <p class="eyebrow">Configuration</p>
+          <h2>Each team owns its part of the agent</h2>
+          <p class="section-lead">
+            Every change creates a new version, and each agent run records the version it used.
+          </p>
+          <div class="grid three">
+            <div class="card">
+              <h3>Backend team</h3>
+              <p>
+                Publishes a manifest with read tools, actions, playbooks, departments and domain knowledge. It lives in git next to
+                their code, and the agent picks up a new version without a change in Kvitok.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Support team</h3>
+              <p>
+                Writes the policy in the interface: tone, what not to promise, when to hand over to a human. Sets up departments,
+                ticket and customer fields and routing rules.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Administrator</h3>
+              <p>
+                Picks the provider, the model and its prices per workspace: OpenAI, OpenRouter, a LiteLLM proxy, vLLM or Ollama.
+                Connects mailboxes and API channels.
+              </p>
+            </div>
+          </div>
+          <div class="split" style="margin-top: 56px">
+            <div>
+              <h3>Rules before and after the agent</h3>
+              <p>
+                Rules match the channel, the sender and their domain, the subject and body, source metadata, fields, and the hour
+                and weekday. After the agent they also see its department, its confidence and whether it asked for a human.
+              </p>
+            </div>
+            <div class="shot">
+              <img src="assets/screenshots/rules.webp" loading="lazy" alt="Routing rules before and after the agent" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="protocol">
+        <div class="wrap">
+          <p class="eyebrow">Support Action Protocol</p>
+          <h2>Six signed endpoints in your backend</h2>
+          <p class="section-lead">
+            Kvitok calls your backend on behalf of the agent and the operator. Every request is signed with HMAC-SHA256 over the
+            timestamp, method, path and body. The protocol package and the reference backend are MIT licensed, so you can copy
+            their code into a closed backend.
+          </p>
+          <div class="diagram diagram-frame">
+            <svg viewBox="0 0 1000 570" role="img" aria-label="When Kvitok calls each endpoint: the manifest on connect or sync; customer resolve when a ticket arrives; context, tools and action validation while the agent works; execute with an idempotency key when the operator approves; the execution status when the outcome is unclear">
+              <rect x="10" y="74" width="980" height="66" rx="10" class="d-lane" />
+              <rect x="10" y="144" width="980" height="66" rx="10" class="d-lane" />
+              <rect x="10" y="214" width="980" height="206" rx="10" class="d-ai-lane" />
+              <rect x="10" y="424" width="980" height="66" rx="10" class="d-human-lane" />
+              <rect x="10" y="494" width="980" height="66" rx="10" class="d-lane" />
+
+              <text x="30" y="112" class="d-title">Connect or sync</text>
+              <text x="30" y="182" class="d-title">A ticket arrives</text>
+              <text x="30" y="312" class="d-title">The agent works</text>
+              <text x="30" y="330" class="d-sub">on the ticket</text>
+              <text x="30" y="462" class="d-title">The operator approves</text>
+              <text x="30" y="524" class="d-title">Outcome unclear</text>
+              <text x="30" y="542" class="d-sub">after a timeout</text>
+
+              <rect x="260" y="10" width="180" height="46" rx="10" class="d-box" />
+              <text x="350" y="38" text-anchor="middle" class="d-display">Kvitok</text>
+              <rect x="720" y="10" width="180" height="46" rx="10" class="d-box" />
+              <text x="810" y="38" text-anchor="middle" class="d-title">Your backend</text>
+              <path d="M350 56 V560 M810 56 V560" class="d-life" />
+
+              <g>
+                <text x="580" y="92" text-anchor="middle" class="d-mono">GET /manifest</text>
+                <path d="M352 100 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="124" text-anchor="middle" class="d-sub">tools, actions, playbooks, departments · ETag</text>
+                <path d="M808 132 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="162" text-anchor="middle" class="d-mono">POST /customers/resolve</text>
+                <path d="M352 170 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="194" text-anchor="middle" class="d-sub">found · not_found · ambiguous</text>
+                <path d="M808 202 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="232" text-anchor="middle" class="d-mono">POST /context</text>
+                <path d="M352 240 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="264" text-anchor="middle" class="d-sub">the customer card</text>
+                <path d="M808 272 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="302" text-anchor="middle" class="d-mono">POST /tools/{name}</text>
+                <path d="M352 310 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="334" text-anchor="middle" class="d-sub">data the agent reads, with refs</text>
+                <path d="M808 342 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="372" text-anchor="middle" class="d-mono">POST /actions/{name}/validate</text>
+                <path d="M352 380 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="404" text-anchor="middle" class="d-sub">a preview, or errors the agent fixes</text>
+                <path d="M808 412 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="442" text-anchor="middle" class="d-mono">POST /actions/{name}/execute · Idempotency-Key</text>
+                <path d="M352 450 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="474" text-anchor="middle" class="d-sub">validated again, executed once per key</text>
+                <path d="M808 482 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="512" text-anchor="middle" class="d-mono">GET /actions/executions/{key}</text>
+                <path d="M352 520 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="544" text-anchor="middle" class="d-sub">executed · failed · pending · unknown</text>
+                <path d="M808 552 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+            </svg>
+          </div>
+
+          <div class="grid two">
+            <div>
+              <h3>The core supplies the customer</h3>
+              <p style="color: var(--muted)">
+                <code>customer_ref</code> comes from the ticket, and the model cannot replace it. Your backend checks that a
+                requested receipt or order belongs to this customer and answers for anyone else's as if it did not exist. A
+                prompt injection in an email cannot reach another customer's data.
+              </p>
+              <h3 style="margin-top: 28px">Check before you connect</h3>
+              <p style="color: var(--muted)">
+                <code>packages/protocol</code> has the schemas, request signing, a client and a conformance suite to run against
+                your staging backend. The coffee shop simulator in <code>apps/coffee-sim</code> is a complete reference
+                implementation.
+              </p>
+              <p style="margin-top: 20px">
+                <a href="https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md">Read the protocol specification →</a>
+              </p>
+            </div>
+            <div class="shot" style="margin: 0; align-self: start">
+              <img src="assets/screenshots/integration.webp" loading="lazy" alt="A connected backend: its tools, actions, knowledge for the agent and suggested departments, all from the manifest" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="safety">
+        <div class="wrap">
+          <p class="eyebrow">Safety</p>
+          <h2>The agent never acts on its own</h2>
+          <p class="section-lead">
+            It proposes actions, a person approves them, and the backend validates the parameters again before executing.
+          </p>
+          <div class="diagram diagram-frame">
+            <img class="only-light" src="assets/diagrams/safety.svg" width="1112" height="172" loading="lazy" alt="The life of an action: the agent proposes it; the backend validates it and returns a preview, or an error the agent corrects; the operator approves it; the backend validates it again against the current state and executes it once by idempotency key" />
+            <img class="only-dark" src="assets/diagrams/safety-dark.svg" width="1112" height="172" loading="lazy" alt="The life of an action: the agent proposes it; the backend validates it and returns a preview, or an error the agent corrects; the operator approves it; the backend validates it again against the current state and executes it once by idempotency key" />
+          </div>
+          <div class="split">
+            <div>
+              <h3>Customer text is data</h3>
+              <p>
+                Customer messages and backend data reach the model wrapped in tags and marked as untrusted. Here a guest's message
+                poses as an operator instruction to credit 500 points. The agent proposes nothing and asks the operator whether
+                such an approval exists.
+              </p>
+              <p>Mailbox passwords, webhook secrets and model keys are encrypted at rest.</p>
+            </div>
+            <div class="shot">
+              <img src="assets/screenshots/prompt-injection.webp" loading="lazy" alt="A customer message posing as a system instruction to credit 500 points; the agent proposes nothing and asks the operator" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="architecture">
+        <div class="wrap">
+          <p class="eyebrow">Architecture</p>
+          <h2>One image, two processes, Postgres and Redis</h2>
+          <p class="section-lead">
+            The API serves the web interface, the REST API and the MCP endpoint. The worker runs the agent, receives and sends
+            mail and delivers webhooks. Both run from one Docker image, next to PostgreSQL and Redis.
+          </p>
+          <div class="diagram diagram-frame">
+            <svg viewBox="0 0 1000 490" role="img" aria-label="Architecture: customers write through your app over an API channel or by email through a mailbox; Kvitok runs as one Docker image with the API, the web UI, the queue worker and the agent, on PostgreSQL and Redis; operators use the web UI and external agents connect to the API over MCP; the agent calls an OpenAI-compatible LLM provider and your backend over the signed protocol">
+              <rect x="20" y="20" width="200" height="56" rx="10" class="d-box" />
+              <text x="120" y="44" text-anchor="middle" class="d-title">Customers</text>
+              <text x="120" y="62" text-anchor="middle" class="d-sub">email, app forms</text>
+
+              <rect x="300" y="20" width="190" height="56" rx="10" class="d-ai" />
+              <text x="395" y="44" text-anchor="middle" class="d-title">External agent</text>
+              <text x="395" y="62" text-anchor="middle" class="d-sub">any MCP client</text>
+
+              <rect x="510" y="20" width="190" height="56" rx="10" class="d-human" />
+              <text x="605" y="44" text-anchor="middle" class="d-title">Operators</text>
+              <text x="605" y="62" text-anchor="middle" class="d-sub">in the browser</text>
+
+              <rect x="260" y="110" width="460" height="360" rx="16" class="d-frame" />
+              <text x="280" y="138" class="d-display">Kvitok</text>
+
+              <rect x="300" y="156" width="190" height="56" rx="10" class="d-box" />
+              <text x="395" y="180" text-anchor="middle" class="d-title">API</text>
+              <text x="395" y="198" text-anchor="middle" class="d-sub">REST · ingest · /api/mcp</text>
+              <rect x="510" y="156" width="190" height="56" rx="10" class="d-box" />
+              <text x="605" y="180" text-anchor="middle" class="d-title">Web UI</text>
+              <text x="605" y="198" text-anchor="middle" class="d-sub">Nuxt, English or Russian</text>
+
+              <rect x="300" y="262" width="190" height="56" rx="10" class="d-box" />
+              <text x="395" y="286" text-anchor="middle" class="d-title">Worker</text>
+              <text x="395" y="304" text-anchor="middle" class="d-sub">mail in and out · webhooks</text>
+              <rect x="510" y="262" width="190" height="56" rx="10" class="d-ai" />
+              <text x="605" y="286" text-anchor="middle" class="d-title">Agent</text>
+              <text x="605" y="304" text-anchor="middle" class="d-sub">runs with tool calls</text>
+
+              <rect x="300" y="368" width="190" height="56" rx="10" class="d-box" />
+              <text x="395" y="392" text-anchor="middle" class="d-title">PostgreSQL</text>
+              <text x="395" y="410" text-anchor="middle" class="d-sub">tickets, config, runs</text>
+              <rect x="510" y="368" width="190" height="56" rx="10" class="d-box" />
+              <text x="605" y="392" text-anchor="middle" class="d-title">Redis</text>
+              <text x="605" y="410" text-anchor="middle" class="d-sub">BullMQ queues</text>
+              <text x="490" y="452" text-anchor="middle" class="d-sub">one Docker image: api · worker · migrate · cli</text>
+
+              <rect x="60" y="156" width="160" height="56" rx="10" class="d-box" />
+              <text x="140" y="180" text-anchor="middle" class="d-title">Your app or form</text>
+              <text x="140" y="198" text-anchor="middle" class="d-sub">ingest · webhooks</text>
+              <rect x="60" y="262" width="160" height="56" rx="10" class="d-box" />
+              <text x="140" y="286" text-anchor="middle" class="d-title">Mailbox</text>
+              <text x="140" y="304" text-anchor="middle" class="d-sub">IMAP · SMTP</text>
+
+              <rect x="780" y="156" width="200" height="56" rx="10" class="d-box" />
+              <text x="880" y="180" text-anchor="middle" class="d-title">LLM provider</text>
+              <text x="880" y="198" text-anchor="middle" class="d-sub">OpenAI-compatible API</text>
+              <rect x="780" y="262" width="200" height="56" rx="10" class="d-box" />
+              <text x="880" y="286" text-anchor="middle" class="d-title">Your backend</text>
+              <text x="880" y="304" text-anchor="middle" class="d-sub">Support Action Protocol</text>
+
+              <path d="M140 78 V154" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M36 78 V290 H58" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M222 184 H298" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+              <path d="M222 290 H298" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+              <path d="M395 78 V154" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="403" y="120" class="d-sub">MCP</text>
+              <path d="M605 78 V154" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+              <path d="M510 184 H492" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M702 276 H740 V184 H778" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M702 304 H778" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="740" y="324" text-anchor="middle" class="d-sub">signed</text>
+            </svg>
+          </div>
+          <p style="color: var(--muted); max-width: 760px">
+            Built with NestJS on Fastify, Prisma with PostgreSQL, BullMQ with Redis, Nuxt 4 with Nuxt UI, and zod schemas shared
+            between the API, the interface and the protocol. Images for amd64 and arm64 are published to
+            <code>ghcr.io/rogue85/kvitok</code>.
+          </p>
+        </div>
+      </section>
+
+      <section id="start">
+        <div class="wrap">
+          <p class="eyebrow">Get started</p>
+          <h2>Try it on a coffee shop, then connect yours</h2>
+          <p class="section-lead">
+            Kvitok is in early development and has not run in production yet. Start with synthetic or staging data, and read the
+            changelog before updating: until 1.0 a minor version may break compatibility.
+          </p>
+          <div class="tabs" role="tablist" aria-label="Ways to start">
+            <button role="tab" aria-selected="true" aria-controls="tab-local" id="t-local">Try locally</button>
+            <button role="tab" aria-selected="false" aria-controls="tab-agent" id="t-agent">Connect with an agent</button>
+            <button role="tab" aria-selected="false" aria-controls="tab-server" id="t-server">Run on a server</button>
+          </div>
+
+          <div class="panel" role="tabpanel" id="tab-local" aria-labelledby="t-local">
+            <p>
+              You need Docker. The development stack includes the coffee shop simulator and a fake LLM that answers by simple
+              rules, so no model key is required.
+            </p>
+            <div class="code"><pre>git clone https://github.com/Rogue85/kvitok.git && cd kvitok</pre></div>
+            <div class="code"><pre>cp apps/api/.env.example apps/api/.env</pre></div>
+            <div class="code"><pre>docker compose up -d</pre></div>
+            <div class="code"><pre>docker compose exec api pnpm --filter @kvitok/api db:seed</pre></div>
+            <p>
+              Open <code>http://localhost:3000</code> and sign in as <code>admin@example.com</code> / <code>admin12345</code>.
+              Then add the fake LLM or a real provider, connect the simulator at <code>http://coffee-sim:3100</code> and load its
+              scenario tickets, as described in the
+              <a href="https://github.com/Rogue85/kvitok#try-it-on-the-simulator">README</a>.
+            </p>
+          </div>
+
+          <div class="panel" role="tabpanel" id="tab-agent" aria-labelledby="t-agent" hidden>
+            <p>
+              In Kvitok open Settings → Access tokens and create a token with the scopes <code>read</code>,
+              <code>config:write</code>, <code>integrations:write</code>, <code>tickets:ingest</code> and
+              <code>workspaces:create</code>. Then connect your MCP client in your backend's repository to the endpoint with
+              that token:
+            </p>
+            <div class="code"><pre>http://localhost:3001/api/mcp
+Authorization: Bearer kvt_…</pre></div>
+            <p>
+              Ask it to set Kvitok up for the project, or run the <code>onboard_project</code> prompt the server provides. Tell
+              it how Kvitok reaches your backend and which test customer to use, for example: "Kvitok runs in Docker and
+              reaches this backend at http://host.docker.internal:8000. A test customer has the phone 79000000001."
+            </p>
+            <p>In Claude Code, the plugin from the repository adds the connection and two skills, for onboarding and tuning:</p>
+            <div class="code"><pre>claude plugin install kvitok --marketplace "$(pwd)"</pre></div>
+            <div class="code"><pre>export KVITOK_URL=http://localhost:3001 KVITOK_TOKEN=kvt_…</pre></div>
+            <p>
+              After onboarding, review the change log, revoke the onboarding token and create one restricted to the project's
+              workspace. See <a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">docs/mcp.md</a>.
+            </p>
+          </div>
+
+          <div class="panel" role="tabpanel" id="tab-server" aria-labelledby="t-server" hidden>
+            <p>
+              A Linux host with Docker Compose 2.20 or newer and 2 GB of memory. One compose file runs the app and the worker,
+              and optionally Postgres, Redis and Caddy with automatic HTTPS.
+            </p>
+            <div class="code"><pre>mkdir kvitok && cd kvitok</pre></div>
+            <div class="code"><pre>curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/Rogue85/kvitok/main/deploy/docker-compose.yml</pre></div>
+            <div class="code"><pre>curl -fsSL -o .env https://raw.githubusercontent.com/Rogue85/kvitok/main/deploy/.env.example</pre></div>
+            <p>
+              Generate the secrets into <code>.env</code>, choose how the app is reached, then run
+              <code>docker compose up -d</code>. The first visit creates the superadministrator and the first workspace. The
+              steps are in <a href="https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md">docs/deployment.md</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>
+          <a class="logo" href="#top" aria-label="Kvitok">
+            <svg viewBox="60 -816 3690 832" aria-hidden="true"><use href="#k-wordmark" /></svg>
+          </a>
+          <p style="margin: 0; max-width: 420px">
+            The system is licensed under the AGPL-3.0. The protocol package and the reference backend are MIT, so backends can
+            embed their code without taking on the AGPL.
+          </p>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md">Protocol</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">MCP server</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md">Deployment</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/development.md">Development</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Rogue85/kvitok">GitHub</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/CONTRIBUTING.md">Contributing</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/SECURITY.md">Security</a></li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+
+    <script src="main.js"></script>
+  </body>
+</html>
