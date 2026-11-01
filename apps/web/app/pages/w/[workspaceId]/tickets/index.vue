@@ -1,62 +1,305 @@
 <script setup lang="ts">
-import type { TicketListDto, TicketListItemDto, TicketStatus } from '@kvitok/shared';
-import type { TableColumn } from '@nuxt/ui';
+import {
+  BULK_TICKETS_LIMIT,
+  TICKET_PRIORITIES,
+  TICKET_SORTS,
+  type BulkUpdateTicketsResultDto,
+  type TicketCountsDto,
+  type TicketListDto,
+  type TicketListRowDto,
+  type TicketSort,
+  type TicketViewDto,
+} from '@kvitok/shared';
+import type { DropdownMenuItem, TableColumn } from '@nuxt/ui';
+import type { BulkTarget } from '~/components/ticket/BulkBar.vue';
+import {
+  TICKET_VIEWS,
+  isTicketFilterKey,
+  ticketFilterParams,
+  type TicketFilterDef,
+} from '~/utils/ticket-filters';
 
 const route = useRoute();
 const router = useRouter();
-const { workspaceId } = useWorkspace();
-const { departments, departmentById, memberById, ticketFields } = useWorkspaceData();
+const { workspaceId, can } = useWorkspace();
+const { departments, members, channels, departmentById, memberById, ticketFields } = useWorkspaceData();
 
-const VIEWS: Array<{ label: string; value: string; statuses: TicketStatus[] }> = [
-  { label: t('tickets.views.open'), value: 'open', statuses: ['new', 'open'] },
-  { label: t('tickets.views.pending'), value: 'pending', statuses: ['pending'] },
-  { label: t('tickets.views.done'), value: 'done', statuses: ['resolved', 'closed'] },
-  { label: t('tickets.views.all'), value: 'all', statuses: [] },
-];
+/** Where the queue's last state in this workspace is kept, for the next time it opens without a query. */
+const lastKey = computed(() => `tickets:last:${workspaceId.value}`);
+function loadLast(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(lastKey.value) ?? '{}') as Record<string, string>;
+  } catch {
+    // without localStorage the queue opens as is
+    return {};
+  }
+}
+const pickFilters = (state: Record<string, string>) => Object.fromEntries(Object.entries(state).filter(([key]) => isTicketFilterKey(key)));
+const initial: Record<string, string> =
+  Object.keys(route.query).length > 0
+    ? Object.fromEntries(Object.entries(route.query).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+    : loadLast();
 
-const view = ref(String(route.query.view ?? 'open'));
-const assignee = ref(String(route.query.assignee ?? 'all'));
-const departmentId = ref(String(route.query.department ?? 'all'));
-const search = ref(String(route.query.q ?? ''));
+const view = ref(TICKET_VIEWS.find((v) => v.value === initial.view)?.value ?? 'open');
+const sort = ref<TicketSort>(TICKET_SORTS.find((s) => s === initial.sort) ?? 'updated');
+const search = ref(initial.q ?? '');
 const searchQuery = refDebounced(search, 300);
-const page = ref(Number(route.query.page ?? 1));
+const page = ref(Number(initial.page ?? 1));
+/** Filters by their URL key; an empty value is a chip still being filled in. */
+const filters = ref<Record<string, string>>(pickFilters(initial));
+/** The chip whose popover is open. */
+const openFilter = ref<string | null>(null);
+/** The saved view the queue was opened from. */
+const presetId = ref<string | null>(initial.preset ?? null);
 
-watch([view, assignee, departmentId, searchQuery], () => {
-  page.value = 1;
-});
-watch([view, assignee, departmentId, searchQuery, page], () => {
-  void router.replace({
-    query: {
-      view: view.value,
-      ...(assignee.value !== 'all' ? { assignee: assignee.value } : {}),
-      ...(departmentId.value !== 'all' ? { department: departmentId.value } : {}),
-      ...(searchQuery.value ? { q: searchQuery.value } : {}),
-      ...(page.value > 1 ? { page: String(page.value) } : {}),
-    },
-  });
-});
+/** The queue as a saved view keeps it: everything but the page. */
+const queueState = computed<Record<string, string>>(() => ({
+  view: view.value,
+  ...(sort.value !== 'updated' ? { sort: sort.value } : {}),
+  ...Object.fromEntries(Object.entries(filters.value).filter(([, value]) => value)),
+  ...(search.value.trim() ? { q: search.value.trim() } : {}),
+}));
 
-const query = computed(() => {
-  const params = new URLSearchParams({ page: String(page.value), pageSize: '25' });
-  const statuses = VIEWS.find((v) => v.value === view.value)?.statuses ?? [];
-  if (statuses.length) params.set('status', statuses.join(','));
-  if (assignee.value !== 'all') params.set('assignee', assignee.value);
-  if (departmentId.value !== 'all') params.set('departmentId', departmentId.value);
-  if (searchQuery.value) params.set('q', searchQuery.value);
-  return params.toString();
-});
+function applyState(state: Record<string, string>, id: string | null): void {
+  view.value = TICKET_VIEWS.find((v) => v.value === state.view)?.value ?? 'open';
+  sort.value = TICKET_SORTS.find((s) => s === state.sort) ?? 'updated';
+  search.value = state.q ?? '';
+  filters.value = pickFilters(state);
+  presetId.value = id;
+}
+
+function syncUrl(): void {
+  const state = { ...queueState.value, ...(presetId.value ? { preset: presetId.value } : {}) };
+  void router.replace({ query: { ...state, ...(page.value > 1 ? { page: String(page.value) } : {}) } });
+  try {
+    localStorage.setItem(lastKey.value, JSON.stringify(state));
+  } catch {
+    // not critical
+  }
+}
+watch([queueState, presetId, page], syncUrl, { immediate: true });
+// The sidebar link opens the queue without a query while it is already open: keep the state in the URL.
+watch(
+  () => route.query,
+  (query) => {
+    if (Object.keys(query).length === 0) syncUrl();
+  },
+);
+
+/** The list's API parameters without the status and the page: shared by the list, the tab counts and bulk changes. */
+const filterParams = computed(() => ({
+  ...ticketFilterParams(filters.value),
+  ...(searchQuery.value ? { q: searchQuery.value } : {}),
+}));
+const statuses = computed(() => TICKET_VIEWS.find((v) => v.value === view.value)?.statuses ?? []);
+const listParams = computed(() => ({
+  ...filterParams.value,
+  ...(statuses.value.length ? { status: statuses.value.join(',') } : {}),
+  sort: sort.value,
+}));
+
+watch(
+  () => JSON.stringify(listParams.value),
+  () => {
+    page.value = 1;
+    clearSelection();
+  },
+);
+
+const query = computed(() => new URLSearchParams({ ...listParams.value, page: String(page.value), pageSize: '25' }).toString());
+const countsQuery = computed(() => new URLSearchParams(filterParams.value).toString());
 
 const { data, status, refresh } = await useAsyncData(
   () => `tickets:${workspaceId.value}:${query.value}`,
   () => api<TicketListDto>(`/workspaces/${workspaceId.value}/tickets?${query.value}`),
   { watch: [query], default: () => ({ items: [], total: 0, page: 1, pageSize: 25 }) },
 );
+const rows = computed(() => data.value.items as TicketListRowDto[]);
+const { data: counts, refresh: refreshCounts } = await useAsyncData(
+  () => `tickets:counts:${workspaceId.value}:${countsQuery.value}`,
+  () => api<TicketCountsDto>(`/workspaces/${workspaceId.value}/tickets/counts?${countsQuery.value}`),
+  { watch: [countsQuery], default: () => null },
+);
+const { data: tags, refresh: refreshTags } = await useAsyncData(
+  () => `tickets:tags:${workspaceId.value}`,
+  () => api<string[]>(`/workspaces/${workspaceId.value}/tickets/tags`),
+  { default: () => [] },
+);
 
-useRealtime(debounce(() => void refresh(), 500));
+function refreshAll(): void {
+  void refresh();
+  void refreshCounts();
+}
+useRealtime(debounce(refreshAll, 500));
+
+const viewItems = computed(() =>
+  TICKET_VIEWS.map(({ value, statuses: list }) => {
+    const count = counts.value ? (list.length ? list : Object.keys(counts.value)).reduce((sum, s) => sum + (counts.value?.[s as keyof TicketCountsDto] ?? 0), 0) : null;
+    return { label: t(`tickets.views.${value}`), value, ...(count ? { badge: { label: String(count), color: 'neutral' as const, variant: 'soft' as const } } : {}) };
+  }),
+);
+const sortItems = TICKET_SORTS.map((value) => ({ label: t(`tickets.sort.${value}`), value }));
+
+/* Filters */
+
+const filterDefs = computed<TicketFilterDef[]>(() => [
+  { key: 'attention', label: t('tickets.filters.attention'), icon: 'i-lucide-hand', kind: 'flag' },
+  {
+    key: 'assignee',
+    label: t('tickets.columns.assignee'),
+    icon: 'i-lucide-user',
+    kind: 'options',
+    options: [
+      { label: t('tickets.filters.mine'), value: 'me' },
+      { label: t('tickets.filters.unassigned'), value: 'none' },
+      ...members.data.value.filter((m) => m.role !== 'viewer').map((m) => ({ label: m.name, value: m.userId })),
+    ],
+  },
+  {
+    key: 'departmentId',
+    label: t('tickets.columns.department'),
+    icon: 'i-lucide-building-2',
+    kind: 'options',
+    options: [
+      { label: t('tickets.filters.noDepartment'), value: 'none' },
+      ...departments.data.value.filter((d) => !d.archived).map((d) => ({ label: d.title, value: d.id })),
+    ],
+  },
+  {
+    key: 'priority',
+    label: t('tickets.filters.priority'),
+    icon: 'i-lucide-signal',
+    kind: 'options',
+    options: [...TICKET_PRIORITIES].reverse().map((p) => ({ label: priorityLabel(p), value: p })),
+  },
+  {
+    key: 'channelId',
+    label: t('tickets.filters.channel'),
+    icon: 'i-lucide-inbox',
+    kind: 'options',
+    options: channels.data.value.map((c) => ({ label: c.name, value: c.id })),
+  },
+  { key: 'tags', label: t('tickets.filters.tags'), icon: 'i-lucide-tag', kind: 'options', options: tags.value.map((tag) => ({ label: tag, value: tag })) },
+  {
+    key: 'agentState',
+    label: t('tickets.filters.agentState'),
+    icon: 'i-lucide-bot',
+    kind: 'options',
+    options: (['failed', 'running', 'queued'] as const).map((s) => ({ label: t(`ticket.agentState.${s}`), value: s })),
+  },
+  { key: 'created', label: t('tickets.filters.created'), icon: 'i-lucide-calendar-plus', kind: 'date' },
+  { key: 'updated', label: t('tickets.filters.updated'), icon: 'i-lucide-calendar-clock', kind: 'date' },
+  ...ticketFields.value
+    .filter((f) => f.display.includes('filter'))
+    .map((f): TicketFilterDef => {
+      const base = { key: `field.${f.key}`, label: f.label, icon: 'i-lucide-list' };
+      if (f.type === 'boolean') {
+        return { ...base, kind: 'option', options: [{ label: t('common.yes'), value: 'true' }, { label: t('common.no'), value: 'false' }] };
+      }
+      return f.options.length ? { ...base, kind: 'option', options: f.options } : { ...base, kind: 'text' };
+    }),
+]);
+const activeFilters = computed(() =>
+  Object.keys(filters.value)
+    .map((key) => filterDefs.value.find((d) => d.key === key))
+    .filter((d) => d !== undefined),
+);
+const addFilterItems = computed<DropdownMenuItem[]>(() =>
+  filterDefs.value
+    .filter((d) => !(d.key in filters.value))
+    .map((d) => ({ label: d.label, icon: d.icon, onSelect: () => addFilter(d) })),
+);
+
+function addFilter(def: TicketFilterDef): void {
+  filters.value = { ...filters.value, [def.key]: def.kind === 'flag' ? 'true' : '' };
+  if (def.kind !== 'flag') {
+    // After the menu has closed: it does not return the focus, so the chip's popover stays open.
+    setTimeout(() => (openFilter.value = def.key));
+  }
+}
+function setFilter(key: string, value: string): void {
+  filters.value = { ...filters.value, [key]: value };
+}
+function removeFilter(key: string): void {
+  const { [key]: _, ...rest } = filters.value;
+  filters.value = rest;
+}
+/** A chip closed without a value goes away. */
+function setFilterOpen(key: string, open: boolean): void {
+  openFilter.value = open ? key : openFilter.value === key ? null : openFilter.value;
+  if (!open && !filters.value[key]) removeFilter(key);
+}
+function resetFilters(): void {
+  filters.value = {};
+  search.value = '';
+  presetId.value = null;
+}
+
+/* Selection */
+
+const selected = ref(new Set<string>());
+/** Every ticket of the filter, not only the ones on the screen. */
+const allMatching = ref(false);
+const lastToggled = ref<number | null>(null);
+let shiftPressed = false;
+function rememberShift(event: PointerEvent): void {
+  shiftPressed = event.shiftKey;
+}
+
+const pageSelected = computed(() => rows.value.length > 0 && rows.value.every((r) => selected.value.has(r.id)));
+const headerChecked = computed(() => (pageSelected.value ? true : rows.value.some((r) => selected.value.has(r.id)) ? 'indeterminate' : false));
+const selectedCount = computed(() => (allMatching.value ? data.value.total : selected.value.size));
+const bulkTarget = computed<BulkTarget>(() =>
+  allMatching.value ? { filter: Object.fromEntries(new URLSearchParams(listParams.value)) } : { ids: [...selected.value] },
+);
+
+function clearSelection(): void {
+  selected.value = new Set();
+  allMatching.value = false;
+  lastToggled.value = null;
+}
+function togglePage(value: boolean | 'indeterminate'): void {
+  const next = new Set(selected.value);
+  for (const row of rows.value) {
+    if (value === true) next.add(row.id);
+    else next.delete(row.id);
+  }
+  selected.value = next;
+  allMatching.value = false;
+}
+/** Shift extends the selection from the last toggled row. */
+function toggleRow(index: number, value: boolean | 'indeterminate'): void {
+  const from = shiftPressed && lastToggled.value !== null ? Math.min(lastToggled.value, index) : index;
+  const to = shiftPressed && lastToggled.value !== null ? Math.max(lastToggled.value, index) : index;
+  const next = new Set(selected.value);
+  for (const row of rows.value.slice(from, to + 1)) {
+    if (value === true) next.add(row.id);
+    else next.delete(row.id);
+  }
+  selected.value = next;
+  allMatching.value = false;
+  lastToggled.value = index;
+}
+
+/** Tickets that refused the change stay selected, to deal with them. */
+function onBulkDone(result: BulkUpdateTicketsResultDto): void {
+  if (result.failed.length > 0) {
+    selected.value = new Set(result.failed.map((f) => f.id));
+    allMatching.value = false;
+  } else {
+    clearSelection();
+  }
+  refreshAll();
+  void refreshTags();
+}
+
+/* Table */
 
 const listFields = computed(() => ticketFields.value.filter((f) => f.display.includes('list_column')));
+const selectable = computed(() => can('operator'));
 
-const columns = computed<TableColumn<TicketListItemDto>[]>(() => [
+const columns = computed<TableColumn<TicketListRowDto>[]>(() => [
+  ...(selectable.value ? [{ id: 'select' }] : []),
   { accessorKey: 'number', header: '#' },
   { accessorKey: 'subject', header: t('tickets.columns.subject') },
   { accessorKey: 'status', header: t('tickets.columns.status') },
@@ -66,18 +309,13 @@ const columns = computed<TableColumn<TicketListItemDto>[]>(() => [
   { accessorKey: 'lastMessageAt', header: t('tickets.columns.updated') },
 ]);
 
-const departmentItems = computed(() => [
-  { label: t('tickets.filters.allDepartments'), value: 'all' },
-  { label: t('tickets.filters.noDepartment'), value: 'none' },
-  ...departments.data.value.filter((d) => !d.archived).map((d) => ({ label: d.title, value: d.id })),
-]);
-const assigneeItems = [
-  { label: t('tickets.filters.anyone'), value: 'all' },
-  { label: t('tickets.filters.mine'), value: 'me' },
-  { label: t('tickets.filters.unassigned'), value: 'none' },
-];
+const AGENT_ICONS = {
+  queued: { icon: 'i-lucide-clock', class: 'text-(--ui-text-muted)' },
+  running: { icon: 'i-lucide-loader-circle', class: 'animate-spin text-(--ui-primary)' },
+  failed: { icon: 'i-lucide-triangle-alert', class: 'text-(--ui-error)' },
+} as const;
 
-function open(row: TicketListItemDto): void {
+function open(row: TicketListRowDto): void {
   void navigateTo(`/w/${workspaceId.value}/tickets/${row.id}`);
 }
 </script>
@@ -92,32 +330,101 @@ function open(row: TicketListItemDto): void {
       </UDashboardNavbar>
       <UDashboardToolbar>
         <template #left>
-          <UTabs v-model="view" :items="VIEWS.map(({ label, value }) => ({ label, value }))" :content="false" size="sm" />
+          <UTabs v-model="view" :items="viewItems" :content="false" size="sm" />
         </template>
         <template #right>
-          <USelect v-model="departmentId" :items="departmentItems" class="w-44" />
-          <USelect v-model="assignee" :items="assigneeItems" class="w-44" />
+          <USelect v-model="sort" :items="sortItems" icon="i-lucide-arrow-down-wide-narrow" class="w-64" />
         </template>
+      </UDashboardToolbar>
+      <UDashboardToolbar>
+        <div class="flex flex-wrap items-center gap-2 py-1">
+          <TicketViewsMenu v-model:active-id="presetId" :query="queueState" @apply="(v: TicketViewDto) => applyState(v.query, v.id)" />
+          <USeparator orientation="vertical" class="h-5" />
+          <TicketFilterChip
+            v-for="def in activeFilters"
+            :key="def.key"
+            :filter="def"
+            :model-value="filters[def.key] ?? ''"
+            :open="openFilter === def.key"
+            @update:model-value="(value: string) => setFilter(def.key, value)"
+            @update:open="(value: boolean) => setFilterOpen(def.key, value)"
+            @remove="removeFilter(def.key)"
+          />
+          <UDropdownMenu v-if="addFilterItems.length" :items="addFilterItems" :content="{ align: 'start', onCloseAutoFocus: (e: Event) => e.preventDefault() }">
+            <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-list-filter" :label="t('tickets.filters.add')" />
+          </UDropdownMenu>
+          <UButton
+            v-if="activeFilters.length || searchQuery"
+            color="neutral"
+            variant="link"
+            size="sm"
+            :label="t('tickets.filters.reset')"
+            @click="resetFilters"
+          />
+        </div>
       </UDashboardToolbar>
     </template>
 
     <template #body>
+      <div v-if="pageSelected && data.total > rows.length" class="flex items-center justify-center gap-2 rounded-md bg-(--ui-bg-elevated) px-3 py-2 text-sm">
+        <template v-if="allMatching">
+          <span>{{ t('tickets.selection.allMatching', { count: data.total }) }}</span>
+          <UButton variant="link" size="sm" :label="t('tickets.selection.clear')" class="p-0" @click="clearSelection" />
+        </template>
+        <template v-else>
+          <span>{{ t('tickets.selection.page', { count: rows.length }) }}</span>
+          <UButton
+            v-if="data.total <= BULK_TICKETS_LIMIT"
+            variant="link"
+            size="sm"
+            :label="t('tickets.selection.selectAllMatching', { count: data.total })"
+            class="p-0"
+            @click="allMatching = true"
+          />
+          <span v-else class="text-(--ui-text-muted)">{{ t('tickets.selection.tooMany', { limit: BULK_TICKETS_LIMIT }) }}</span>
+        </template>
+      </div>
+
       <UTable
-        :data="data.items"
+        :data="rows"
         :columns="columns"
         :loading="status === 'pending'"
         class="cursor-pointer"
-        :on-select="(_e: Event, row: { original: TicketListItemDto }) => open(row.original)"
+        :on-select="(_e: Event, row: { original: TicketListRowDto }) => open(row.original)"
       >
+        <template #select-header>
+          <UCheckbox :model-value="headerChecked" :aria-label="t('tickets.selection.selectPage')" @update:model-value="togglePage" />
+        </template>
+        <template #select-cell="{ row }">
+          <div class="-m-2 flex p-2" @click.stop @pointerdown="rememberShift">
+            <UCheckbox
+              :model-value="allMatching || selected.has(row.original.id)"
+              :aria-label="t('tickets.selection.selectRow', { number: row.original.number })"
+              @update:model-value="(value: boolean | 'indeterminate') => toggleRow(row.index, value)"
+            />
+          </div>
+        </template>
         <template #number-cell="{ row }">
           <span class="text-(--ui-text-muted)">T-{{ row.original.number }}</span>
         </template>
         <template #subject-cell="{ row }">
           <div class="max-w-md">
-            <p class="truncate font-medium">{{ row.original.subject }}</p>
-            <p class="truncate text-xs text-(--ui-text-muted)">
-              {{ row.original.customer?.name ?? row.original.customer?.primaryIdentity?.value ?? t('tickets.noCustomer') }}
-              <template v-if="row.original.channel"> · {{ row.original.channel.name }}</template>
+            <p class="flex items-center gap-1.5">
+              <UIcon
+                v-if="row.original.attention"
+                name="i-lucide-hand"
+                class="size-4 shrink-0 text-(--ui-warning)"
+                :title="t('tickets.filters.attention')"
+              />
+              <span class="truncate font-medium">{{ row.original.subject }}</span>
+            </p>
+            <p class="flex items-center gap-1 truncate text-xs text-(--ui-text-muted)">
+              <span class="truncate">
+                {{ row.original.customer?.name ?? row.original.customer?.primaryIdentity?.value ?? t('tickets.noCustomer') }}
+                <template v-if="row.original.channel"> · {{ row.original.channel.name }}</template>
+              </span>
+              <UBadge v-for="tag in row.original.tags.slice(0, 3)" :key="tag" size="sm" color="neutral" variant="soft">{{ tag }}</UBadge>
+              <span v-if="row.original.tags.length > 3">+{{ row.original.tags.length - 3 }}</span>
             </p>
           </div>
         </template>
@@ -127,6 +434,13 @@ function open(row: TicketListItemDto): void {
             <UBadge v-if="row.original.priority === 'high' || row.original.priority === 'urgent'" :color="PRIORITY_COLORS[row.original.priority]" variant="outline">
               {{ priorityLabel(row.original.priority) }}
             </UBadge>
+            <UIcon
+              v-if="row.original.agentState !== 'idle'"
+              :name="AGENT_ICONS[row.original.agentState].icon"
+              class="size-4"
+              :class="AGENT_ICONS[row.original.agentState].class"
+              :title="t(`ticket.agentState.${row.original.agentState}`)"
+            />
           </div>
         </template>
         <template #departmentId-cell="{ row }">
@@ -142,12 +456,23 @@ function open(row: TicketListItemDto): void {
           <span class="text-(--ui-text-muted)" :title="formatDateTime(row.original.lastMessageAt)">{{ formatRelative(row.original.lastMessageAt) }}</span>
         </template>
         <template #empty>
-          <UEmpty icon="i-lucide-inbox" :title="t('tickets.empty.title')" :description="t('tickets.empty.description')" />
+          <UEmpty
+            v-if="activeFilters.length || searchQuery"
+            icon="i-lucide-list-filter"
+            :title="t('tickets.empty.filteredTitle')"
+            :description="t('tickets.empty.filteredDescription')"
+            :actions="[{ label: t('tickets.filters.reset'), color: 'neutral', variant: 'subtle', onClick: resetFilters }]"
+          />
+          <UEmpty v-else icon="i-lucide-inbox" :title="t('tickets.empty.title')" :description="t('tickets.empty.description')" />
         </template>
       </UTable>
 
       <div v-if="data.total > data.pageSize" class="flex justify-center border-t border-(--ui-border) pt-4">
         <UPagination v-model:page="page" :total="data.total" :items-per-page="data.pageSize" />
+      </div>
+
+      <div v-if="selectedCount > 0" class="sticky bottom-4 z-10 mx-auto mt-auto w-fit">
+        <TicketBulkBar :count="selectedCount" :target="bulkTarget" :tags="tags" @done="onBulkDone" @clear="clearSelection" />
       </div>
     </template>
   </UDashboardPanel>

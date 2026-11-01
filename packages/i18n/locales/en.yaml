@@ -248,6 +248,9 @@ validation:
   phone: Invalid phone number
   extractSource: "subject, body or header:<name>"
   extractEmailRequired: To take the customer from the text, extract an email
+  nothingToChange: Nothing to change
+  idsOrFilter: Pass either ids or filter
+  tooManyKeys: "At most {max} keys"
 
 tickets:
   views:
@@ -262,16 +265,78 @@ tickets:
     assignee: Assignee
     updated: Updated
   filters:
-    allDepartments: All departments
     noDepartment: No department
-    anyone: Anyone
     mine: Mine
     unassigned: Unassigned
+    add: Filter
+    reset: Reset
+    remove: Remove the filter
+    any: any
+    apply: Apply
+    attention: Waiting for a decision
+    priority: Priority
+    channel: Channel
+    tags: Tags
+    agentState: Agent
+    created: Created
+    updated: Last message
+    from: From
+    to: To
+    datePresets:
+      today: Today
+      7d: Last 7 days
+      30d: Last 30 days
+  sort:
+    updated: Newest messages first
+    oldest: Oldest messages first
+    created: Newest tickets first
+    priority: By priority
+  presets:
+    title: Saved views
+    modified: changed
+    empty: No saved views yet
+    saveChanges: "Save changes to “{name}”"
+    saveAs: Save as a new view…
+    saveAsTitle: Save the view
+    namePlaceholder: "For example, My urgent ones"
+    shared: Share with the team
+    sharedHint: Every member of the workspace sees it; only admins change it.
+    manage: Manage views…
+    manageTitle: Saved views
+    sharedBy: "Shared by {name}"
+    rename: Rename
+    saved: View saved
+    deleted: View deleted
+  selection:
+    selectPage: Select the tickets on the page
+    selectRow: "Select T-{number}"
+    page: "All {count} tickets on this page are selected."
+    selectAllMatching: "Select all {count} matching the filter"
+    allMatching: "All {count} tickets matching the filter are selected."
+    tooMany: "The filter matches more than {limit}: narrow it down to select them all"
+    clear: Clear the selection
+  bulk:
+    selected:
+      one: "{count} selected"
+      other: "{count} selected"
+    assignToMe: Assign to me
+    unassign: Unassign
+    addTags: Add tags
+    removeTags: Remove tags
+    clear: Clear the selection
+    done: "Tickets changed: {count}"
+    partlyDone: "Changed {updated} of {total} tickets"
+    more: "and {count} more"
+    confirmTitle: Change the tickets?
+    confirmText: "The change applies to every ticket matching the filter: {count}."
+    confirm: Change
   searchPlaceholder: "Subject, #T-12, email, phone"
   noCustomer: No customer
   empty:
     title: No tickets
     description: Requests will appear here when they arrive through the API or by email.
+    filteredTitle: Nothing matches
+    filteredDescription: Change or reset the filters.
 
 ticket:
   saveFailed: Could not save
@@ -580,6 +645,7 @@ audit:
     channel: Channel
     integration: Integration
     user: User
+    ticket_view: Shared queue view
   action:
     create: creation
     update: change
@@ -1131,6 +1197,9 @@ api:
   fillField: "Fill in “{label}”"
   requiredFieldsBeforeResolve: Fill in the required fields before resolving the ticket
   invalidFilterValue: Invalid filter value
+  bulkTooMany: "The filter matches more than {limit} tickets: narrow it down"
+  ticketViewNotFound: Saved view not found
+  sharedViewsAdminOnly: Only admins share views and change shared ones
   noReplyMailbox: No mailbox to reply from
   sourceHasNoWebhook: The ticket source has no webhook for replies
   customerAddressMissing: The customer's address is missing

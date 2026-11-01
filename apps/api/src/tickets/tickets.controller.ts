@@ -1,7 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
+  BulkUpdateTicketsSchema,
   TicketListQuerySchema,
+  type BulkUpdateTicketsInput,
+  type BulkUpdateTicketsResultDto,
+  type TicketListQuery,
   UpdateTicketSchema,
+  type TicketCountsDto,
   type TicketDto,
   type TicketListDto,
   type TimelineItemDto,
@@ -26,13 +31,33 @@ export class TicketsController {
     @Query() rawQuery: Record<string, string>,
     @CurrentAuth() auth: AuthContext,
   ): Promise<TicketListDto> {
-    const fields = Object.fromEntries(
-      Object.entries(rawQuery)
-        .filter(([key]) => key.startsWith(FIELD_FILTER_PREFIX))
-        .map(([key, value]) => [key.slice(FIELD_FILTER_PREFIX.length), value]),
-    );
-    const query = new ZodValidationPipe(TicketListQuerySchema).transform({ ...rawQuery, fields });
-    return this.tickets.list(workspaceId, query, auth.user.id);
+    return this.tickets.list(workspaceId, parseListQuery(rawQuery), auth.user.id);
+  }
+
+  @Get('counts')
+  counts(
+    @Param('workspaceId') workspaceId: string,
+    @Query() rawQuery: Record<string, string>,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<TicketCountsDto> {
+    return this.tickets.counts(workspaceId, parseListQuery(rawQuery), auth.user.id);
+  }
+
+  @Get('tags')
+  tags(@Param('workspaceId') workspaceId: string): Promise<string[]> {
+    return this.tickets.tags(workspaceId);
+  }
+
+  @Post('bulk')
+  @HttpCode(200)
+  @RequireRole('operator')
+  bulkUpdate(
+    @Param('workspaceId') workspaceId: string,
+    @Body(new ZodValidationPipe(BulkUpdateTicketsSchema)) body: BulkUpdateTicketsInput,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<BulkUpdateTicketsResultDto> {
+    const target = body.ids ? { ids: body.ids } : { filter: parseListQuery(body.filter ?? {}) };
+    return this.tickets.bulkUpdate(workspaceId, target, body.changes, auth.user.id);
   }
 
   @Get(':ticketId')
@@ -55,4 +80,14 @@ export class TicketsController {
   ): Promise<TicketDto> {
     return this.tickets.update(workspaceId, ticketId, body, auth.user.id);
   }
+}
+
+/** The list's query parameters: field.<key>=<value> go into `fields`. */
+function parseListQuery(raw: Record<string, string>): TicketListQuery {
+  const fields = Object.fromEntries(
+    Object.entries(raw)
+      .filter(([key]) => key.startsWith(FIELD_FILTER_PREFIX))
+      .map(([key, value]) => [key.slice(FIELD_FILTER_PREFIX.length), value]),
+  );
+  return new ZodValidationPipe(TicketListQuerySchema).transform({ ...raw, fields });
 }

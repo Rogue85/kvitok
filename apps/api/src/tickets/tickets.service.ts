@@ -1,23 +1,30 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import {
+  BULK_TICKETS_LIMIT,
+  TICKET_STATUSES,
   isEmptyFieldValue,
   fieldValueSchema,
+  type BulkTicketChangesSchema,
+  type ApiErrorBody,
+  type BulkUpdateTicketsResultDto,
   type FieldDefinitionDto,
+  type TicketCountsDto,
   type TicketDto,
   type TicketListDto,
   type TicketListQuery,
   type TimelineItemDto,
   type UpdateTicketInput,
 } from '@kvitok/shared';
+import type { z } from 'zod';
 import { emailConfig } from '../channels/channel-config';
-import { errors } from '../common/errors';
+import { AppError, errors } from '../common/errors';
 import { json } from '../common/json';
 import { toCustomerDto } from '../customers/customers.service';
 import { DepartmentsService } from '../departments/departments.service';
 import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
-import type { Channel, Delivery, Prisma, Ticket, Workspace } from '../generated/prisma/client';
+import { Prisma, type Channel, type Delivery, type Ticket, type Workspace } from '../generated/prisma/client';
 import { OutboundService, ticketWebhookRef } from '../outbound/outbound.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -43,17 +50,89 @@ export class TicketsService {
   ) {}
 
   async list(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<TicketListDto> {
-    const where: Prisma.TicketWhereInput = { workspaceId };
-    const and: Prisma.TicketWhereInput[] = [];
+    const where = await this.listWhere(workspaceId, query, currentUserId);
+    const [items, total] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where,
+        include: TICKET_LIST_INCLUDE,
+        orderBy: LIST_ORDER[query.sort],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.ticket.count({ where }),
+    ]);
+    const attention = new Set(
+      (
+        await this.prisma.ticket.findMany({
+          where: { id: { in: items.map((i) => i.id) }, ...ATTENTION_WHERE },
+          select: { id: true },
+        })
+      ).map((r) => r.id),
+    );
+
+    return {
+      items: items.map((i) => ({ ...toTicketListItem(i), attention: attention.has(i.id) })),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+  }
+
+  async counts(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<TicketCountsDto> {
+    const where = await this.listWhere(workspaceId, { ...query, status: undefined }, currentUserId);
+    const rows = await this.prisma.ticket.groupBy({ by: ['status'], where, _count: { _all: true } });
+    return Object.fromEntries(
+      TICKET_STATUSES.map((status) => [status, rows.find((r) => r.status === status)?._count._all ?? 0]),
+    ) as TicketCountsDto;
+  }
+
+  /** Distinct tags of the workspace's tickets, the most used first. */
+  async tags(workspaceId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<Array<{ tag: string }>>`
+      SELECT tag FROM tickets, unnest(tags) AS tag WHERE workspace_id = ${workspaceId}
+      GROUP BY tag ORDER BY count(*) DESC, tag LIMIT 500`;
+    return rows.map((r) => r.tag);
+  }
+
+  private async listWhere(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<Prisma.TicketWhereInput> {
+    const and: Prisma.TicketWhereInput[] = [{ workspaceId }];
+    /** A list with `none` matches an empty value too. */
+    const anyOf = <K extends 'departmentId' | 'assigneeId'>(key: K, values: string[]): Prisma.TicketWhereInput => {
+      const ids = values.filter((v) => v !== 'none');
+      return {
+        OR: [...(ids.length > 0 ? [{ [key]: { in: ids } }] : []), ...(values.includes('none') ? [{ [key]: null }] : [])],
+      };
+    };
 
     if (query.status?.length) {
-      where.status = { in: query.status };
+      and.push({ status: { in: query.status } });
     }
-    if (query.departmentId) {
-      where.departmentId = query.departmentId === 'none' ? null : query.departmentId;
+    if (query.priority?.length) {
+      and.push({ priority: { in: query.priority } });
     }
-    if (query.assignee) {
-      where.assigneeId = query.assignee === 'none' ? null : query.assignee === 'me' ? currentUserId : query.assignee;
+    if (query.departmentId?.length) {
+      and.push(anyOf('departmentId', query.departmentId));
+    }
+    if (query.assignee?.length) {
+      and.push(anyOf('assigneeId', query.assignee.map((a) => (a === 'me' ? currentUserId : a))));
+    }
+    if (query.channelId?.length) {
+      and.push({ channelId: { in: query.channelId } });
+    }
+    if (query.tags?.length) {
+      and.push({ tags: { hasSome: query.tags } });
+    }
+    if (query.agentState?.length) {
+      and.push({ agentState: { in: query.agentState } });
+    }
+    if (query.attention) {
+      and.push(ATTENTION_WHERE);
+    }
+    if (query.createdFrom || query.createdTo) {
+      and.push({ createdAt: { gte: query.createdFrom, lt: query.createdTo } });
+    }
+    if (query.updatedFrom || query.updatedTo) {
+      and.push({ lastMessageAt: { gte: query.updatedFrom, lt: query.updatedTo } });
     }
     if (query.q) {
       const q = query.q.replace(/^#?T-/i, '');
@@ -76,22 +155,7 @@ export class TicketsService {
         and.push(fieldFilter(definition, raw));
       }
     }
-    if (and.length > 0) {
-      where.AND = and;
-    }
-
-    const [items, total] = await Promise.all([
-      this.prisma.ticket.findMany({
-        where,
-        include: TICKET_LIST_INCLUDE,
-        orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      this.prisma.ticket.count({ where }),
-    ]);
-
-    return { items: items.map(toTicketListItem), total, page: query.page, pageSize: query.pageSize };
+    return { AND: and };
   }
 
   async get(workspaceId: string, id: string): Promise<Ticket & { channel: Channel | null }> {
@@ -140,9 +204,56 @@ export class TicketsService {
   }
 
   async update(workspaceId: string, id: string, input: UpdateTicketInput, userId: string): Promise<TicketDto> {
-    const actor: Actor = { type: 'user', id: userId };
     const ticket = await this.get(workspaceId, id);
+    await this.assertTargets(workspaceId, input);
+    await this.apply(ticket, input, userId, await this.fields.list(workspaceId, 'ticket'));
+    return this.getDetail(workspaceId, id);
+  }
 
+  /**
+   * One change for many tickets, each through the same path as a single update: events, webhooks and the
+   * required fields check. A ticket that refuses the change does not stop the others.
+   */
+  async bulkUpdate(
+    workspaceId: string,
+    target: { ids: string[] } | { filter: TicketListQuery },
+    changes: z.infer<typeof BulkTicketChangesSchema>,
+    userId: string,
+  ): Promise<BulkUpdateTicketsResultDto> {
+    const where =
+      'ids' in target ? { workspaceId, id: { in: target.ids } } : await this.listWhere(workspaceId, target.filter, userId);
+    const tickets = await this.prisma.ticket.findMany({
+      where,
+      include: { channel: true },
+      orderBy: { number: 'asc' },
+      take: BULK_TICKETS_LIMIT + 1,
+    });
+    if (tickets.length > BULK_TICKETS_LIMIT) {
+      throw errors.validation([], t('api.bulkTooMany', { limit: BULK_TICKETS_LIMIT }));
+    }
+    const { addTags, removeTags, ...input } = changes;
+    await this.assertTargets(workspaceId, input);
+    const definitions = await this.fields.list(workspaceId, 'ticket');
+
+    const result: BulkUpdateTicketsResultDto = { updated: [], failed: [] };
+    for (const ticket of tickets) {
+      const tags =
+        addTags || removeTags
+          ? [...new Set([...ticket.tags, ...(addTags ?? [])])].filter((tag) => !removeTags?.includes(tag))
+          : undefined;
+      try {
+        await this.apply(ticket, { ...input, ...(tags ? { tags } : {}) }, userId, definitions);
+        result.updated.push(ticket.id);
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        result.failed.push({ id: ticket.id, number: ticket.number, message: errorText(error) });
+      }
+    }
+    return result;
+  }
+
+  /** The department and the assignee a change sets exist and can take tickets. */
+  private async assertTargets(workspaceId: string, input: Pick<UpdateTicketInput, 'departmentId' | 'assigneeId'>): Promise<void> {
     if (input.departmentId) {
       await this.departments.assertAssignable(workspaceId, input.departmentId);
     }
@@ -158,8 +269,16 @@ export class TicketsService {
         throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeDisabled'), code: 'custom' }]);
       }
     }
+  }
 
-    const definitions = await this.fields.list(workspaceId, 'ticket');
+  private async apply(
+    ticket: Ticket & { channel: Channel | null },
+    input: UpdateTicketInput,
+    userId: string,
+    definitions: FieldDefinitionDto[],
+  ): Promise<void> {
+    const { workspaceId, id } = ticket;
+    const actor: Actor = { type: 'user', id: userId };
     let fieldResult: ReturnType<typeof applyFieldValues> | null = null;
     if (input.fields) {
       const state = fieldState(ticket);
@@ -251,7 +370,6 @@ export class TicketsService {
 
     await this.outbound.schedule(deliveries);
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: id });
-    return this.getDetail(workspaceId, id);
   }
 
   async replyOptions(
@@ -286,6 +404,29 @@ export class TicketsService {
     }
     return row.ticket_seq;
   }
+}
+
+const LIST_ORDER: Record<TicketListQuery['sort'], Prisma.TicketOrderByWithRelationInput[]> = {
+  updated: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+  oldest: [{ lastMessageAt: 'asc' }, { id: 'asc' }],
+  created: [{ createdAt: 'desc' }, { id: 'desc' }],
+  priority: [{ priority: 'desc' }, { lastMessageAt: 'desc' }, { id: 'desc' }],
+};
+
+/** Waits for the operator: an open question of the agent, a proposed action, a customer to confirm. */
+const ATTENTION_WHERE: Prisma.TicketWhereInput = {
+  OR: [
+    { agentQuestions: { some: { status: 'open' } } },
+    { actionProposals: { some: { status: 'proposed' } } },
+    { customer: { links: { some: { pending: { not: Prisma.DbNull } } } } },
+  ],
+};
+
+/** The error message with the details' messages, for a ticket that refused a bulk change. */
+function errorText(error: AppError): string {
+  const body = error.getResponse() as ApiErrorBody;
+  const details = Array.isArray(body.error.details) ? (body.error.details as Array<{ message?: string }>) : [];
+  return [body.error.message, ...details.map((d) => d.message).filter(Boolean)].join(': ');
 }
 
 /** With equal times (one transaction): ticket creation first, then messages, then their consequences. */

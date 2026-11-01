@@ -14,6 +14,7 @@ export const AUDIT_ENTITIES = [
   'channel',
   'integration',
   'user',
+  'ticket_view',
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 

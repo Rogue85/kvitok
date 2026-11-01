@@ -247,6 +247,9 @@ validation:
   phone: Некорректный телефон
   extractSource: "subject, body или header:<имя>"
   extractEmailRequired: Чтобы взять клиента из текста, извлеките email
+  nothingToChange: Нечего менять
+  idsOrFilter: Передайте либо ids, либо filter
+  tooManyKeys: "Не больше {max} ключей"
 
 tickets:
   views:
@@ -261,16 +264,80 @@ tickets:
     assignee: Исполнитель
     updated: Обновлён
   filters:
-    allDepartments: Все отделы
     noDepartment: Без отдела
-    anyone: Все
     mine: Мои
     unassigned: Без исполнителя
+    add: Фильтр
+    reset: Сбросить
+    remove: Убрать фильтр
+    any: любой
+    apply: Применить
+    attention: Ждёт решения
+    priority: Приоритет
+    channel: Канал
+    tags: Теги
+    agentState: Агент
+    created: Создан
+    updated: Последнее сообщение
+    from: С
+    to: По
+    datePresets:
+      today: Сегодня
+      7d: Последние 7 дней
+      30d: Последние 30 дней
+  sort:
+    updated: Сначала новые сообщения
+    oldest: Сначала старые сообщения
+    created: Сначала новые тикеты
+    priority: По приоритету
+  presets:
+    title: Предустановки
+    modified: изменена
+    empty: Сохранённых предустановок пока нет
+    saveChanges: "Сохранить изменения в «{name}»"
+    saveAs: Сохранить как новую…
+    saveAsTitle: Сохранить предустановку
+    namePlaceholder: "Например, Мои срочные"
+    shared: Общая для команды
+    sharedHint: Её видят все участники пространства, менять могут только администраторы.
+    manage: Управлять предустановками…
+    manageTitle: Предустановки
+    sharedBy: "Поделился {name}"
+    rename: Переименовать
+    saved: Предустановка сохранена
+    deleted: Предустановка удалена
+  selection:
+    selectPage: Выбрать тикеты на странице
+    selectRow: "Выбрать T-{number}"
+    page: "Выбраны все {count} тикетов на этой странице."
+    selectAllMatching: "Выбрать все {count} по фильтру"
+    allMatching: "Выбраны все {count} тикетов по фильтру."
+    tooMany: "По фильтру больше {limit}: сузьте его, чтобы выбрать все"
+    clear: Снять выделение
+  bulk:
+    selected:
+      one: "Выбран {count}"
+      few: "Выбрано {count}"
+      many: "Выбрано {count}"
+      other: "Выбрано {count}"
+    assignToMe: Назначить на меня
+    unassign: Снять исполнителя
+    addTags: Добавить теги
+    removeTags: Убрать теги
+    clear: Снять выделение
+    done: "Изменено тикетов: {count}"
+    partlyDone: "Изменено {updated} из {total} тикетов"
+    more: "и ещё {count}"
+    confirmTitle: Изменить тикеты?
+    confirmText: "Изменение коснётся всех тикетов по фильтру: {count}."
+    confirm: Изменить
   searchPlaceholder: "Тема, #T-12, email, телефон"
   noCustomer: Без клиента
   empty:
     title: Тикетов нет
     description: Заявки появятся здесь, когда придут по API или на почту.
+    filteredTitle: Ничего не нашлось
+    filteredDescription: Измените или сбросьте фильтры.
 
 ticket:
   saveFailed: Не удалось сохранить
@@ -583,6 +650,7 @@ audit:
     channel: Канал
     integration: Интеграция
     user: Пользователь
+    ticket_view: Общая предустановка очереди
   action:
     create: создание
     update: изменение
@@ -1144,6 +1212,9 @@ api:
   fillField: "Заполните «{label}»"
   requiredFieldsBeforeResolve: Перед решением тикета заполните обязательные поля
   invalidFilterValue: Некорректное значение фильтра
+  bulkTooMany: "Под фильтр попадает больше {limit} тикетов: сузьте его"
+  ticketViewNotFound: Предустановка не найдена
+  sharedViewsAdminOnly: Делиться предустановками и менять общие могут только администраторы
   noReplyMailbox: Нет почтового ящика для ответа
   sourceHasNoWebhook: У источника тикета нет webhook для ответов
   customerAddressMissing: Не указан адрес клиента

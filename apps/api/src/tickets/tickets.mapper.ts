@@ -63,6 +63,7 @@ export function toTicketListItem(ticket: ListTicket): TicketListItemDto {
     channel: ticket.channel ? { id: ticket.channel.id, type: ticket.channel.type, name: ticket.channel.name } : null,
     tags: ticket.tags,
     fields: ticket.fields as FieldValues,
+    agentState: ticket.agentState,
     lastMessageAt: ticket.lastMessageAt.toISOString(),
     createdAt: ticket.createdAt.toISOString(),
   };

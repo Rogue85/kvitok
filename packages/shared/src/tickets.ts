@@ -1,3 +1,4 @@
+import { t } from '@kvitok/i18n';
 import { z } from 'zod';
 import type { FieldMeta, FieldValues } from './fields.js';
 
@@ -11,22 +12,86 @@ export type TicketPriority = z.infer<typeof TicketPrioritySchema>;
 
 export const TagSchema = z.string().trim().toLowerCase().min(1).max(64);
 
+export const TICKET_AGENT_STATES = ['idle', 'queued', 'running', 'failed'] as const;
+
+/** Queue order: `updated` — the latest message first, `oldest` — the longest without a new message first. */
+export const TICKET_SORTS = ['updated', 'oldest', 'created', 'priority'] as const;
+export type TicketSort = (typeof TICKET_SORTS)[number];
+
+/** A comma-separated query parameter as a list; an empty one is no filter. */
+function csv<T extends z.ZodType<string>>(item: T) {
+  return z.preprocess((s) => (typeof s === 'string' ? s.split(',').filter((v) => v !== '') : s), z.array(item).optional());
+}
+
+const queryFlag = z
+  .enum(['true', 'false', '1', '0'])
+  .optional()
+  .transform((v) => v === 'true' || v === '1');
+
+const queryDate = z.iso
+  .datetime({ offset: true })
+  .optional()
+  .transform((v) => (v ? new Date(v) : undefined));
+
 export const TicketListQuerySchema = z.object({
-  status: z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(',') : undefined))
-    .pipe(z.array(TicketStatusSchema).optional()),
-  departmentId: z.string().optional(),
-  /** user id, `me` or `none` */
-  assignee: z.string().optional(),
+  status: csv(TicketStatusSchema),
+  priority: csv(TicketPrioritySchema),
+  /** Department ids, `none` — without a department. */
+  departmentId: csv(z.string()),
+  /** User ids, `me` or `none`. */
+  assignee: csv(z.string()),
+  channelId: csv(z.string()),
+  /** Any of the tags. */
+  tags: csv(TagSchema),
+  agentState: csv(z.enum(TICKET_AGENT_STATES)),
+  /** Waits for the operator: an open question of the agent, a proposed action, a customer to confirm. */
+  attention: queryFlag,
+  createdFrom: queryDate,
+  createdTo: queryDate,
+  /** By the last message. */
+  updatedFrom: queryDate,
+  updatedTo: queryDate,
   q: z.string().trim().max(200).optional(),
   /** Field filter: the controller collects field.<key>=<value> into this object. */
   fields: z.record(z.string(), z.string()).optional(),
+  sort: z.enum(TICKET_SORTS).default('updated'),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
 export type TicketListQuery = z.infer<typeof TicketListQuerySchema>;
+
+/** The most tickets one bulk update changes. */
+export const BULK_TICKETS_LIMIT = 500;
+
+export const BulkTicketChangesSchema = z
+  .object({
+    status: TicketStatusSchema,
+    priority: TicketPrioritySchema,
+    departmentId: z.string().nullable(),
+    assigneeId: z.string().nullable(),
+    addTags: z.array(TagSchema).min(1).max(50),
+    removeTags: z.array(TagSchema).min(1).max(50),
+  })
+  .partial()
+  .refine((c) => Object.keys(c).length > 0, { error: () => t('validation.nothingToChange') });
+
+export const BulkUpdateTicketsSchema = z
+  .object({
+    /** Tickets by id… */
+    ids: z.array(z.string()).min(1).max(BULK_TICKETS_LIMIT).optional(),
+    /** …or every ticket of a list filter: the list's query parameters, `page` and `pageSize` are ignored. */
+    filter: z.record(z.string(), z.string()).optional(),
+    changes: BulkTicketChangesSchema,
+  })
+  .refine((b) => (b.ids === undefined) !== (b.filter === undefined), { error: () => t('validation.idsOrFilter'), path: ['ids'] });
+export type BulkUpdateTicketsInput = z.infer<typeof BulkUpdateTicketsSchema>;
+
+export interface BulkUpdateTicketsResultDto {
+  /** Tickets the update was applied to, changed or already as requested. */
+  updated: string[];
+  /** Tickets that refused the change, with the reason. */
+  failed: Array<{ id: string; number: number; message: string }>;
+}
 
 export const UpdateTicketSchema = z
   .object({
@@ -94,9 +159,18 @@ export interface TicketListItemDto {
   channel: { id: string; type: 'api' | 'email'; name: string } | null;
   tags: string[];
   fields: FieldValues;
+  agentState: (typeof TICKET_AGENT_STATES)[number];
   lastMessageAt: string;
   createdAt: string;
 }
+
+export interface TicketListRowDto extends TicketListItemDto {
+  /** Waits for the operator: an open question of the agent, a proposed action, a customer to confirm. */
+  attention: boolean;
+}
+
+/** Tickets of a list filter by status, whatever status the filter has. */
+export type TicketCountsDto = Record<TicketStatus, number>;
 
 export interface TicketListDto {
   items: TicketListItemDto[];
@@ -170,3 +244,37 @@ export interface TicketEventDto {
 export type TimelineItemDto =
   | { kind: 'message'; at: string; message: MessageDto }
   | { kind: 'event'; at: string; event: TicketEventDto };
+
+/** A saved queue: the page's URL query by its keys (tab, sort, search, filters), without the page. */
+export const TicketViewQuerySchema = z
+  .record(z.string().min(1).max(100), z.string().max(2000))
+  .refine((q) => Object.keys(q).length <= 50, { error: () => t('validation.tooManyKeys', { max: 50 }) });
+
+export const CreateTicketViewSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  /** Visible to every member of the workspace; only admins share and change shared views. */
+  shared: z.boolean().default(false),
+  query: TicketViewQuerySchema,
+});
+export type CreateTicketViewInput = z.input<typeof CreateTicketViewSchema>;
+
+export const UpdateTicketViewSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    shared: z.boolean(),
+    query: TicketViewQuerySchema,
+  })
+  .partial();
+export type UpdateTicketViewInput = z.infer<typeof UpdateTicketViewSchema>;
+
+export interface TicketViewDto {
+  id: string;
+  name: string;
+  shared: boolean;
+  query: Record<string, string>;
+  author: UserRefDto | null;
+  /** The caller may change and delete it: their personal view, or a shared one for an admin. */
+  editable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

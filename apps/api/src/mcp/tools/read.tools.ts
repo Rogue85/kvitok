@@ -1,6 +1,6 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import { AUDIT_ENTITIES, TicketStatusSchema, type DepartmentDto, type MessageDto, type TimelineItemDto } from '@kvitok/shared';
+import { AUDIT_ENTITIES, TicketListQuerySchema, TicketStatusSchema, type DepartmentDto, type MessageDto, type TimelineItemDto } from '@kvitok/shared';
 import { z } from 'zod';
 import { escapeUntrusted } from '../../agent/context-assembler';
 import { AgentService } from '../../agent/agent.service';
@@ -169,7 +169,14 @@ export class ReadTools {
           const departmentId = args.department === undefined || args.department === 'none' ? args.department : departmentByKey(departments, args.department).id;
           const list = await this.tickets.list(
             workspaceId,
-            { status: args.status, departmentId, q: args.q, fields: args.fields, page: args.page, pageSize: args.pageSize },
+            TicketListQuerySchema.parse({
+              status: args.status,
+              departmentId: departmentId === undefined ? undefined : [departmentId],
+              q: args.q,
+              fields: args.fields,
+              page: args.page,
+              pageSize: args.pageSize,
+            }),
             call.auth.user.id,
           );
           const keys = new Map(departments.map((d) => [d.id, d.key]));

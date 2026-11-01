@@ -1,15 +1,24 @@
 import { t } from '@kvitok/i18n';
-import { Injectable, SetMetadata, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import { createParamDecorator, Injectable, SetMetadata, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { roleSatisfies, type WorkspaceRole } from '@kvitok/shared';
 import { errors } from '../common/errors';
-import type { AppRequest, AuthContext } from '../common/request';
+import type { AppRequest, AuthContext, WorkspaceContext } from '../common/request';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const REQUIRED_ROLE = 'requiredWorkspaceRole';
 
 /** Minimum workspace role for the route. viewer by default. */
 export const RequireRole = (role: WorkspaceRole) => SetMetadata(REQUIRED_ROLE, role);
+
+/** The workspace of the route and the caller's role in it, set by WorkspaceGuard. */
+export const CurrentWorkspace = createParamDecorator((_: unknown, ctx: ExecutionContext): WorkspaceContext => {
+  const request = ctx.switchToHttp().getRequest<AppRequest>();
+  if (request.workspace === undefined) {
+    throw new Error('CurrentWorkspace used without WorkspaceGuard');
+  }
+  return request.workspace;
+});
 
 /**
  * Checks membership in the workspace from the `:workspaceId` parameter.

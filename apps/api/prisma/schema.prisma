@@ -33,6 +33,7 @@ model User {
   assigned       Ticket[]         @relation("TicketAssignee")
   messages       Message[]
   decidedActions ActionProposal[]
+  ticketViews    TicketView[]
 
   @@map("users")
 }
@@ -124,6 +125,7 @@ model Workspace {
   customers           Customer[]
   tickets             Ticket[]
   fieldDefinitions    FieldDefinition[]
+  ticketViews         TicketView[]
 
   @@map("workspaces")
 }
@@ -311,6 +313,25 @@ model CustomerIdentity {
   @@unique([workspaceId, type, value])
   @@index([customerId])
   @@map("customer_identities")
+}
+
+/// A saved set of queue filters: personal for its author, or shared with the workspace.
+model TicketView {
+  id          String    @id
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// The author. A personal view is visible to them only.
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  shared      Boolean   @default(false)
+  /// The queue's URL query: tab, sort, search and filters by their URL keys.
+  query       Json
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([workspaceId, userId])
+  @@map("ticket_views")
 }
 
 model Ticket {
