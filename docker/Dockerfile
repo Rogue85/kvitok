@@ -9,6 +9,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 FROM base AS build
+# A store per architecture: two platforms built at once must not write into one store.
+ARG TARGETARCH
 # The pnpm version comes from packageManager. Node 25+ ships without corepack, so install it with npm.
 COPY package.json /tmp/package.json
 RUN npm install -g "$(node -p "require('/tmp/package.json').packageManager")" && rm /tmp/package.json
@@ -18,12 +20,12 @@ ENV CI=true \
     DATABASE_URL=postgresql://build@localhost/build
 # Dependencies are fetched by the lockfile alone, so this layer survives code changes.
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store pnpm fetch --store-dir /pnpm-store
+RUN --mount=type=cache,id=pnpm-store-$TARGETARCH,target=/pnpm-store pnpm fetch --store-dir /pnpm-store
 COPY . .
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store pnpm install --offline --frozen-lockfile --store-dir /pnpm-store
+RUN --mount=type=cache,id=pnpm-store-$TARGETARCH,target=/pnpm-store pnpm install --offline --frozen-lockfile --store-dir /pnpm-store
 RUN pnpm --filter @kvitok/api build && pnpm --filter @kvitok/web generate
 # The API with production dependencies only, the workspace packages included.
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store pnpm --filter @kvitok/api deploy --prod --legacy --store-dir /pnpm-store /out
+RUN --mount=type=cache,id=pnpm-store-$TARGETARCH,target=/pnpm-store pnpm --filter @kvitok/api deploy --prod --legacy --store-dir /pnpm-store /out
 
 FROM base
 # The release the image is built from: CI passes 0.2.0 for a tag and edge-<sha> for main.
