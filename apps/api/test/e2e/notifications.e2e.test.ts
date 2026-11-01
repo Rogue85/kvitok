@@ -118,6 +118,14 @@ describe('notifications', () => {
       expect((await operator.http.delete(`/notifications/push/subscriptions/${id}`)).statusCode).toBe(204);
       expect(await prisma.pushSubscription.count()).toBe(0);
     });
+
+    it('accept only https endpoints on a domain name', async () => {
+      const { http } = await setup();
+      for (const endpoint of ['http://push.example.com/x', 'https://localhost/x', 'https://127.0.0.1/x', 'https://10.0.0.5:8443/x', 'https://minio:9000/x']) {
+        expect((await http.post('/notifications/push/subscriptions', { ...subscription(3), endpoint })).statusCode).toBe(422);
+      }
+      expect(await prisma.pushSubscription.count()).toBe(0);
+    });
   });
 
   describe('delivery', () => {

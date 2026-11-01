@@ -40,7 +40,11 @@ export function notificationSettings(stored: unknown): NotificationSettings {
 }
 
 export const PushSubscriptionInputSchema = z.object({
-  endpoint: z.url().max(2000),
+  /**
+   * The server posts here and shows the answer, so only https on a domain name, as every push service has:
+   * a local address or a host of the internal network would turn subscribing into a way to reach them.
+   */
+  endpoint: z.url({ protocol: /^https$/, hostname: z.regexes.domain }).max(2000),
   keys: z.object({
     p256dh: z.string().min(1).max(200),
     auth: z.string().min(1).max(100),
