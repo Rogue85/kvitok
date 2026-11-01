@@ -4,6 +4,7 @@ export * from './analytics.js';
 export * from './audit.js';
 export * from './auth.js';
 export * from './channels.js';
+export * from './department-access.js';
 export * from './departments.js';
 export * from './errors.js';
 export * from './fields.js';

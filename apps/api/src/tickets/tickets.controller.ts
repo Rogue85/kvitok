@@ -13,9 +13,9 @@ import {
   type UpdateTicketInput,
 } from '@kvitok/shared';
 import { CurrentAuth } from '../auth/decorators';
-import type { AuthContext } from '../common/request';
+import type { AuthContext, WorkspaceContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
+import { CurrentWorkspace, RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { TicketsService } from './tickets.service';
 
 const FIELD_FILTER_PREFIX = 'field.';
@@ -27,47 +27,47 @@ export class TicketsController {
 
   @Get()
   list(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Query() rawQuery: Record<string, string>,
     @CurrentAuth() auth: AuthContext,
   ): Promise<TicketListDto> {
-    return this.tickets.list(workspaceId, parseListQuery(rawQuery), auth.user.id);
+    return this.tickets.list(workspace, parseListQuery(rawQuery), auth.user.id);
   }
 
   @Get('counts')
   counts(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Query() rawQuery: Record<string, string>,
     @CurrentAuth() auth: AuthContext,
   ): Promise<TicketCountsDto> {
-    return this.tickets.counts(workspaceId, parseListQuery(rawQuery), auth.user.id);
+    return this.tickets.counts(workspace, parseListQuery(rawQuery), auth.user.id);
   }
 
   @Get('tags')
-  tags(@Param('workspaceId') workspaceId: string): Promise<string[]> {
-    return this.tickets.tags(workspaceId);
+  tags(@CurrentWorkspace() workspace: WorkspaceContext): Promise<string[]> {
+    return this.tickets.tags(workspace);
   }
 
   @Post('bulk')
   @HttpCode(200)
   @RequireRole('operator')
   bulkUpdate(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Body(new ZodValidationPipe(BulkUpdateTicketsSchema)) body: BulkUpdateTicketsInput,
     @CurrentAuth() auth: AuthContext,
   ): Promise<BulkUpdateTicketsResultDto> {
     const target = body.ids ? { ids: body.ids } : { filter: parseListQuery(body.filter ?? {}) };
-    return this.tickets.bulkUpdate(workspaceId, target, body.changes, auth.user.id);
+    return this.tickets.bulkUpdate(workspace, target, body.changes, auth.user.id);
   }
 
   @Get(':ticketId')
-  get(@Param('workspaceId') workspaceId: string, @Param('ticketId') ticketId: string): Promise<TicketDto> {
-    return this.tickets.getDetail(workspaceId, ticketId);
+  get(@CurrentWorkspace() workspace: WorkspaceContext, @Param('ticketId') ticketId: string): Promise<TicketDto> {
+    return this.tickets.getDetail(workspace, ticketId);
   }
 
   @Get(':ticketId/timeline')
-  timeline(@Param('workspaceId') workspaceId: string, @Param('ticketId') ticketId: string): Promise<TimelineItemDto[]> {
-    return this.tickets.timeline(workspaceId, ticketId);
+  timeline(@CurrentWorkspace() workspace: WorkspaceContext, @Param('ticketId') ticketId: string): Promise<TimelineItemDto[]> {
+    return this.tickets.timeline(workspace, ticketId);
   }
 
   @Patch(':ticketId')

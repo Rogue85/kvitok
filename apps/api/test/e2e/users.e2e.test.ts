@@ -230,14 +230,14 @@ describe('users and access', () => {
       };
       const realtime = app.get(RealtimeController);
 
-      expect(await realtime.hasAccess(auth, workspaceId)).toBe(true);
+      expect(await realtime.currentScope(auth, workspaceId)).toEqual({ all: true });
       await http.delete(`/admin/users/${operator.id}/memberships/${workspaceId}`);
-      expect(await realtime.hasAccess(auth, workspaceId)).toBe(false);
+      expect(await realtime.currentScope(auth, workspaceId)).toBeNull();
 
       await http.put(`/admin/users/${operator.id}/memberships/${workspaceId}`, { role: 'operator' });
-      expect(await realtime.hasAccess(auth, workspaceId)).toBe(true);
+      expect(await realtime.currentScope(auth, workspaceId)).toEqual({ all: true });
       await http.patch(`/admin/users/${operator.id}`, { disabled: true });
-      expect(await realtime.hasAccess(auth, workspaceId)).toBe(false);
+      expect(await realtime.currentScope(auth, workspaceId)).toBeNull();
     });
 
     it('keeps an active superadmin and does not let one disable oneself', async () => {

@@ -2,12 +2,14 @@ import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import {
   BULK_TICKETS_LIMIT,
+  canSeeDepartment,
   TICKET_STATUSES,
   isEmptyFieldValue,
   fieldValueSchema,
   type BulkTicketChangesSchema,
   type ApiErrorBody,
   type BulkUpdateTicketsResultDto,
+  type DepartmentScope,
   type FieldDefinitionDto,
   type TicketCountsDto,
   type TicketDto,
@@ -21,6 +23,7 @@ import { emailConfig } from '../channels/channel-config';
 import { AppError, errors } from '../common/errors';
 import { json } from '../common/json';
 import { toCustomerDto } from '../customers/customers.service';
+import { MEMBERSHIP_DEPARTMENTS, membershipScope, systemAccess, ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import { DepartmentsService } from '../departments/departments.service';
 import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
@@ -29,6 +32,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OutboundService, ticketWebhookRef } from '../outbound/outbound.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { recordDepartmentChange } from './department-change';
 import { recordEvent, type Actor } from './ticket-events';
 import {
   fieldState,
@@ -51,8 +55,8 @@ export class TicketsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async list(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<TicketListDto> {
-    const where = await this.listWhere(workspaceId, query, currentUserId);
+  async list(access: TicketAccess, query: TicketListQuery, currentUserId: string): Promise<TicketListDto> {
+    const where = await this.listWhere(access, query, currentUserId);
     const [items, total] = await Promise.all([
       this.prisma.ticket.findMany({
         where,
@@ -80,24 +84,30 @@ export class TicketsService {
     };
   }
 
-  async counts(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<TicketCountsDto> {
-    const where = await this.listWhere(workspaceId, { ...query, status: undefined }, currentUserId);
+  async counts(access: TicketAccess, query: TicketListQuery, currentUserId: string): Promise<TicketCountsDto> {
+    const where = await this.listWhere(access, { ...query, status: undefined }, currentUserId);
     const rows = await this.prisma.ticket.groupBy({ by: ['status'], where, _count: { _all: true } });
     return Object.fromEntries(
       TICKET_STATUSES.map((status) => [status, rows.find((r) => r.status === status)?._count._all ?? 0]),
     ) as TicketCountsDto;
   }
 
-  /** Distinct tags of the workspace's tickets, the most used first. */
-  async tags(workspaceId: string): Promise<string[]> {
+  /** Distinct tags of the tickets the caller may see, the most used first. */
+  async tags(access: TicketAccess): Promise<string[]> {
+    const { scope } = access;
+    const departments = scope.all
+      ? Prisma.empty
+      : Prisma.sql`AND (department_id = ANY(${scope.departmentIds}::text[])${scope.unrouted ? Prisma.sql` OR department_id IS NULL` : Prisma.empty})`;
     const rows = await this.prisma.$queryRaw<Array<{ tag: string }>>`
-      SELECT tag FROM tickets, unnest(tags) AS tag WHERE workspace_id = ${workspaceId}
+      SELECT tag FROM tickets, unnest(tags) AS tag WHERE workspace_id = ${access.workspaceId} ${departments}
       GROUP BY tag ORDER BY count(*) DESC, tag LIMIT 500`;
     return rows.map((r) => r.tag);
   }
 
-  private async listWhere(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<Prisma.TicketWhereInput> {
-    const and: Prisma.TicketWhereInput[] = [{ workspaceId }];
+  /** The list's filters within the caller's departments: a filter by another department finds nothing. */
+  private async listWhere(access: TicketAccess, query: TicketListQuery, currentUserId: string): Promise<Prisma.TicketWhereInput> {
+    const { workspaceId } = access;
+    const and: Prisma.TicketWhereInput[] = [{ workspaceId }, ticketScopeWhere(access.scope)];
     /** A list with `none` matches an empty value too. */
     const anyOf = <K extends 'departmentId' | 'assigneeId'>(key: K, values: string[]): Prisma.TicketWhereInput => {
       const ids = values.filter((v) => v !== 'none');
@@ -160,6 +170,10 @@ export class TicketsService {
     return { AND: and };
   }
 
+  /**
+   * A ticket of the workspace whatever the caller's departments: for system code and for routes with `:ticketId`,
+   * which WorkspaceGuard has already checked against the caller's departments.
+   */
   async get(workspaceId: string, id: string): Promise<Ticket & { channel: Channel | null }> {
     const ticket = await this.prisma.ticket.findFirst({ where: { id, workspaceId }, include: { channel: true } });
     if (ticket === null) {
@@ -168,9 +182,22 @@ export class TicketsService {
     return ticket;
   }
 
-  async getDetail(workspaceId: string, id: string): Promise<TicketDto> {
+  /** A ticket the caller may see, or 404 as if it did not exist. */
+  async visible(access: TicketAccess, id: string): Promise<Ticket & { channel: Channel | null }> {
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id, workspaceId: access.workspaceId, ...ticketScopeWhere(access.scope) },
+      include: { channel: true },
+    });
+    if (ticket === null) {
+      throw errors.notFound(t('api.ticketNotFound'));
+    }
+    return ticket;
+  }
+
+  async getDetail(access: TicketAccess, id: string): Promise<TicketDto> {
+    const { workspaceId } = access;
     const [ticket, workspace] = await Promise.all([
-      this.prisma.ticket.findFirst({ where: { id, workspaceId }, include: TICKET_DETAIL_INCLUDE }),
+      this.prisma.ticket.findFirst({ where: { id, workspaceId, ...ticketScopeWhere(access.scope) }, include: TICKET_DETAIL_INCLUDE }),
       this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
     ]);
     if (ticket === null) {
@@ -189,8 +216,8 @@ export class TicketsService {
     };
   }
 
-  async timeline(workspaceId: string, id: string): Promise<TimelineItemDto[]> {
-    await this.get(workspaceId, id);
+  async timeline(access: TicketAccess, id: string): Promise<TimelineItemDto[]> {
+    await this.visible(access, id);
     const [messages, events] = await Promise.all([
       this.prisma.message.findMany({ where: { ticketId: id }, include: MESSAGE_INCLUDE, orderBy: { createdAt: 'asc' } }),
       this.prisma.ticketEvent.findMany({ where: { ticketId: id }, orderBy: { createdAt: 'asc' } }),
@@ -205,11 +232,15 @@ export class TicketsService {
     return items.sort((a, b) => a.at.localeCompare(b.at) || timelineRank(a) - timelineRank(b));
   }
 
+  /**
+   * A change of one ticket, behind WorkspaceGuard's `:ticketId` check. The result is returned whatever the caller's departments:
+   * a change of department may have just taken the ticket out of them.
+   */
   async update(workspaceId: string, id: string, input: UpdateTicketInput, userId: string): Promise<TicketDto> {
     const ticket = await this.get(workspaceId, id);
-    await this.assertTargets(workspaceId, input);
-    await this.apply(ticket, input, userId, await this.fields.list(workspaceId, 'ticket'));
-    return this.getDetail(workspaceId, id);
+    const targets = await this.assertTargets(workspaceId, input);
+    await this.apply(ticket, input, userId, await this.fields.list(workspaceId, 'ticket'), targets);
+    return this.getDetail(systemAccess(workspaceId), id);
   }
 
   /**
@@ -217,13 +248,17 @@ export class TicketsService {
    * required fields check. A ticket that refuses the change does not stop the others.
    */
   async bulkUpdate(
-    workspaceId: string,
+    access: TicketAccess,
     target: { ids: string[] } | { filter: TicketListQuery },
     changes: z.infer<typeof BulkTicketChangesSchema>,
     userId: string,
   ): Promise<BulkUpdateTicketsResultDto> {
+    const { workspaceId } = access;
+    // Ids outside the caller's departments are skipped like missing ones, without a number in `failed`.
     const where =
-      'ids' in target ? { workspaceId, id: { in: target.ids } } : await this.listWhere(workspaceId, target.filter, userId);
+      'ids' in target
+        ? { workspaceId, id: { in: target.ids }, ...ticketScopeWhere(access.scope) }
+        : await this.listWhere(access, target.filter, userId);
     const tickets = await this.prisma.ticket.findMany({
       where,
       include: { channel: true },
@@ -234,7 +269,7 @@ export class TicketsService {
       throw errors.validation([], t('api.bulkTooMany', { limit: BULK_TICKETS_LIMIT }));
     }
     const { addTags, removeTags, ...input } = changes;
-    await this.assertTargets(workspaceId, input);
+    const targets = await this.assertTargets(workspaceId, input);
     const definitions = await this.fields.list(workspaceId, 'ticket');
 
     const result: BulkUpdateTicketsResultDto = { updated: [], failed: [] };
@@ -244,7 +279,7 @@ export class TicketsService {
           ? [...new Set([...ticket.tags, ...(addTags ?? [])])].filter((tag) => !removeTags?.includes(tag))
           : undefined;
       try {
-        await this.apply(ticket, { ...input, ...(tags ? { tags } : {}) }, userId, definitions);
+        await this.apply(ticket, { ...input, ...(tags ? { tags } : {}) }, userId, definitions, targets);
         result.updated.push(ticket.id);
       } catch (error) {
         if (!(error instanceof AppError)) throw error;
@@ -254,23 +289,29 @@ export class TicketsService {
     return result;
   }
 
-  /** The department and the assignee a change sets exist and can take tickets. */
-  private async assertTargets(workspaceId: string, input: Pick<UpdateTicketInput, 'departmentId' | 'assigneeId'>): Promise<void> {
+  /**
+   * The department and the assignee a change sets exist and can take tickets. Returns the assignee's departments:
+   * whether they may take a particular ticket is checked per ticket in `apply`.
+   */
+  private async assertTargets(workspaceId: string, input: Pick<UpdateTicketInput, 'departmentId' | 'assigneeId'>): Promise<Targets> {
     if (input.departmentId) {
       await this.departments.assertAssignable(workspaceId, input.departmentId);
     }
-    if (input.assigneeId) {
-      const membership = await this.prisma.membership.findUnique({
-        where: { workspaceId_userId: { workspaceId, userId: input.assigneeId } },
-        include: { user: true },
-      });
-      if (membership === null || membership.role === 'viewer') {
-        throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeMustBeOperator'), code: 'custom' }]);
-      }
-      if (membership.user.disabledAt !== null) {
-        throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeDisabled'), code: 'custom' }]);
-      }
+    if (!input.assigneeId) {
+      return { assignee: null };
     }
+    const membership = await this.prisma.membership.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: input.assigneeId } },
+      include: { user: true, ...MEMBERSHIP_DEPARTMENTS },
+    });
+    if (membership === null || membership.role === 'viewer') {
+      throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeMustBeOperator'), code: 'custom' }]);
+    }
+    if (membership.user.disabledAt !== null) {
+      throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeDisabled'), code: 'custom' }]);
+    }
+    const scope = membership.user.isSuperadmin ? { all: true as const } : await membershipScope(this.prisma, workspaceId, membership);
+    return { assignee: { name: membership.user.name, scope } };
   }
 
   private async apply(
@@ -278,8 +319,16 @@ export class TicketsService {
     input: UpdateTicketInput,
     userId: string,
     definitions: FieldDefinitionDto[],
+    targets: Targets,
   ): Promise<void> {
     const { workspaceId, id } = ticket;
+    // The assignee always sees the ticket: in its department after this change.
+    const department = input.departmentId !== undefined ? input.departmentId : ticket.departmentId;
+    if (targets.assignee && !canSeeDepartment(targets.assignee.scope, department)) {
+      throw errors.validation([
+        { path: 'assigneeId', message: t('api.assigneeNoDepartmentAccess', { name: targets.assignee.name }), code: 'custom' },
+      ]);
+    }
     const actor: Actor = { type: 'user', id: userId };
     let fieldResult: ReturnType<typeof applyFieldValues> | null = null;
     let assignedTo = null as string | null;
@@ -309,6 +358,7 @@ export class TicketsService {
     }
 
     const deliveries: Delivery[] = [];
+    let moved = null as { from: string | null; to: string | null } | null;
     await this.prisma.$transaction(async (tx) => {
       const data: Prisma.TicketUpdateInput = {};
       let agentInputChanged = false;
@@ -339,7 +389,13 @@ export class TicketsService {
         data.department = input.departmentId ? { connect: { id: input.departmentId } } : { disconnect: true };
         data.departmentLocked = true;
         agentInputChanged = true;
-        await event('department_changed', { from: ticket.departmentId, to: input.departmentId });
+        moved = { from: ticket.departmentId, to: input.departmentId };
+        // An assignee set by this change was checked above; the current one may lose the ticket.
+        const current = input.assigneeId !== undefined ? null : ticket.assigneeId;
+        const { unassign } = await recordDepartmentChange(tx, { ...ticket, assigneeId: current }, input.departmentId, actor);
+        if (unassign) {
+          data.assignee = { disconnect: true };
+        }
       }
       if (input.assigneeId !== undefined && input.assigneeId !== ticket.assigneeId) {
         assignedTo = input.assigneeId;
@@ -373,6 +429,9 @@ export class TicketsService {
     });
 
     await this.outbound.schedule(deliveries);
+    if (moved !== null) {
+      await this.realtime.publish(workspaceId, { type: 'ticket.moved', ticketId: id, ...moved });
+    }
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: id });
     if (assignedTo !== null && assignedTo !== userId) await this.notifications.assigned(workspaceId, id, userId);
   }
@@ -409,6 +468,11 @@ export class TicketsService {
     }
     return row.ticket_seq;
   }
+}
+
+/** The assignee a change sets, with the departments they may see. */
+interface Targets {
+  assignee: { name: string; scope: DepartmentScope } | null;
 }
 
 const LIST_ORDER: Record<TicketListQuery['sort'], Prisma.TicketOrderByWithRelationInput[]> = {

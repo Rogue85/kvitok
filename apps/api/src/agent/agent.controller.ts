@@ -19,10 +19,10 @@ import {
   type TicketAgentDto,
 } from '@kvitok/shared';
 import { CurrentAuth, RequireScope } from '../auth/decorators';
-import type { AuthContext } from '../common/request';
+import type { AuthContext, WorkspaceContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { TicketsService } from '../tickets/tickets.service';
-import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
+import { CurrentWorkspace, RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { AgentService } from './agent.service';
 import { DraftsService, toDraftDto } from './drafts.service';
 
@@ -38,14 +38,14 @@ export class AgentController {
 
   @Get('tickets/:ticketId/agent')
   @RequireRole('viewer')
-  ticketAgent(@Param('workspaceId') workspaceId: string, @Param('ticketId') ticketId: string): Promise<TicketAgentDto> {
-    return this.agent.ticketAgent(workspaceId, ticketId);
+  ticketAgent(@CurrentWorkspace() workspace: WorkspaceContext, @Param('ticketId') ticketId: string): Promise<TicketAgentDto> {
+    return this.agent.ticketAgent(workspace, ticketId);
   }
 
   @Get('agent/runs/:runId')
   @RequireRole('viewer')
-  runDetail(@Param('workspaceId') workspaceId: string, @Param('runId') runId: string): Promise<AgentRunDetailDto> {
-    return this.agent.runDetail(workspaceId, runId);
+  runDetail(@CurrentWorkspace() workspace: WorkspaceContext, @Param('runId') runId: string): Promise<AgentRunDetailDto> {
+    return this.agent.runDetail(workspace, runId);
   }
 
   @Get('tickets/:ticketId/customer-links')

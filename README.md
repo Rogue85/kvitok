@@ -93,7 +93,7 @@ The model is anything behind an OpenAI-compatible endpoint with tool calling: Op
 
 <img src="docs/screenshots/agent-settings.webp" alt="Agent settings: the model, the support policy written by the support team and the list of LLM providers">
 
-Routing rules run before and after the agent. They match the channel, the sender and their domain, the subject and body (regular expressions included), source metadata, ticket and customer fields, and the hour and weekday. After the agent they can also use its department, its confidence and whether it asked for a human. Tickets below a confidence threshold go to a triage queue, and a department set by an operator stays fixed.
+Routing rules run before and after the agent. They match the channel, the sender and their domain, the subject and body (regular expressions included), source metadata, ticket and customer fields, and the hour and weekday. After the agent they can also use its department, its confidence and whether it asked for a human. Tickets below a confidence threshold go to a triage queue, and a department set by an operator stays fixed. Operators and viewers can be limited to their departments: they see and work only with those tickets, in the interface, in notifications and over MCP.
 
 <img src="docs/screenshots/rules.webp" alt="Routing rules before and after the agent">
 

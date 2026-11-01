@@ -11,8 +11,9 @@ import {
 } from '@kvitok/shared';
 import { z } from 'zod';
 import { RequireScope } from '../auth/decorators';
+import type { WorkspaceContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
+import { CurrentWorkspace, RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { IdentificationService } from './identification.service';
 
 @Controller('workspaces/:workspaceId/identification')
@@ -55,10 +56,10 @@ export class IdentificationController {
   @HttpCode(200)
   @RequireRole('viewer')
   check(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Body(new ZodValidationPipe(z.object({ ticketId: z.string().min(1) }))) body: { ticketId: string },
   ): Promise<IdentificationCheckDto> {
-    return this.identification.check(workspaceId, body.ticketId);
+    return this.identification.check(workspace, body.ticketId);
   }
 
   @Get('settings')

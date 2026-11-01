@@ -19,6 +19,7 @@ import { buildRuleContext } from '../routing/rule-context';
 import { RuleApplier } from '../routing/rule-applier';
 import { RoutingRulesService } from '../routing/routing-rules.service';
 import { evaluateRules } from '../routing/rules-engine';
+import { recordDepartmentChange } from '../tickets/department-change';
 import { recordEvent } from '../tickets/ticket-events';
 import type { PendingProposal } from './integration-runtime';
 import type { AgentConfigSnapshot } from './config-snapshot.service';
@@ -93,13 +94,8 @@ export class ResultApplier {
         sentToTriage = uncertain && target !== null;
         if (target && target.id !== ticket.departmentId) {
           data.department = { connect: { id: target.id } };
-          await event('department_changed', {
-            from: ticket.departmentId,
-            to: target.id,
-            confidence,
-            reason: routingReason,
-            triage: sentToTriage,
-          });
+          // The agent moves only unassigned tickets, so nobody is unassigned here.
+          await recordDepartmentChange(tx, ticket, target.id, actor, { confidence, reason: routingReason, triage: sentToTriage });
         }
       }
 

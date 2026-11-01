@@ -1,4 +1,4 @@
-import type { ApiTokenScope, AuthUser, WorkspaceRole } from '@kvitok/shared';
+import type { ApiTokenScope, AuthUser, DepartmentScope, WorkspaceRole } from '@kvitok/shared';
 import type { FastifyRequest } from 'fastify';
 
 /** A request authenticated with a personal access token instead of a session. */
@@ -16,9 +16,12 @@ export interface AuthContext {
   token: TokenContext | null;
 }
 
+/** Also a `TicketAccess`: services that read tickets take it as is. */
 export interface WorkspaceContext {
   workspaceId: string;
   role: WorkspaceRole;
+  /** The departments whose tickets the caller may see. */
+  scope: DepartmentScope;
 }
 
 export type AppRequest = FastifyRequest & {

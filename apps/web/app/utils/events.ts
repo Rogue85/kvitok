@@ -64,6 +64,9 @@ export function eventText(event: TicketEventDto, lookups: EventLookups): string 
       return typeof d.confidence === 'number' ? `${text} ${t('events.departmentByAgent', { percent: percent(d.confidence) })}` : text;
     }
     case 'assignee_changed':
+      // Unassigned because the assignee could no longer see the ticket.
+      if (d.reason === 'department_access') return t('events.unassignedNoAccess', { name: member(d.from), department: dept(d.departmentId) });
+      if (d.reason === 'access_removed') return t('events.unassignedAccessRemoved', { name: member(d.from), department: dept(d.departmentId) });
       return t('events.assigneeChanged', { from: member(d.from), to: member(d.to) });
     case 'tags_changed': {
       const added = (d.added as string[]).map((tag) => `+${tag}`);

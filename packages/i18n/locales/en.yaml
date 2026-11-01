@@ -190,6 +190,8 @@ events:
   departmentChanged: "Department: {from} → {to}"
   departmentByAgent: "(agent, {percent}%)"
   assigneeChanged: "Assignee: {from} → {to}"
+  unassignedNoAccess: "{name} was unassigned: no access to {department}"
+  unassignedAccessRemoved: "{name} was unassigned: access to {department} was removed"
   tagsChanged: "Tags: {tags}"
   subjectChanged: "Subject: “{subject}”"
   fieldChanged: "{label}: {from} → {to}"
@@ -262,8 +264,10 @@ validation:
   nothingToChange: Nothing to change
   idsOrFilter: Pass either ids or filter
   tooManyKeys: "At most {max} keys"
+  allDepartmentsWithList: Choose every department or a list, not both
 
 tickets:
+  scopeHint: Only the tickets of your departments are shown
   views:
     open: Open
     pending: Waiting for customer
@@ -340,6 +344,7 @@ tickets:
     more: "and {count} more"
     confirmTitle: Change the tickets?
     confirmText: "The change applies to every ticket matching the filter: {count}."
+    moveOut: "You can't see tickets of {department}: after the move they leave your queue."
     confirm: Change
   searchPlaceholder: "Subject, #T-12, email, phone"
   noCustomer: No customer
@@ -364,7 +369,13 @@ ticket:
   hideProperties: Hide properties
   showProperties: Show properties
   properties: Ticket properties
-  notFound: Ticket not found
+  notFound: Ticket not found or you have no access to it
+  movedAway: "The ticket moved to {department}. You no longer have access to it."
+  departmentNoAccess: no access
+  moveOut:
+    title: Move to a department you can't see?
+    body: "After the move to {department} you will no longer see this ticket."
+    confirm: Move
   answerToAgent: answer to the agent's question
   operator: Operator
   toAgent: "{author} → agent · {time}"
@@ -598,6 +609,22 @@ members:
   chooseUser: Choose a user
   noCandidates: Every user of the installation already has access. Invite a new person instead.
   inviteHint: You will get a link to pass on to the person. With it they set a password and get access to this workspace.
+  departments: Departments
+  allDepartments: All departments
+  selectedDepartments: Selected departments
+  departmentsHint: Operators and viewers see and work only with tickets of these departments. Administrators always see every ticket.
+  unroutedHint: Members of the triage department also see tickets without a department.
+  noDepartmentsWarning: With no departments chosen, the member sees no tickets.
+  archived: archived
+  departmentsTitle: "Departments: {name}"
+  editDepartments: Change departments
+  departmentsSaved: "{name}: departments saved"
+  departmentCount:
+    one: "{count} department"
+    other: "{count} departments"
+  unassignWarning:
+    one: "{count} open ticket assigned to {name} is in a department they will no longer see. It will be unassigned."
+    other: "{count} open tickets assigned to {name} are in departments they will no longer see. They will be unassigned."
 
 tokens:
   intro: A personal access token lets an external agent, such as Claude Code over MCP, work with Kvitok on your behalf. The token has your rights, narrowed down to its scopes and workspace.
@@ -1136,6 +1163,7 @@ analytics:
   days: "{count} days"
   loadFailed: Could not load analytics
   empty: No data for the period
+  scopeHint: Only the tickets of your departments are counted
   table: Table
   chart: Chart
   ticketCount:
@@ -1205,6 +1233,9 @@ api:
   ticketNotFound: Ticket not found
   assigneeMustBeOperator: The assignee must be an operator of the workspace
   assigneeDisabled: The user is disabled and cannot be assigned
+  assigneeNoDepartmentAccess: "{name} has no access to the ticket's department"
+  adminSeesAllDepartments: Administrators always have access to every department
+  unknownDepartments: Unknown department
   fillField: "Fill in “{label}”"
   requiredFieldsBeforeResolve: Fill in the required fields before resolving the ticket
   invalidFilterValue: Invalid filter value
@@ -1245,6 +1276,7 @@ api:
     departmentPinned: department pinned by an operator
     assigneeNotOperator: the assignee is not an operator of the workspace
     assigneeDisabled: the assignee is disabled
+    assigneeNoDepartmentAccess: the assignee has no access to the ticket's department
     assigneeAlreadySet: an assignee is already set
     valueNotFound: value not found
     fieldPinned: field pinned by an operator

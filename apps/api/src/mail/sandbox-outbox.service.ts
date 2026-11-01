@@ -1,12 +1,13 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import type { SandboxEmailDto, SandboxEmailListDto, SandboxEmailListItemDto, SandboxEmailListQuery } from '@kvitok/shared';
+import type { DepartmentScope, SandboxEmailDto, SandboxEmailListDto, SandboxEmailListItemDto, SandboxEmailListQuery } from '@kvitok/shared';
 import { simpleParser, type HeaderValue } from 'mailparser';
 import { createTransport, type SendMailOptions } from 'nodemailer';
 import type { ResolvedMailbox } from '../channels/channel-config';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
+import { ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import type { Message, Prisma, SandboxEmail } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -84,10 +85,12 @@ export class SandboxOutbox {
     return { providerMessageId: info.messageId ?? parsed.messageId ?? null };
   }
 
-  async list(workspaceId: string, channelId: string, query: SandboxEmailListQuery): Promise<SandboxEmailListDto> {
+  async list(access: TicketAccess, channelId: string, query: SandboxEmailListQuery): Promise<SandboxEmailListDto> {
+    const { workspaceId } = access;
     const where: Prisma.SandboxEmailWhereInput = {
       workspaceId,
       channelId,
+      ...outboxScope(access.scope),
       ...(query.ticketId ? { ticketId: query.ticketId } : {}),
       ...(query.address ? { id: { in: await this.idsByAddressPart(workspaceId, channelId, query.address) } } : {}),
     };
@@ -104,9 +107,9 @@ export class SandboxOutbox {
     return { items: rows.map(toListItem), total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(workspaceId: string, channelId: string, id: string): Promise<SandboxEmailDto> {
+  async get(access: TicketAccess, channelId: string, id: string): Promise<SandboxEmailDto> {
     const row = await this.prisma.sandboxEmail.findFirst({
-      where: { id, workspaceId, channelId },
+      where: { id, workspaceId: access.workspaceId, channelId, ...outboxScope(access.scope) },
       select: { ...LIST_SELECT, rfcMessageId: true, inReplyTo: true, references: true, html: true, text: true, headers: true },
     });
     if (row === null) {
@@ -124,8 +127,11 @@ export class SandboxOutbox {
     };
   }
 
-  async raw(workspaceId: string, channelId: string, id: string): Promise<Pick<SandboxEmail, 'raw' | 'subject'>> {
-    const row = await this.prisma.sandboxEmail.findFirst({ where: { id, workspaceId, channelId }, select: { raw: true, subject: true } });
+  async raw(access: TicketAccess, channelId: string, id: string): Promise<Pick<SandboxEmail, 'raw' | 'subject'>> {
+    const row = await this.prisma.sandboxEmail.findFirst({
+      where: { id, workspaceId: access.workspaceId, channelId, ...outboxScope(access.scope) },
+      select: { raw: true, subject: true },
+    });
     if (row === null) {
       throw errors.notFound(t('api.emailNotFound'));
     }
@@ -161,6 +167,11 @@ function headerText(value: HeaderValue | undefined): string | null {
     return `${value.value}${params.join('')}`;
   }
   return null;
+}
+
+/** Emails of tickets the caller may see; an email without a ticket only for those who see every department. */
+function outboxScope(scope: DepartmentScope): Prisma.SandboxEmailWhereInput {
+  return scope.all ? {} : { ticket: { is: ticketScopeWhere(scope) } };
 }
 
 function toListItem(row: ListRow): SandboxEmailListItemDto {

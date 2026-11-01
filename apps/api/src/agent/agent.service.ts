@@ -16,6 +16,7 @@ import {
 import { ActionsService } from '../actions/actions.service';
 import { summarizeUsage } from '../analytics/usage';
 import { errors } from '../common/errors';
+import { systemAccess, ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import { json } from '../common/json';
 import { ConversationService } from '../conversation/conversation.service';
 import type { AgentQuestion } from '../generated/prisma/client';
@@ -106,8 +107,9 @@ export class AgentService {
     return link;
   }
 
-  async ticketAgent(workspaceId: string, ticketId: string): Promise<TicketAgentDto> {
-    const ticket = await this.tickets.get(workspaceId, ticketId);
+  async ticketAgent(access: TicketAccess, ticketId: string): Promise<TicketAgentDto> {
+    const { workspaceId } = access;
+    const ticket = await this.tickets.visible(access, ticketId);
     const [settings, questions, draftState, runs, usage, actions, workspace] = await Promise.all([
       this.settings.get(workspaceId),
       this.prisma.agentQuestion.findMany({ where: { ticketId, status: 'open' }, orderBy: { createdAt: 'asc' } }),
@@ -134,9 +136,10 @@ export class AgentService {
     };
   }
 
-  async runDetail(workspaceId: string, runId: string): Promise<AgentRunDetailDto> {
+  /** A run of a ticket the caller may see: its input and steps hold the whole ticket and the customer's data. */
+  async runDetail(access: TicketAccess, runId: string): Promise<AgentRunDetailDto> {
     const run = await this.prisma.agentRun.findFirst({
-      where: { id: runId, workspaceId },
+      where: { id: runId, workspaceId: access.workspaceId, ticket: ticketScopeWhere(access.scope) },
       include: { configVersion: true, steps: { orderBy: { index: 'asc' } } },
     });
     if (run === null) throw errors.notFound(t('api.runNotFound'));
@@ -175,7 +178,8 @@ export class AgentService {
       dryRun: true,
       override,
     });
-    return { run: await this.runDetail(workspaceId, run.id), result: result ?? null };
+    // Admins only: they see every department.
+    return { run: await this.runDetail(systemAccess(workspaceId), run.id), result: result ?? null };
   }
 
   async promptPreview(workspaceId: string, ticketId: string): Promise<PromptPreviewDto> {

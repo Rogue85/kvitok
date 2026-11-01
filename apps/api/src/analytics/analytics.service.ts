@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { AnalyticsCostRowDto, AnalyticsDayDto, AnalyticsDto, AnalyticsQuery } from '@kvitok/shared';
+import { ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import { PrismaService } from '../prisma/prisma.service';
 import { QualityReportService } from './quality-report.service';
 import { isUnpriced, roundMoney, summarizeUsage } from './usage';
@@ -26,7 +27,10 @@ export class AnalyticsService {
     private readonly quality: QualityReportService,
   ) {}
 
-  async report(workspaceId: string, query: AnalyticsQuery): Promise<AnalyticsDto> {
+  /** Over tickets the caller may see: a member restricted to departments gets the numbers of those departments. */
+  async report(access: TicketAccess, query: AnalyticsQuery): Promise<AnalyticsDto> {
+    const { workspaceId } = access;
+    const scope = ticketScopeWhere(access.scope);
     const zone = new ZonedDays(resolveTimeZone(query.tz));
     const to = new Date();
     const dayKeys = zone.lastDays(query.days, to);
@@ -35,7 +39,7 @@ export class AnalyticsService {
     const [workspace, allRuns, created, resolved, open, quality] = await Promise.all([
       this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { currency: true } }),
       this.prisma.agentRun.findMany({
-        where: { workspaceId, createdAt: { gte: from } },
+        where: { workspaceId, createdAt: { gte: from }, ticket: scope },
         select: {
           ticketId: true,
           dryRun: true,
@@ -52,12 +56,12 @@ export class AnalyticsService {
         },
       }),
       this.prisma.ticket.findMany({
-        where: { workspaceId, createdAt: { gte: from } },
+        where: { workspaceId, createdAt: { gte: from }, ...scope },
         select: { status: true, channelId: true, createdAt: true, firstResponseAt: true },
       }),
-      this.prisma.ticket.findMany({ where: { workspaceId, resolvedAt: { gte: from } }, select: { createdAt: true, resolvedAt: true } }),
-      this.prisma.ticket.count({ where: { workspaceId, status: { in: [...OPEN_STATUSES] } } }),
-      this.quality.report(workspaceId, { days: query.days, from }),
+      this.prisma.ticket.findMany({ where: { workspaceId, resolvedAt: { gte: from }, ...scope }, select: { createdAt: true, resolvedAt: true } }),
+      this.prisma.ticket.count({ where: { workspaceId, status: { in: [...OPEN_STATUSES] }, ...scope } }),
+      this.quality.report(access, { days: query.days, from }),
     ]);
 
     const runs = allRuns.filter((r) => !r.dryRun);

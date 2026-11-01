@@ -1,11 +1,12 @@
 import { t } from '@kvitok/i18n';
 import { Inject, Injectable } from '@nestjs/common';
-import type { MeResponse, SessionDto } from '@kvitok/shared';
+import { ALL_DEPARTMENTS, type MeResponse, type SessionDto } from '@kvitok/shared';
 import { AuditService } from '../audit/audit.service';
 import { APP_CONFIG, type AppConfig } from '../config/env';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import type { AuthContext } from '../common/request';
+import { departmentScopeOf, MEMBERSHIP_DEPARTMENTS } from '../departments/department-access';
 import type { User } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toAuthUser } from '../users/users.service';
@@ -106,8 +107,16 @@ export class AuthService {
   async me(userId: string): Promise<MeResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { memberships: { include: { workspace: true }, orderBy: { createdAt: 'asc' } } },
+      include: { memberships: { include: { workspace: true, ...MEMBERSHIP_DEPARTMENTS }, orderBy: { createdAt: 'asc' } } },
     });
+    const triage = new Map(
+      (
+        await this.prisma.department.findMany({
+          where: { workspaceId: { in: user.memberships.map((m) => m.workspaceId) }, isTriage: true },
+          select: { id: true, workspaceId: true },
+        })
+      ).map((d) => [d.workspaceId, d.id]),
+    );
 
     const workspaces: MeResponse['workspaces'] = user.memberships.map((m) => ({
       workspaceId: m.workspaceId,
@@ -115,6 +124,7 @@ export class AuthService {
       workspaceSlug: m.workspace.slug,
       role: m.role,
       isMember: true,
+      departments: departmentScopeOf(m, triage.get(m.workspaceId) ?? null),
     }));
     if (user.isSuperadmin) {
       // A superadmin works as admin in every workspace, including the ones they are not a member of.
@@ -123,9 +133,19 @@ export class AuthService {
         orderBy: { createdAt: 'asc' },
       });
       for (const workspace of others) {
-        workspaces.push({ workspaceId: workspace.id, workspaceName: workspace.name, workspaceSlug: workspace.slug, role: 'admin', isMember: false });
+        workspaces.push({
+          workspaceId: workspace.id,
+          workspaceName: workspace.name,
+          workspaceSlug: workspace.slug,
+          role: 'admin',
+          isMember: false,
+          departments: ALL_DEPARTMENTS,
+        });
       }
-      for (const workspace of workspaces) workspace.role = 'admin';
+      for (const workspace of workspaces) {
+        workspace.role = 'admin';
+        workspace.departments = ALL_DEPARTMENTS;
+      }
     }
 
     return { user: toAuthUser(user), workspaces };

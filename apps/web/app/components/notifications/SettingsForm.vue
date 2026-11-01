@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { MessageKey } from '@kvitok/i18n';
-import { TICKET_PRIORITIES, type DepartmentDto, type NotificationSettings, type WorkspaceRole } from '@kvitok/shared';
+import { ALL_DEPARTMENTS, canSeeDepartment, TICKET_PRIORITIES, type DepartmentDto, type NotificationSettings, type WorkspaceRole } from '@kvitok/shared';
 
 const props = defineProps<{ workspaceId: string; role: WorkspaceRole }>();
 const toast = useToast();
+const { me } = useAuth();
 
 const { data: loaded, error } = await useAsyncData(`notification-settings:${props.workspaceId}`, () =>
   api<NotificationSettings>(`/workspaces/${props.workspaceId}/notification-settings`),
@@ -27,13 +28,16 @@ const toggleItems = [
 ];
 const priorityItems = TICKET_PRIORITIES.map((value) => ({ value, label: t(`ticketPriority.${value}`) }));
 
+// Only departments whose tickets the member sees: the others never notify them anyway.
+const scope = computed(() => me.value?.workspaces.find((w) => w.workspaceId === props.workspaceId)?.departments ?? ALL_DEPARTMENTS);
+const visible = computed(() => departments.value.filter((d) => canSeeDepartment(scope.value, d.id)));
 const departmentItems = computed(() =>
-  departments.value.filter((d) => !d.archived || form.value?.departmentIds?.includes(d.id)).map((d) => ({ value: d.id, label: d.title })),
+  visible.value.filter((d) => !d.archived || form.value?.departmentIds?.includes(d.id)).map((d) => ({ value: d.id, label: d.title })),
 );
 const allDepartments = computed({
   get: () => form.value?.departmentIds === null,
   set: (all: boolean) => {
-    if (form.value) form.value.departmentIds = all ? null : departments.value.filter((d) => !d.archived).map((d) => d.id);
+    if (form.value) form.value.departmentIds = all ? null : visible.value.filter((d) => !d.archived).map((d) => d.id);
   },
 });
 
@@ -111,7 +115,7 @@ async function save(): Promise<void> {
           <UCheckbox v-model="allDepartments" :label="t('notifications.allDepartments')" />
           <template v-if="form.departmentIds !== null">
             <USelectMenu v-model="form.departmentIds" :items="departmentItems" value-key="value" multiple class="w-full max-w-md" />
-            <UCheckbox v-model="form.noDepartment" :label="t('notifications.noDepartment')" />
+            <UCheckbox v-if="canSeeDepartment(scope, null)" v-model="form.noDepartment" :label="t('notifications.noDepartment')" />
           </template>
         </div>
       </UFormField>

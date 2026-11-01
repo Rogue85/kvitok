@@ -9,8 +9,9 @@ import {
 } from '@kvitok/shared';
 import { z } from 'zod';
 import { RequireScope } from '../auth/decorators';
+import type { WorkspaceContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
+import { CurrentWorkspace, RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { RoutingRulesService } from './routing-rules.service';
 
 @Controller('workspaces/:workspaceId/routing-rules')
@@ -38,10 +39,10 @@ export class RoutingController {
   @HttpCode(200)
   @RequireRole('viewer')
   test(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Body(new ZodValidationPipe(z.object({ ticketId: z.string().min(1) }))) body: { ticketId: string },
   ): Promise<RuleTestResultDto[]> {
-    return this.rules.test(workspaceId, body.ticketId);
+    return this.rules.test(workspace, body.ticketId);
   }
 
   @Patch(':ruleId')

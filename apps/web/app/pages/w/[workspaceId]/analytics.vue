@@ -4,7 +4,7 @@ import type { BreakdownRow } from '~/components/analytics/BreakdownList.vue';
 
 const route = useRoute();
 const router = useRouter();
-const { workspaceId } = useWorkspace();
+const { workspaceId, scope } = useWorkspace();
 const { departmentById, channels } = useWorkspaceData();
 
 const days = ref<number>(ANALYTICS_PERIODS.find((p) => p === Number(route.query.days)) ?? 30);
@@ -108,6 +108,9 @@ const actions = computed<BreakdownRow[]>(() => {
     <template #header>
       <UDashboardNavbar :title="t('nav.analytics')">
         <template #right>
+          <UTooltip v-if="!scope.all" :text="t('analytics.scopeHint')">
+            <UIcon name="i-lucide-building-2" class="size-4 text-(--ui-text-muted)" :aria-label="t('analytics.scopeHint')" />
+          </UTooltip>
           <UTabs v-model="days" :items="periodItems" :content="false" size="xs" />
         </template>
       </UDashboardNavbar>

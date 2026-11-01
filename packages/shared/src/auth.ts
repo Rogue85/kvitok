@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { DepartmentScope } from './department-access.js';
 import { WorkspaceRoleSchema } from './roles.js';
 
 export const EmailSchema = z.string().trim().toLowerCase().pipe(z.email());
@@ -28,5 +29,7 @@ export interface MeResponse {
     role: z.infer<typeof WorkspaceRoleSchema>;
     /** False when a superadmin opens a workspace without being its member. */
     isMember: boolean;
+    /** Tickets of which departments the user may see. */
+    departments: DepartmentScope;
   }>;
 }

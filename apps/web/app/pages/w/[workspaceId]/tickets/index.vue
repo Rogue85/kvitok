@@ -21,7 +21,7 @@ import {
 
 const route = useRoute();
 const router = useRouter();
-const { workspaceId, can } = useWorkspace();
+const { workspaceId, can, scope, canSee } = useWorkspace();
 const { departments, members, channels, departmentById, memberById, ticketFields } = useWorkspaceData();
 
 /** Where the queue's last state in this workspace is kept, for the next time it opens without a query. */
@@ -160,9 +160,10 @@ const filterDefs = computed<TicketFilterDef[]>(() => [
     label: t('tickets.columns.department'),
     icon: 'i-lucide-building-2',
     kind: 'options',
+    // Only the departments whose tickets the user sees.
     options: [
-      { label: t('tickets.filters.noDepartment'), value: 'none' },
-      ...departments.data.value.filter((d) => !d.archived).map((d) => ({ label: d.title, value: d.id })),
+      ...(canSee(null) ? [{ label: t('tickets.filters.noDepartment'), value: 'none' }] : []),
+      ...departments.data.value.filter((d) => !d.archived && canSee(d.id)).map((d) => ({ label: d.title, value: d.id })),
     ],
   },
   {
@@ -325,6 +326,9 @@ function open(row: TicketListRowDto): void {
     <template #header>
       <UDashboardNavbar :title="t('nav.tickets')">
         <template #right>
+          <UTooltip v-if="!scope.all" :text="t('tickets.scopeHint')">
+            <UIcon name="i-lucide-building-2" class="size-4 text-(--ui-text-muted)" :aria-label="t('tickets.scopeHint')" />
+          </UTooltip>
           <UInput v-model="search" icon="i-lucide-search" :placeholder="t('tickets.searchPlaceholder')" class="w-72" />
         </template>
       </UDashboardNavbar>

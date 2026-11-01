@@ -189,6 +189,8 @@ events:
   departmentChanged: "Отдел: {from} → {to}"
   departmentByAgent: "(агент, {percent}%)"
   assigneeChanged: "Исполнитель: {from} → {to}"
+  unassignedNoAccess: "Назначение {name} снято: нет доступа к отделу «{department}»"
+  unassignedAccessRemoved: "Назначение {name} снято: доступ к отделу «{department}» отозван"
   tagsChanged: "Теги: {tags}"
   subjectChanged: "Тема: «{subject}»"
   fieldChanged: "{label}: {from} → {to}"
@@ -263,8 +265,10 @@ validation:
   nothingToChange: Нечего менять
   idsOrFilter: Передайте либо ids, либо filter
   tooManyKeys: "Не больше {max} ключей"
+  allDepartmentsWithList: Выберите все отделы или список, но не то и другое
 
 tickets:
+  scopeHint: Показаны только тикеты ваших отделов
   views:
     open: Открытые
     pending: Ждём клиента
@@ -343,6 +347,7 @@ tickets:
     more: "и ещё {count}"
     confirmTitle: Изменить тикеты?
     confirmText: "Изменение коснётся всех тикетов по фильтру: {count}."
+    moveOut: "Тикеты отдела «{department}» вам не видны: после перемещения они пропадут из вашей очереди."
     confirm: Изменить
   searchPlaceholder: "Тема, #T-12, email, телефон"
   noCustomer: Без клиента
@@ -367,7 +372,13 @@ ticket:
   hideProperties: Скрыть свойства
   showProperties: Показать свойства
   properties: Свойства тикета
-  notFound: Тикет не найден
+  notFound: Тикет не найден или у вас нет к нему доступа
+  movedAway: "Тикет перемещён в отдел «{department}». У вас больше нет к нему доступа."
+  departmentNoAccess: нет доступа
+  moveOut:
+    title: Переместить в отдел, к которому у вас нет доступа?
+    body: "После перемещения в отдел «{department}» вы перестанете видеть этот тикет."
+    confirm: Переместить
   answerToAgent: ответ на вопрос агента
   operator: Оператор
   toAgent: "{author} → агенту · {time}"
@@ -605,6 +616,26 @@ members:
   chooseUser: Выберите пользователя
   noCandidates: У всех пользователей установки уже есть доступ. Пригласите нового человека.
   inviteHint: Вы получите ссылку, которую нужно передать человеку. По ней он задаст пароль и получит доступ к этому workspace.
+  departments: Отделы
+  allDepartments: Все отделы
+  selectedDepartments: Выбранные отделы
+  departmentsHint: Операторы и наблюдатели видят и обрабатывают только тикеты этих отделов. Администраторы видят все тикеты.
+  unroutedHint: Участники отдела сортировки видят и тикеты без отдела.
+  noDepartmentsWarning: Без выбранных отделов участник не увидит ни одного тикета.
+  archived: в архиве
+  departmentsTitle: "Отделы: {name}"
+  editDepartments: Изменить отделы
+  departmentsSaved: "{name}: отделы сохранены"
+  departmentCount:
+    one: "{count} отдел"
+    few: "{count} отдела"
+    many: "{count} отделов"
+    other: "{count} отдела"
+  unassignWarning:
+    one: "Назначение будет снято с {count} открытого тикета: он в отделе, к которому у {name} не будет доступа."
+    few: "Назначение будет снято с {count} открытых тикетов: они в отделах, к которым у {name} не будет доступа."
+    many: "Назначение будет снято с {count} открытых тикетов: они в отделах, к которым у {name} не будет доступа."
+    other: "Назначение будет снято с {count} открытого тикета: они в отделах, к которым у {name} не будет доступа."
 
 tokens:
   intro: Персональный токен доступа позволяет внешнему агенту, например Claude Code через MCP, работать с Kvitok от вашего имени. У токена ваши права, сужённые до его скоупов и workspace.
@@ -1145,6 +1176,7 @@ analytics:
   days: "{count} дней"
   loadFailed: Не удалось загрузить аналитику
   empty: Нет данных за период
+  scopeHint: Учтены только тикеты ваших отделов
   table: Таблица
   chart: График
   ticketCount:
@@ -1222,6 +1254,9 @@ api:
   ticketNotFound: Тикет не найден
   assigneeMustBeOperator: Исполнитель должен быть оператором workspace
   assigneeDisabled: Пользователь отключён, его нельзя назначить
+  assigneeNoDepartmentAccess: "У {name} нет доступа к отделу тикета"
+  adminSeesAllDepartments: Администраторы всегда имеют доступ ко всем отделам
+  unknownDepartments: Неизвестный отдел
   fillField: "Заполните «{label}»"
   requiredFieldsBeforeResolve: Перед решением тикета заполните обязательные поля
   invalidFilterValue: Некорректное значение фильтра
@@ -1262,6 +1297,7 @@ api:
     departmentPinned: отдел закреплён оператором
     assigneeNotOperator: исполнитель не оператор workspace
     assigneeDisabled: исполнитель отключён
+    assigneeNoDepartmentAccess: у исполнителя нет доступа к отделу тикета
     assigneeAlreadySet: исполнитель уже назначен
     valueNotFound: значение не найдено
     fieldPinned: поле закреплено оператором

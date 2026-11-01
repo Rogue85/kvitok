@@ -2,8 +2,10 @@ import { t } from '@kvitok/i18n';
 import { Controller, Get, Param, Res, UseGuards } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { errors } from '../common/errors';
+import type { WorkspaceContext } from '../common/request';
+import { ticketScopeWhere } from '../departments/department-access';
 import { PrismaService } from '../prisma/prisma.service';
-import { WorkspaceGuard } from '../workspaces/workspace.guard';
+import { CurrentWorkspace, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { StorageService } from './storage.service';
 
 @Controller('workspaces/:workspaceId/attachments')
@@ -16,11 +18,18 @@ export class AttachmentsController {
 
   @Get(':attachmentId')
   async download(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Param('attachmentId') attachmentId: string,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    const attachment = await this.prisma.attachment.findFirst({ where: { id: attachmentId, workspaceId } });
+    // A file of a ticket the caller may see; one without a message only for those who see every department.
+    const attachment = await this.prisma.attachment.findFirst({
+      where: {
+        id: attachmentId,
+        workspaceId: workspace.workspaceId,
+        ...(workspace.scope.all ? {} : { message: { is: { ticket: ticketScopeWhere(workspace.scope) } } }),
+      },
+    });
     if (attachment === null) {
       throw errors.notFound(t('api.attachmentNotFound'));
     }

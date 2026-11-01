@@ -1,12 +1,13 @@
 import { HttpException, Logger } from '@nestjs/common';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { roleSatisfies, type ApiTokenScope, type ApiErrorBody, type WorkspaceRole } from '@kvitok/shared';
+import { ALL_DEPARTMENTS, roleSatisfies, type ApiTokenScope, type ApiErrorBody, type WorkspaceRole } from '@kvitok/shared';
 import { z } from 'zod';
 import { errors } from '../common/errors';
 import type { AuthContext } from '../common/request';
+import type { TicketAccess } from '../departments/department-access';
 import type { PrismaService } from '../prisma/prisma.service';
-import { workspaceRole } from '../workspaces/workspace.guard';
+import { workspaceAccess } from '../workspaces/workspace.guard';
 import type { WorkspacesService } from '../workspaces/workspaces.service';
 
 /** An error meant for the external agent: the message says what to do instead. */
@@ -30,14 +31,17 @@ export class McpCallContext {
     return this.scopes.includes(scope);
   }
 
-  /** The workspace of the call: the requested one, the token's one or the user's only one; the role is checked. */
-  async workspace(requested: string | undefined, required: WorkspaceRole): Promise<string> {
+  /**
+   * The workspace of the call: the requested one, the token's one or the user's only one; the role is checked.
+   * Comes with the departments the user may see.
+   */
+  async workspace(requested: string | undefined, required: WorkspaceRole): Promise<TicketAccess> {
     const workspaceId = requested ?? this.auth.token?.workspaceId ?? (await this.onlyWorkspace());
-    const role = await workspaceRole(this.prisma, this.auth, workspaceId);
+    const { role, scope } = await workspaceAccess(this.prisma, this.auth, workspaceId);
     if (!roleSatisfies(role, required)) {
       throw errors.forbidden();
     }
-    return workspaceId;
+    return { workspaceId, scope };
   }
 
   private async onlyWorkspace(): Promise<string> {
@@ -51,6 +55,8 @@ export interface ToolRun {
   call: McpCallContext;
   /** Empty for tools that do not work inside a workspace. */
   workspaceId: string;
+  /** The workspace and the departments whose tickets the user may see; every department for tools outside a workspace. */
+  access: TicketAccess;
 }
 
 export interface ToolSpec<S extends z.ZodObject = z.ZodObject> {
@@ -101,8 +107,8 @@ export function registerTools(server: McpServer, call: McpCallContext, specs: To
       },
       async (args: Record<string, unknown>): Promise<CallToolResult> => {
         try {
-          const workspaceId = spec.role === null ? '' : await call.workspace(args.workspaceId as string | undefined, spec.role);
-          return ok(await spec.run(args as never, { call, workspaceId }));
+          const access = spec.role === null ? { workspaceId: '', scope: ALL_DEPARTMENTS } : await call.workspace(args.workspaceId as string | undefined, spec.role);
+          return ok(await spec.run(args as never, { call, workspaceId: access.workspaceId, access }));
         } catch (error) {
           return fail(spec.name, error);
         }

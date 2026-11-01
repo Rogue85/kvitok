@@ -3,6 +3,7 @@ import {
   WORKSPACE_ROLES,
   type AddMemberResult,
   type MemberCandidateDto,
+  type MemberDepartmentsInput,
   type MemberDto,
   type PasswordLinkDto,
   type WorkspaceRole,
@@ -16,6 +17,7 @@ const toast = useToast();
 const { me } = useAuth();
 const { workspaceId, can } = useWorkspace();
 const isAdmin = computed(() => can('admin'));
+const { departments, departmentById } = useWorkspaceData();
 
 const { data: members, refresh, status } = await useAsyncData(
   () => `members:${workspaceId.value}`,
@@ -27,8 +29,37 @@ const columns: TableColumn<MemberDto>[] = [
   { accessorKey: 'name', header: t('members.name') },
   { accessorKey: 'email', header: 'Email' },
   { accessorKey: 'role', header: t('members.roleColumn') },
+  { id: 'departments', header: t('members.departments') },
   { id: 'actions', header: '' },
 ];
+
+/** The member's departments in a cell: every one, a few titles or how many. */
+function departmentsLabel(member: MemberDto): string {
+  if (member.role === 'admin' || member.departments.allDepartments) return t('members.allDepartments');
+  const titles = member.departments.departmentIds.map((id) => departmentById.value.get(id)?.title ?? '—');
+  return titles.length > 0 && titles.length <= 3 ? titles.join(', ') : tp('members.departmentCount', titles.length);
+}
+
+const ALL: MemberDepartmentsInput = { allDepartments: true, departmentIds: [] };
+const editingDepartments = ref<MemberDto | null>(null);
+const departmentsDraft = ref<MemberDepartmentsInput>(ALL);
+
+function editDepartments(member: MemberDto): void {
+  departmentsDraft.value = { ...member.departments };
+  editingDepartments.value = member;
+}
+
+async function saveDepartments(): Promise<void> {
+  const member = editingDepartments.value!;
+  try {
+    await api(`/workspaces/${workspaceId.value}/members/${member.userId}`, { method: 'PATCH', body: { departments: departmentsDraft.value } });
+    toast.add({ color: 'success', title: t('members.departmentsSaved', { name: member.name }) });
+    editingDepartments.value = null;
+  } catch (error) {
+    notifyError(error);
+  }
+  await refresh();
+}
 
 function notifyError(error: unknown): void {
   toast.add({ color: 'error', title: error instanceof ApiError ? error.message : t('common.error') });
@@ -74,11 +105,12 @@ const modeItems = [
   { label: t('members.existing'), value: 'existing' },
   { label: t('members.inviteNew'), value: 'invite' },
 ];
-const addState = reactive<{ userId: string | undefined; email: string; name: string; role: WorkspaceRole }>({
+const addState = reactive<{ userId: string | undefined; email: string; name: string; role: WorkspaceRole; departments: MemberDepartmentsInput }>({
   userId: undefined,
   email: '',
   name: '',
   role: 'operator',
+  departments: ALL,
 });
 const addError = ref<string | null>(null);
 const candidates = ref<MemberCandidateDto[]>([]);
@@ -91,7 +123,7 @@ const candidateItems = computed(() =>
 );
 
 async function startAdd(): Promise<void> {
-  Object.assign(addState, { userId: undefined, email: '', name: '', role: 'operator' });
+  Object.assign(addState, { userId: undefined, email: '', name: '', role: 'operator', departments: ALL });
   addError.value = null;
   try {
     candidates.value = await api<MemberCandidateDto[]>(`/workspaces/${workspaceId.value}/members/candidates`);
@@ -109,10 +141,10 @@ const canAdd = computed(() =>
 
 async function onAdd(): Promise<void> {
   addError.value = null;
+  // Administrators always have every department.
+  const access = { role: addState.role, ...(addState.role === 'admin' ? {} : { departments: addState.departments }) };
   const body =
-    addMode.value === 'existing'
-      ? { userId: addState.userId, role: addState.role }
-      : { email: addState.email, name: addState.name, role: addState.role };
+    addMode.value === 'existing' ? { userId: addState.userId, ...access } : { email: addState.email, name: addState.name, ...access };
   try {
     const result = await api<AddMemberResult>(`/workspaces/${workspaceId.value}/members`, { method: 'POST', body });
     addOpen.value = false;
@@ -157,6 +189,18 @@ async function onAdd(): Promise<void> {
           />
           <UBadge v-else variant="subtle" color="neutral">{{ roleLabel(row.original.role) }}</UBadge>
         </template>
+        <template #departments-cell="{ row }">
+          <UButton
+            v-if="isAdmin && row.original.role !== 'admin'"
+            :label="departmentsLabel(row.original)"
+            color="neutral"
+            variant="ghost"
+            trailing-icon="i-lucide-pencil"
+            :aria-label="t('members.editDepartments')"
+            @click="editDepartments(row.original)"
+          />
+          <span v-else class="text-sm" :class="{ 'text-(--ui-text-muted)': row.original.role === 'admin' }">{{ departmentsLabel(row.original) }}</span>
+        </template>
         <template #actions-cell="{ row }">
           <div v-if="isAdmin && row.original.userId !== me?.user.id" class="flex justify-end gap-1">
             <UButton
@@ -200,6 +244,9 @@ async function onAdd(): Promise<void> {
             <UFormField :label="t('members.roleColumn')">
               <USelect v-model="addState.role" :items="roleItems" class="w-full" />
             </UFormField>
+            <UFormField v-if="addState.role !== 'admin'" :label="t('members.departments')">
+              <MembersDepartmentsField v-model="addState.departments" :departments="departments.data.value" :workspace-id="workspaceId" />
+            </UFormField>
             <UAlert v-if="addError" color="error" variant="subtle" :title="addError" />
           </form>
         </template>
@@ -208,6 +255,26 @@ async function onAdd(): Promise<void> {
           <UButton type="submit" form="add-member" :disabled="!canAdd">
             {{ addMode === 'existing' ? t('common.add') : t('users.invite') }}
           </UButton>
+        </template>
+      </UModal>
+
+      <UModal
+        :open="editingDepartments !== null"
+        :title="t('members.departmentsTitle', { name: editingDepartments?.name ?? '' })"
+        @update:open="(open: boolean) => !open && (editingDepartments = null)"
+      >
+        <template #body>
+          <MembersDepartmentsField
+            v-if="editingDepartments"
+            v-model="departmentsDraft"
+            :departments="departments.data.value"
+            :workspace-id="workspaceId"
+            :member="{ userId: editingDepartments.userId, name: editingDepartments.name }"
+          />
+        </template>
+        <template #footer>
+          <UButton color="neutral" variant="ghost" @click="editingDepartments = null">{{ t('common.cancel') }}</UButton>
+          <UButton @click="saveDepartments">{{ t('common.save') }}</UButton>
         </template>
       </UModal>
 

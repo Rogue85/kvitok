@@ -6,8 +6,9 @@ import { AGENT_QUEUE } from '../../src/agent/agent.constants';
 import { ConfigSnapshotService } from '../../src/agent/config-snapshot.service';
 import type { LlmClient } from '../../src/llm/llm.types';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { RealtimeService } from '../../src/realtime/realtime.service';
 import { createAgentHarness, type AgentHarness } from '../agent-harness';
-import { createApiChannel, createTestApp, ingest, resetDb, setupWorkspace, type TestApiChannel } from '../helpers';
+import { createApiChannel, createTestApp, createUser, ingest, resetDb, setupWorkspace, type TestApiChannel } from '../helpers';
 import { result, ScriptedLlm, toolCall } from '../support/scripted-llm';
 
 describe('agent', () => {
@@ -503,6 +504,34 @@ describe('agent', () => {
         priority: 'high',
         fields: { dept_number: 214 },
       });
+    });
+
+    it('a move by the agent or a rule reaches both departments, and an assignee who cannot see the new one is unassigned', async () => {
+      const { channel, http, base, workspaceId, departments } = await setup();
+      await http.post(`${base}/routing-rules`, {
+        name: 'Склад по номеру отдела',
+        stage: 'after_agent',
+        conditions: { field: 'fields.dept_number', op: 'between', value: [200, 299] },
+        effects: [{ type: 'set_department', departmentKey: 'it' }],
+      });
+      const operator = await createUser(app);
+      await http.post(`${base}/members`, { userId: operator.id, role: 'operator', departments: { allDepartments: false, departmentIds: [departments.loyalty.id] } });
+      const created = await newTicket(channel);
+      // Routed but not pinned by an operator, so the rule may move it.
+      await prisma.ticket.update({ where: { id: created.ticket_id }, data: { departmentId: departments.loyalty.id } });
+      await http.patch(`${base}/tickets/${created.ticket_id}`, { assigneeId: operator.id });
+      await http.post(`${base}/tickets/${created.ticket_id}/agent/run`, { mode: 'refine' });
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty', fields: { dept_number: { value: 214, confidence: 0.99, evidence: 'отдел 214' } } }))]));
+      const publish = vi.spyOn(agent.context.get(RealtimeService), 'publish');
+
+      await processQueued(created.ticket_id);
+
+      expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({ departmentId: departments.it.id, assigneeId: null });
+      expect(publish).toHaveBeenCalledWith(workspaceId, { type: 'ticket.moved', ticketId: created.ticket_id, from: departments.loyalty.id, to: departments.it.id });
+      expect(await prisma.ticketEvent.findFirst({ where: { ticketId: created.ticket_id, type: 'assignee_changed', actorType: 'rule' } })).toMatchObject({
+        data: { from: operator.id, to: null, reason: 'department_access', departmentId: departments.it.id, rule: 'Склад по номеру отдела', stage: 'after_agent' },
+      });
+      publish.mockRestore();
     });
 
     it('checking rules on a ticket shows matches without applying them', async () => {

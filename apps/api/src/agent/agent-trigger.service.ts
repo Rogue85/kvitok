@@ -86,9 +86,11 @@ export class AgentTriggerService {
   }
 }
 
-export async function lockTicket(tx: Prisma.TransactionClient, ticketId: string): Promise<LockedRow & { revision: number; agent_rerun_pending: boolean }> {
-  const rows = await tx.$queryRaw<Array<LockedRow & { revision: number; agent_rerun_pending: boolean }>>`
-    SELECT workspace_id, agent_state::text AS agent_state, agent_job_id, agent_pending, revision, agent_rerun_pending
+type LockedTicket = LockedRow & { revision: number; agent_rerun_pending: boolean; department_id: string | null };
+
+export async function lockTicket(tx: Prisma.TransactionClient, ticketId: string): Promise<LockedTicket> {
+  const rows = await tx.$queryRaw<LockedTicket[]>`
+    SELECT workspace_id, agent_state::text AS agent_state, agent_job_id, agent_pending, revision, agent_rerun_pending, department_id
     FROM tickets WHERE id = ${ticketId} FOR UPDATE`;
   const row = rows[0];
   if (row === undefined) {

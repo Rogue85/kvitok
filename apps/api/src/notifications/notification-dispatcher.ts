@@ -1,7 +1,7 @@
 import { t, tp } from '@kvitok/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import { notificationSettings } from '@kvitok/shared';
-import { accessibleDepartments } from '../departments/department-access';
+import { departmentScopeOf, MEMBERSHIP_DEPARTMENTS, triageDepartmentId } from '../departments/department-access';
 import type { Department, Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { wants, type NotificationKind, type Recipient, type TicketFacts } from './notification-rules';
@@ -39,10 +39,13 @@ export class NotificationDispatcher {
     const context = await this.context(data, ticket);
     if (context === null) return 0;
 
-    const members = await this.prisma.membership.findMany({
-      where: { workspaceId: data.workspaceId, user: { disabledAt: null }, ...(data.actorId ? { userId: { not: data.actorId } } : {}) },
-      select: { userId: true, role: true, notificationSettings: true },
-    });
+    const [members, triageId] = await Promise.all([
+      this.prisma.membership.findMany({
+        where: { workspaceId: data.workspaceId, user: { disabledAt: null }, ...(data.actorId ? { userId: { not: data.actorId } } : {}) },
+        select: { userId: true, role: true, allDepartments: true, notificationSettings: true, ...MEMBERSHIP_DEPARTMENTS },
+      }),
+      triageDepartmentId(this.prisma, data.workspaceId),
+    ]);
     const ids = members.map((m) => m.userId);
     const reachable = new Set<string>();
     for (const channel of this.channels) {
@@ -57,7 +60,7 @@ export class NotificationDispatcher {
         userId: member.userId,
         role: member.role,
         settings: notificationSettings(member.notificationSettings),
-        departments: accessibleDepartments(member),
+        departments: departmentScopeOf(member, triageId),
       };
       const kind = pickKind(data, recipient, context.facts);
       if (kind === null) continue;

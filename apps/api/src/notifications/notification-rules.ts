@@ -1,4 +1,4 @@
-import { TICKET_PRIORITIES, type NotificationSettings, type TicketPriority, type WorkspaceRole } from '@kvitok/shared';
+import { canSeeDepartment, TICKET_PRIORITIES, type DepartmentScope, type NotificationSettings, type TicketPriority, type WorkspaceRole } from '@kvitok/shared';
 
 export type NotificationKind = 'ticket_created' | 'assigned' | 'customer_message' | 'agent_needs_operator' | 'delivery_failed' | 'agent_failed';
 
@@ -6,8 +6,8 @@ export interface Recipient {
   userId: string;
   role: WorkspaceRole;
   settings: NotificationSettings;
-  /** From `accessibleDepartments`: null — every department. */
-  departments: ReadonlySet<string> | null;
+  /** The departments the member may see (`departmentScopeOf`). */
+  departments: DepartmentScope;
 }
 
 export interface TicketFacts {
@@ -24,7 +24,7 @@ export interface TicketFacts {
  */
 export function wants(recipient: Recipient, kind: NotificationKind, ticket: TicketFacts): boolean {
   const { settings, userId } = recipient;
-  if (recipient.departments !== null && ticket.departmentId !== null && !recipient.departments.has(ticket.departmentId)) {
+  if (!canSeeDepartment(recipient.departments, ticket.departmentId)) {
     return false;
   }
   const mine = ticket.assigneeId === userId;

@@ -7,6 +7,12 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 ### Added
 
 - Web push notifications for operators. In Notifications (the bell next to the profile) each person turns them on per browser or device and chooses, per workspace, which events reach them: new tickets, assignments, customer messages, questions and proposals of the agent, undelivered replies and, for admins, agent failures. Each event can cover their own tickets, unassigned ones or all, and tickets of others can be narrowed by department and priority. A new ticket or customer message waits up to 45 seconds for the agent's analysis, so the notification shows the department and the summary; messages during the wait join one notification. The page checks the current device step by step (HTTPS, browser support, the Home Screen on iPhone and iPad, the permission) and says how to fix what fails. Signing out on a device stops its notifications. Push needs HTTPS; the VAPID keys are generated on first use, or set with `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`.
+- Department access: an admin can limit an operator or a viewer to chosen departments in Settings → Members, when adding them, and a superadmin in Administration → Users. Such a member sees and works only with tickets of those departments: in the queue, search, the ticket page, live updates, analytics, the test mailbox outbox, notifications and over MCP with their access token. Members of the triage department also see tickets without a department. Only a member who sees a ticket's department can be its assignee: a ticket moved to a department its assignee cannot see is unassigned, and so are a member's open tickets in departments they lose. An operator can still hand a ticket over to a department they cannot see, after a confirmation. Existing members keep every department, and admins always see everything.
+- For the API: the members API, `PUT /api/admin/users/:id/memberships/:workspaceId` and `/api/auth/me` carry each member's departments; the event stream `/api/workspaces/:id/events` sends only events of tickets the user may see, plus `ticket.moved` when a ticket changes department and `access.changed` when the user's own access changes. A ticket outside the caller's departments answers 404, like a missing one.
+
+### Changed
+
+- The MCP `get_prompt_preview` tool needs the admin role, like the prompt preview in the interface: it shows the whole ticket and reads the customer's data from the backend.
 
 ## [0.2.0] - 2026-11-01
 

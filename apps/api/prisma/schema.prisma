@@ -162,19 +162,36 @@ model Workspace {
 }
 
 model Membership {
-  workspaceId          String        @map("workspace_id")
-  workspace            Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  userId               String        @map("user_id")
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId          String                 @map("workspace_id")
+  workspace            Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId               String                 @map("user_id")
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   role                 WorkspaceRole
+  /// True: every department, present and future, and tickets without one. False: only `departments`. Always true for admins (a check constraint).
+  allDepartments       Boolean                @default(true) @map("all_departments")
+  departments          MembershipDepartment[]
   /// What the member gets notified about in this workspace (NotificationSettingsSchema); null — the defaults.
-  notificationSettings Json?         @map("notification_settings")
-  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  notificationSettings Json?                  @map("notification_settings")
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz
 
   @@id([workspaceId, userId])
   @@index([userId])
   @@map("memberships")
+}
+
+/// A department a restricted member may see (`Membership.allDepartments = false`). The foreign keys keep it within one workspace.
+model MembershipDepartment {
+  workspaceId  String     @map("workspace_id")
+  userId       String     @map("user_id")
+  membership   Membership @relation(fields: [workspaceId, userId], references: [workspaceId, userId], onDelete: Cascade)
+  departmentId String     @map("department_id")
+  department   Department @relation(fields: [departmentId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([workspaceId, userId, departmentId])
+  @@index([departmentId])
+  @@map("membership_departments")
 }
 
 enum ChannelType {
@@ -267,22 +284,25 @@ enum FieldFillMode {
 }
 
 model Department {
-  id           String    @id
-  workspaceId  String    @map("workspace_id")
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id           String                 @id
+  workspaceId  String                 @map("workspace_id")
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   key          String
   title        String
   /// Description for routing by the agent.
-  description  String    @default("")
-  examples     String[]  @default([])
-  instructions String    @default("")
-  isTriage     Boolean   @default(false) @map("is_triage")
-  archivedAt   DateTime? @map("archived_at") @db.Timestamptz
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  description  String                 @default("")
+  examples     String[]               @default([])
+  instructions String                 @default("")
+  isTriage     Boolean                @default(false) @map("is_triage")
+  archivedAt   DateTime?              @map("archived_at") @db.Timestamptz
+  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime               @updatedAt @map("updated_at") @db.Timestamptz
   tickets      Ticket[]
+  members      MembershipDepartment[]
 
   @@unique([workspaceId, key])
+  /// The target of the composite foreign key from membership_departments.
+  @@unique([id, workspaceId])
   @@map("departments")
 }
 

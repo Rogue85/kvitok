@@ -10,8 +10,9 @@ import type { FastifyReply } from 'fastify';
 import { emailConfig, isSandboxMailbox } from '../channels/channel-config';
 import { ChannelsService } from '../channels/channels.service';
 import { errors } from '../common/errors';
+import type { WorkspaceContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
+import { CurrentWorkspace, RequireRole, WorkspaceGuard } from '../workspaces/workspace.guard';
 import { SandboxOutbox } from './sandbox-outbox.service';
 
 /** Outbox of a test mailbox: what would have been emailed and to whom. */
@@ -26,33 +27,33 @@ export class SandboxOutboxController {
 
   @Get()
   async list(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Param('channelId') channelId: string,
     @Query(new ZodValidationPipe(SandboxEmailListQuerySchema)) query: SandboxEmailListQuery,
   ): Promise<SandboxEmailListDto> {
-    await this.assertSandbox(workspaceId, channelId);
-    return this.outbox.list(workspaceId, channelId, query);
+    await this.assertSandbox(workspace.workspaceId, channelId);
+    return this.outbox.list(workspace, channelId, query);
   }
 
   @Get(':emailId')
   async get(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Param('channelId') channelId: string,
     @Param('emailId') emailId: string,
   ): Promise<SandboxEmailDto> {
-    await this.assertSandbox(workspaceId, channelId);
-    return this.outbox.get(workspaceId, channelId, emailId);
+    await this.assertSandbox(workspace.workspaceId, channelId);
+    return this.outbox.get(workspace, channelId, emailId);
   }
 
   @Get(':emailId/raw')
   async raw(
-    @Param('workspaceId') workspaceId: string,
+    @CurrentWorkspace() workspace: WorkspaceContext,
     @Param('channelId') channelId: string,
     @Param('emailId') emailId: string,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    await this.assertSandbox(workspaceId, channelId);
-    const email = await this.outbox.raw(workspaceId, channelId, emailId);
+    await this.assertSandbox(workspace.workspaceId, channelId);
+    const email = await this.outbox.raw(workspace, channelId, emailId);
     const filename = `${email.subject.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 100) || 'letter'}.eml`;
     await reply
       .header('content-type', 'message/rfc822')

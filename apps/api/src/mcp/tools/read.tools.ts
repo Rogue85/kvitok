@@ -11,6 +11,7 @@ import { PlaybooksService } from '../../agent/playbooks.service';
 import { AuditService } from '../../audit/audit.service';
 import { ChannelsService } from '../../channels/channels.service';
 import { errors } from '../../common/errors';
+import { ticketScopeWhere, type TicketAccess } from '../../departments/department-access';
 import { DepartmentsService } from '../../departments/departments.service';
 import { FieldsService } from '../../fields/fields.service';
 import { IdentificationService } from '../../identification/identification.service';
@@ -164,11 +165,11 @@ export class ReadTools {
         scope: 'read',
         role: 'viewer',
         readOnly: true,
-        run: async (args, { workspaceId, call }) => {
+        run: async (args, { workspaceId, access, call }) => {
           const departments = await this.departments.list(workspaceId);
           const departmentId = args.department === undefined || args.department === 'none' ? args.department : departmentByKey(departments, args.department).id;
           const list = await this.tickets.list(
-            workspaceId,
+            access,
             TicketListQuerySchema.parse({
               status: args.status,
               departmentId: departmentId === undefined ? undefined : [departmentId],
@@ -212,12 +213,12 @@ export class ReadTools {
         scope: 'read',
         role: 'viewer',
         readOnly: true,
-        run: async (args, { workspaceId }) => {
-          const ticketId = await this.ticketId(workspaceId, args);
+        run: async (args, { workspaceId, access }) => {
+          const ticketId = await this.ticketId(access, args);
           const [ticket, timeline, agent, departments] = await Promise.all([
-            this.tickets.getDetail(workspaceId, ticketId),
-            this.tickets.timeline(workspaceId, ticketId),
-            this.agent.ticketAgent(workspaceId, ticketId),
+            this.tickets.getDetail(access, ticketId),
+            this.tickets.timeline(access, ticketId),
+            this.agent.ticketAgent(access, ticketId),
             this.departments.list(workspaceId),
           ]);
           const keys = new Map(departments.map((d) => [d.id, d.key]));
@@ -286,8 +287,8 @@ export class ReadTools {
         scope: 'read',
         role: 'viewer',
         readOnly: true,
-        run: async ({ runId, maxStepChars, includeInputSnapshot }, { workspaceId }) => {
-          const run = await this.agent.runDetail(workspaceId, runId);
+        run: async ({ runId, maxStepChars, includeInputSnapshot }, { access }) => {
+          const run = await this.agent.runDetail(access, runId);
           const { inputSnapshot, steps, ...rest } = run;
           return {
             ...rest,
@@ -308,9 +309,10 @@ export class ReadTools {
           'Reads the customer card from the backend; nothing is saved.',
         input: z.object(TicketRef),
         scope: 'read',
-        role: 'viewer',
+        // As in the interface: the whole ticket goes out, and the backend is called for the customer's data.
+        role: 'admin',
         readOnly: true,
-        run: async (args, { workspaceId }) => this.agent.promptPreview(workspaceId, await this.ticketId(workspaceId, args)),
+        run: async (args, { workspaceId, access }) => this.agent.promptPreview(workspaceId, await this.ticketId(access, args)),
       }),
       tool({
         name: 'quality_report',
@@ -326,9 +328,9 @@ export class ReadTools {
         scope: 'read',
         role: 'viewer',
         readOnly: true,
-        run: async ({ days, department }, { workspaceId }) => {
+        run: async ({ days, department }, { workspaceId, access }) => {
           const departmentId = department ? departmentByKey(await this.departments.list(workspaceId), department).id : undefined;
-          return this.quality.report(workspaceId, { days, departmentId });
+          return this.quality.report(access, { days, departmentId });
         },
       }),
       tool({
@@ -349,12 +351,15 @@ export class ReadTools {
     ];
   }
 
-  async ticketId(workspaceId: string, args: { ticketId?: string; number?: number }): Promise<string> {
-    if (args.ticketId) return args.ticketId;
-    if (args.number === undefined) {
+  /** A ticket the user may see, by id or number; any other is not found. */
+  async ticketId(access: TicketAccess, args: { ticketId?: string; number?: number }): Promise<string> {
+    if (!args.ticketId && args.number === undefined) {
       throw errors.validation([{ path: 'ticketId', message: 'Pass ticketId or number', code: 'custom' }]);
     }
-    const ticket = await this.prisma.ticket.findFirst({ where: { workspaceId, number: args.number }, select: { id: true } });
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { workspaceId: access.workspaceId, ...(args.ticketId ? { id: args.ticketId } : { number: args.number }), ...ticketScopeWhere(access.scope) },
+      select: { id: true },
+    });
     if (ticket === null) throw errors.notFound(t('api.ticketNotFound'));
     return ticket.id;
   }

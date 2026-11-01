@@ -20,6 +20,7 @@ import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
 import type { CustomerInput } from '../customers/customers.service';
+import { ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import type { IdentificationRule, IdentityClaim, Prisma } from '../generated/prisma/client';
 import { parseStoredManifest } from '../integrations/integrations.service';
 import { senderAuthenticated } from '../mail/authentication';
@@ -252,9 +253,13 @@ export class IdentificationService {
     });
   }
 
-  /** "Check on ticket": identification of the ticket's last customer message with the current rules, without writing anything. */
-  async check(workspaceId: string, ticketId: string): Promise<IdentificationCheckDto> {
-    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, workspaceId }, include: { channel: true } });
+  /**
+   * "Check on ticket": identification of the ticket's last customer message with the current rules, without writing anything.
+   * The ticket is one the caller may see.
+   */
+  async check(access: TicketAccess, ticketId: string): Promise<IdentificationCheckDto> {
+    const { workspaceId } = access;
+    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, workspaceId, ...ticketScopeWhere(access.scope) }, include: { channel: true } });
     if (ticket === null) {
       throw errors.notFound(t('api.ticketNotFound'));
     }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { TicketAnalysis } from '@kvitok/shared';
 import { htmlToPlainText } from '../mail/html';
+import { ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import { PrismaService } from '../prisma/prisma.service';
 
 const MAX_EXAMPLES = 10;
@@ -61,12 +62,21 @@ export interface QualityReport {
 export class QualityReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** `from` — the start of the period when it is not just `days` back from now (analytics counts whole days). */
-  async report(workspaceId: string, options: { days: number; departmentId?: string; from?: Date }): Promise<QualityReport> {
+  /**
+   * Over tickets the caller may see. `from` — the start of the period when it is not just `days` back from now
+   * (analytics counts whole days).
+   */
+  async report(access: TicketAccess, options: { days: number; departmentId?: string; from?: Date }): Promise<QualityReport> {
+    const { workspaceId } = access;
     const to = new Date();
     const from = options.from ?? new Date(to.getTime() - options.days * 24 * 60 * 60 * 1000);
     const runs = await this.prisma.agentRun.findMany({
-      where: { workspaceId, dryRun: false, createdAt: { gte: from }, ...(options.departmentId ? { ticket: { departmentId: options.departmentId } } : {}) },
+      where: {
+        workspaceId,
+        dryRun: false,
+        createdAt: { gte: from },
+        ticket: { AND: [ticketScopeWhere(access.scope), options.departmentId ? { departmentId: options.departmentId } : {}] },
+      },
       select: {
         id: true,
         ticketId: true,

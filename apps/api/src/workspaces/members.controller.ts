@@ -55,11 +55,12 @@ export class MembersController {
   @Patch(':userId')
   @RequireRole('admin')
   update(
+    @CurrentAuth() auth: AuthContext,
     @Param('workspaceId') workspaceId: string,
     @Param('userId') userId: string,
     @Body(new ZodValidationPipe(UpdateMemberSchema)) body: UpdateMemberInput,
   ): Promise<MemberDto> {
-    return this.members.updateRole(workspaceId, userId, body.role);
+    return this.members.update(workspaceId, userId, body, auth.user.id);
   }
 
   @Delete(':userId')

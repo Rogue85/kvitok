@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { AUDIT_ENTITIES, type AuditEntity, type AuditLogDto } from '@kvitok/shared';
+import { AUDIT_ENTITIES, type AuditEntity, type AuditLogDto, type MemberDepartmentsInput } from '@kvitok/shared';
 import type { TableColumn } from '@nuxt/ui';
 
 const PAGE = 50;
 const ALL = 'all';
 
 const { workspaceId } = useWorkspace();
+const { departmentById } = useWorkspaceData();
 const entity = ref<AuditEntity | typeof ALL>(ALL);
 const entries = ref<AuditLogDto[]>([]);
 const hasMore = ref(false);
@@ -61,13 +62,21 @@ function short(value: unknown): string {
   return text === undefined ? '—' : text.length > 80 ? `${text.slice(0, 80)}…` : text;
 }
 
+/** A member's departments by title. */
+function departmentsText(value: MemberDepartmentsInput): string {
+  if (value.allDepartments) return t('members.allDepartments');
+  return value.departmentIds.map((id) => departmentById.value.get(id)?.title ?? '—').join(', ') || t('common.none');
+}
+
 /** Top-level fields that differ; for a creation — nothing, the entity itself is the change. */
 function changes(entry: AuditLogDto): Array<{ key: string; before: string; after: string }> {
   if (entry.before === null || entry.after === null) return [];
+  const show = (key: string, value: unknown) =>
+    entry.entity === 'member' && key === 'departments' && value ? departmentsText(value as MemberDepartmentsInput) : short(value);
   const keys = new Set([...Object.keys(entry.before), ...Object.keys(entry.after)]);
   return [...keys]
     .filter((key) => JSON.stringify(entry.before![key]) !== JSON.stringify(entry.after![key]))
-    .map((key) => ({ key, before: short(entry.before![key]), after: short(entry.after![key]) }));
+    .map((key) => ({ key, before: show(key, entry.before![key]), after: show(key, entry.after![key]) }));
 }
 </script>
 

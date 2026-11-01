@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { z } from 'zod';
 import { EmailSchema, PasswordSchema } from './auth.js';
+import { MemberDepartmentsSchema, type MemberDepartmentsInput } from './department-access.js';
 import { WorkspaceRoleSchema, type WorkspaceRole } from './roles.js';
 import { CurrencySchema, UserNameSchema, type UserStatus } from './workspace.js';
 
@@ -39,7 +40,7 @@ export interface AdminUserDto {
   status: UserStatus;
   lastSeenAt: string | null;
   createdAt: string;
-  memberships: Array<{ workspaceId: string; workspaceName: string; role: WorkspaceRole }>;
+  memberships: Array<{ workspaceId: string; workspaceName: string; role: WorkspaceRole; departments: MemberDepartmentsInput }>;
 }
 
 export const CreateUserSchema = z.object({
@@ -47,7 +48,7 @@ export const CreateUserSchema = z.object({
   name: UserNameSchema,
   isSuperadmin: z.boolean().default(false),
   memberships: z
-    .array(z.object({ workspaceId: z.string().min(1), role: WorkspaceRoleSchema }))
+    .array(z.object({ workspaceId: z.string().min(1), role: WorkspaceRoleSchema, departments: MemberDepartmentsSchema.optional() }))
     .max(100)
     .refine((list) => new Set(list.map((m) => m.workspaceId)).size === list.length, { error: () => t('validation.duplicateWorkspace') })
     .default([]),
@@ -63,8 +64,10 @@ export const UpdateUserSchema = z
   .partial();
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
 
+/** Without `departments` a new membership gets every department and an existing one keeps its departments. */
 export const SetMembershipSchema = z.object({
   role: WorkspaceRoleSchema,
+  departments: MemberDepartmentsSchema.optional(),
 });
 export type SetMembershipInput = z.infer<typeof SetMembershipSchema>;
 

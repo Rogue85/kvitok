@@ -79,6 +79,7 @@ export class AgentEngine {
         workspaceId: row.workspace_id,
         pending: row.agent_pending ?? ({ mode: 'triage', triggers: [{ type: 'manual' }] } satisfies AgentPending),
         revision: row.revision,
+        departmentId: row.department_id,
       };
     });
     if (claim === null) return 'skipped';
@@ -116,15 +117,19 @@ export class AgentEngine {
           where: { id: ticketId },
           data: { agentState: 'queued', agentJobId: nextJobId, agentRerunPending: false, agentPending: json(pending ?? { mode: 'refine', triggers: [{ type: 'stale_rerun' }] }) },
         });
-        return { jobId: nextJobId, state: 'queued' };
+        return { jobId: nextJobId, state: 'queued', departmentId: row.department_id };
       }
       const state = outcome === 'failed' ? 'failed' : 'idle';
       await tx.ticket.update({ where: { id: ticketId }, data: { agentState: state } });
-      return { jobId: null, state };
+      return { jobId: null, state, departmentId: row.department_id };
     });
 
     if (next.jobId) {
       await this.triggers.addRunJob(ticketId, next.jobId);
+    }
+    // The agent or an after_agent rule moved the ticket: those who saw the old department learn it left.
+    if (next.departmentId !== claim.departmentId) {
+      await this.realtime.publish(claim.workspaceId, { type: 'ticket.moved', ticketId, from: claim.departmentId, to: next.departmentId });
     }
     await this.realtime.publish(claim.workspaceId, { type: 'agent.updated', ticketId, state: next.state });
     await this.realtime.publish(claim.workspaceId, { type: 'ticket.updated', ticketId });

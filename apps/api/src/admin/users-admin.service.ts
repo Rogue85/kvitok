@@ -1,9 +1,10 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import type { AdminUserDto, AuditLogDto, CreateUserInput, PasswordLinkDto, UpdateUserInput, WorkspaceRole } from '@kvitok/shared';
+import type { AdminUserDto, AuditLogDto, CreateUserInput, PasswordLinkDto, SetMembershipInput, UpdateUserInput } from '@kvitok/shared';
 import { AuditService, toAuditLogDto } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import type { AuthContext } from '../common/request';
+import { MEMBERSHIP_DEPARTMENTS } from '../departments/department-access';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordLinksService } from '../users/password-links.service';
@@ -11,7 +12,7 @@ import { UsersService, lockSuperadmins, userStatus } from '../users/users.servic
 import { MembersService, toUserAuditDto } from '../workspaces/members.service';
 
 const USER_INCLUDE = {
-  memberships: { include: { workspace: true }, orderBy: { createdAt: 'asc' } },
+  memberships: { include: { workspace: true, ...MEMBERSHIP_DEPARTMENTS }, orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.UserInclude;
 
 type UserWithAccess = Prisma.UserGetPayload<{ include: typeof USER_INCLUDE }>;
@@ -50,7 +51,7 @@ export class UsersAdminService {
       const user = await this.users.create({ email: input.email, name: input.name, isSuperadmin: input.isSuperadmin }, tx);
       await this.audit.record({ workspaceId: null, entity: 'user', entityId: user.id, action: 'create', after: toUserAuditDto(user) }, tx);
       for (const membership of input.memberships) {
-        await this.members.grant(membership.workspaceId, user.id, membership.role, tx);
+        await this.members.grant(membership.workspaceId, user.id, membership.role, membership.departments, tx);
       }
       return { userId: user.id, link: await this.passwordLinks.issue(user.id, 'invite', tx) };
     });
@@ -111,15 +112,16 @@ export class UsersAdminService {
     return link;
   }
 
-  async setMembership(userId: string, workspaceId: string, role: WorkspaceRole): Promise<AdminUserDto> {
+  /** Without `departments` a new membership gets every department and an existing one keeps its departments. */
+  async setMembership(userId: string, workspaceId: string, input: SetMembershipInput, actorUserId: string): Promise<AdminUserDto> {
     if ((await this.prisma.workspace.count({ where: { id: workspaceId } })) === 0) {
       throw errors.notFound(t('api.workspaceNotFound'));
     }
     const existing = await this.prisma.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } } });
     if (existing === null) {
-      await this.members.grant(workspaceId, userId, role);
+      await this.prisma.$transaction((tx) => this.members.grant(workspaceId, userId, input.role, input.departments, tx));
     } else {
-      await this.members.updateRole(workspaceId, userId, role);
+      await this.members.update(workspaceId, userId, input, actorUserId);
     }
     return this.get(userId);
   }
@@ -149,6 +151,11 @@ function toAdminUserDto(user: UserWithAccess): AdminUserDto {
     status: userStatus(user),
     lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
-    memberships: user.memberships.map((m) => ({ workspaceId: m.workspaceId, workspaceName: m.workspace.name, role: m.role })),
+    memberships: user.memberships.map((m) => ({
+      workspaceId: m.workspaceId,
+      workspaceName: m.workspace.name,
+      role: m.role,
+      departments: { allDepartments: m.allDepartments, departmentIds: m.departments.map((d) => d.departmentId) },
+    })),
   };
 }

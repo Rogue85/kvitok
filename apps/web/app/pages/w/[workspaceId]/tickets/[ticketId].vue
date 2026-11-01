@@ -14,7 +14,7 @@ import {
 
 const route = useRoute();
 const toast = useToast();
-const { workspaceId, can } = useWorkspace();
+const { workspaceId, can, canSee } = useWorkspace();
 const { departmentById, memberById, fields } = useWorkspaceData();
 const ticketId = computed(() => String(route.params.ticketId));
 const base = computed(() => `/workspaces/${workspaceId.value}/tickets/${ticketId.value}`);
@@ -54,8 +54,23 @@ const refreshAll = debounce(() => {
   void refreshAgent();
   void refreshLinks();
 }, 300);
+/** The ticket moved to a department the user cannot see: its title, shown instead of the ticket. */
+const movedAway = ref<string | null>(null);
+watch(ticketId, () => (movedAway.value = null));
+function departmentTitle(departmentId: string | null): string {
+  return departmentId ? (departmentById.value.get(departmentId)?.title ?? t('events.deletedDepartment')) : t('events.noDepartment');
+}
 useRealtime((event) => {
-  if (event.ticketId === ticketId.value) refreshAll();
+  if (event.type === 'access.changed') {
+    if (!canSee(ticket.value?.departmentId ?? null)) movedAway.value = departmentTitle(ticket.value?.departmentId ?? null);
+    return;
+  }
+  if (event.ticketId !== ticketId.value) return;
+  if (event.type === 'ticket.moved' && !canSee(event.to)) {
+    movedAway.value = departmentTitle(event.to);
+    return;
+  }
+  refreshAll();
 });
 
 const lookups = computed(() => ({
@@ -122,9 +137,27 @@ function isAgentChat(message: MessageDto): boolean {
 
 const statusItems = TICKET_STATUSES.map((value) => ({ label: statusLabel(value), value }));
 
-async function update(patch: UpdateTicketInput): Promise<void> {
+/** A move to a department the user cannot see, waiting for confirmation. */
+const pendingMove = ref<UpdateTicketInput | null>(null);
+
+function confirmMove(): void {
+  const patch = pendingMove.value!;
+  pendingMove.value = null;
+  void update(patch, true);
+}
+
+async function update(patch: UpdateTicketInput, confirmed = false): Promise<void> {
+  if (patch.departmentId !== undefined && !canSee(patch.departmentId) && !confirmed) {
+    pendingMove.value = patch;
+    return;
+  }
   try {
     ticket.value = await api<TicketDto>(base.value, { method: 'PATCH', body: patch });
+    if (!canSee(ticket.value.departmentId)) {
+      toast.add({ color: 'success', title: t('ticket.movedAway', { department: departmentTitle(ticket.value.departmentId) }) });
+      await navigateTo(`/w/${workspaceId.value}/tickets`);
+      return;
+    }
     void refreshTimeline();
   } catch (e) {
     const details = e instanceof ApiError && Array.isArray(e.details) ? (e.details as Array<{ message: string }>).map((d) => d.message).join('; ') : '';
@@ -265,7 +298,8 @@ watch(
     </template>
 
     <template #body>
-      <UAlert v-if="error" color="error" variant="subtle" :title="t('ticket.notFound')" class="m-4 w-auto" />
+      <UAlert v-if="movedAway !== null" color="warning" variant="subtle" :title="t('ticket.movedAway', { department: movedAway })" class="m-4 w-auto" />
+      <UAlert v-else-if="error" color="error" variant="subtle" :title="t('ticket.notFound')" class="m-4 w-auto" />
       <div v-else-if="ticket" class="flex h-full min-h-0">
         <div class="flex min-w-0 flex-1 flex-col">
           <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto px-4 py-6">
@@ -348,6 +382,18 @@ watch(
         </aside>
         <AgentRunsModal v-if="agent" v-model:open="runsOpen" :runs="agent.runs" :run-id="runId" :currency="agent.cost.currency" />
       </div>
+
+      <UModal
+        :open="pendingMove !== null"
+        :title="t('ticket.moveOut.title')"
+        :description="t('ticket.moveOut.body', { department: departmentTitle(pendingMove?.departmentId ?? null) })"
+        @update:open="(open: boolean) => !open && (pendingMove = null)"
+      >
+        <template #footer>
+          <UButton color="neutral" variant="ghost" @click="pendingMove = null">{{ t('common.cancel') }}</UButton>
+          <UButton color="warning" @click="confirmMove">{{ t('ticket.moveOut.confirm') }}</UButton>
+        </template>
+      </UModal>
     </template>
   </UDashboardPanel>
 </template>

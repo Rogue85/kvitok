@@ -6,7 +6,11 @@ import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AgentEngine } from '../../src/agent/agent-engine';
 import { AGENT_QUEUE } from '../../src/agent/agent.constants';
+import { newId } from '../../src/common/ids';
 import type { LlmClient } from '../../src/llm/llm.types';
+import { CheckTools } from '../../src/mcp/tools/check.tools';
+import { ConfigTools } from '../../src/mcp/tools/config.tools';
+import { ReadTools } from '../../src/mcp/tools/read.tools';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { client, createApiChannel, createTestApp, createUser, createWorkspace, ingest, login, resetDb, setupWorkspace } from '../helpers';
 import { result, ScriptedLlm, toolCall } from '../support/scripted-llm';
@@ -207,6 +211,50 @@ describe('MCP server', () => {
     expect(text.endsWith('\n</customer_message>')).toBe(true);
     expect(text.match(/<\/customer_message>/g)).toHaveLength(1);
     expect(found.items.map((i: { id: string }) => i.id)).toEqual([created.ticketId]);
+  });
+
+  it('reads only the tickets of the departments the token user sees', async () => {
+    const { http, workspaceId } = await setupWorkspace(app);
+    const base = `/workspaces/${workspaceId}`;
+    const a = (await http.post(`${base}/departments`, { key: 'a', title: 'A' })).json();
+    const b = (await http.post(`${base}/departments`, { key: 'b', title: 'B' })).json();
+    const channel = await createApiChannel(http, workspaceId);
+    const own = (await ingest(app, channel, { subject: 'Own' })).json();
+    const other = (await ingest(app, channel, { subject: 'Other' })).json();
+    await prisma.ticket.update({ where: { id: own.ticket_id }, data: { departmentId: a.id } });
+    await prisma.ticket.update({ where: { id: other.ticket_id }, data: { departmentId: b.id } });
+    const run = await prisma.agentRun.create({
+      data: { id: newId(), workspaceId, ticketId: other.ticket_id, mode: 'triage', trigger: { type: 'manual' }, inputRevision: 0 },
+    });
+
+    const operator = await createUser(app);
+    await http.post(`${base}/members`, { userId: operator.id, role: 'operator', departments: { allDepartments: false, departmentIds: [a.id] } });
+    const secret = await token(client(app, await login(app, operator)), ['read'], workspaceId);
+
+    expect((await ok(secret, 'search_tickets', {})).items.map((i: { id: string }) => i.id)).toEqual([own.ticket_id]);
+    expect((await ok(secret, 'search_tickets', { department: 'b' })).items).toEqual([]);
+    expect((await ok(secret, 'get_ticket', { number: own.ticket_number })).id).toBe(own.ticket_id);
+    for (const args of [{ number: other.ticket_number }, { ticketId: other.ticket_id }]) {
+      const hidden = await call(secret, 'get_ticket', args);
+      expect(hidden.isError).toBe(true);
+      expect(hidden.text).toContain('Ticket not found');
+    }
+    expect((await call(secret, 'get_agent_run', { runId: run.id })).text).toContain('not found');
+    expect((await ok(secret, 'quality_report', {})).runs.total).toBe(0);
+    expect((await ok(secret, 'quality_report', { department: 'b' })).runs.total).toBe(0);
+    // The prompt preview shows the whole ticket and calls the backend: admins only, as in the interface.
+    expect(JSON.parse((await call(secret, 'get_prompt_preview', { number: own.ticket_number })).text)).toMatchObject({ code: 'forbidden' });
+  });
+
+  it('every tool open to operators and viewers is classified by the ticket data it reads', () => {
+    // Read tickets: scoped by the user's departments, checked above.
+    const scoped = ['search_tickets', 'get_ticket', 'get_agent_run', 'quality_report'];
+    // Configuration and protocol checks: no ticket data.
+    const unscoped = ['list_workspaces', 'describe_workspace', 'get_playbook', 'get_integration', 'validate_manifest', 'create_workspace'];
+    const open = [...app.get(ReadTools).specs(), ...app.get(ConfigTools).specs(), ...app.get(CheckTools).specs()]
+      .filter((spec) => spec.role !== 'admin')
+      .map((spec) => spec.name);
+    expect(open.filter((name) => !scoped.includes(name) && !unscoped.includes(name))).toEqual([]);
   });
 
   it('validates a manifest and gives hints', async () => {

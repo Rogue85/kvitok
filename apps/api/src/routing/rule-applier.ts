@@ -1,10 +1,12 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import type { FieldMeta, FieldValues, RuleEffect, RuleStage } from '@kvitok/shared';
+import { canSeeDepartment, type FieldMeta, type FieldValues, type RuleEffect, type RuleStage } from '@kvitok/shared';
 import { json } from '../common/json';
+import { memberScope } from '../departments/department-access';
 import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
 import type { Prisma, Ticket } from '../generated/prisma/client';
+import { recordDepartmentChange } from '../tickets/department-change';
 import { recordEvent } from '../tickets/ticket-events';
 import { extractByRegex, type EvaluableRule, type RuleContextData } from './rules-engine';
 
@@ -55,8 +57,11 @@ export class RuleApplier {
             } else if (ticket.departmentLocked) {
               note(effect, 'skipped', t('api.rule.departmentPinned'));
             } else if (department.id !== ticket.departmentId) {
-              await event('department_changed', { from: ticket.departmentId, to: department.id });
-              ticket = await tx.ticket.update({ where: { id: ticketId }, data: { departmentId: department.id } });
+              const { unassign } = await recordDepartmentChange(tx, ticket, department.id, actor, { rule: rule.name, stage });
+              ticket = await tx.ticket.update({
+                where: { id: ticketId },
+                data: { departmentId: department.id, ...(unassign ? { assigneeId: null } : {}) },
+              });
               note(effect, 'applied');
             }
             break;
@@ -89,6 +94,8 @@ export class RuleApplier {
               note(effect, 'skipped', t('api.rule.assigneeNotOperator'));
             } else if (membership.user.disabledAt !== null) {
               note(effect, 'skipped', t('api.rule.assigneeDisabled'));
+            } else if (!canSeeDepartment((await memberScope(tx, ticket.workspaceId, effect.userId))!, ticket.departmentId)) {
+              note(effect, 'skipped', t('api.rule.assigneeNoDepartmentAccess'));
             } else if (ticket.assigneeId === null) {
               await event('assignee_changed', { from: null, to: effect.userId });
               ticket = await tx.ticket.update({ where: { id: ticketId }, data: { assigneeId: effect.userId } });

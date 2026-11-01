@@ -56,8 +56,8 @@ export class CheckTools {
         }),
         scope: 'config:write',
         role: 'admin',
-        run: async ({ ticketId, number, providerId, model }, { workspaceId }) => {
-          const id = await this.read.ticketId(workspaceId, { ticketId, number });
+        run: async ({ ticketId, number, providerId, model }, { workspaceId, access }) => {
+          const id = await this.read.ticketId(access, { ticketId, number });
           const { run, result } = await this.agent.dryRun(workspaceId, id, { providerId, model });
           return { runId: run.id, status: run.status, error: run.error, configVersion: run.configVersion, cost: run.cost, tokensIn: run.tokensIn, tokensOut: run.tokensOut, result };
         },
@@ -77,11 +77,11 @@ export class CheckTools {
         }),
         scope: 'config:write',
         role: 'admin',
-        run: async ({ tickets }, { workspaceId }) => {
+        run: async ({ tickets }, { workspaceId, access }) => {
           const results: Array<ReplayComparison | { ticket: { ticketId?: string; number?: number }; error: string }> = [];
           for (const ref of tickets) {
             try {
-              const ticketId = await this.read.ticketId(workspaceId, ref);
+              const ticketId = await this.read.ticketId(access, ref);
               results.push(await this.replays.replay(workspaceId, await this.replays.pastRun(workspaceId, ticketId, ref.runId)));
             } catch (error) {
               results.push({ ticket: { ticketId: ref.ticketId, number: ref.number }, error: errorText(error, 'replay') });
@@ -98,7 +98,7 @@ export class CheckTools {
         scope: 'read',
         role: 'admin',
         readOnly: true,
-        run: async (args, { workspaceId }) => this.rules.test(workspaceId, await this.read.ticketId(workspaceId, args)),
+        run: async (args, { access }) => this.rules.test(access, await this.read.ticketId(access, args)),
       }),
       tool({
         name: 'check_identification',
@@ -109,7 +109,7 @@ export class CheckTools {
         scope: 'read',
         role: 'admin',
         readOnly: true,
-        run: async (args, { workspaceId }) => this.identification.check(workspaceId, await this.read.ticketId(workspaceId, args)),
+        run: async (args, { access }) => this.identification.check(access, await this.read.ticketId(access, args)),
       }),
       tool({
         name: 'test_llm_provider',

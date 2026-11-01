@@ -1,10 +1,20 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import type { RealtimeEvent } from '@kvitok/shared';
 import type IORedis from 'ioredis';
-import { filter, map, Observable, Subject } from 'rxjs';
+import { filter, Observable, Subject } from 'rxjs';
+import { PrismaService } from '../prisma/prisma.service';
 import { REDIS } from '../redis/redis.module';
 
 const PREFIX = 'rt:';
+
+/**
+ * An event with the department its ticket is in when the event fans out, for filtering by the departments a
+ * connection may see. undefined — not a ticket event, or the ticket is gone.
+ */
+export interface RoutedEvent {
+  event: RealtimeEvent;
+  departmentId: string | null | undefined;
+}
 
 /**
  * Events for the live UI. Both the API and the worker publish them (via Redis pub/sub),
@@ -13,12 +23,17 @@ const PREFIX = 'rt:';
 @Injectable()
 export class RealtimeService implements OnModuleDestroy {
   private readonly logger = new Logger(RealtimeService.name);
-  private readonly events = new Subject<{ workspaceId: string; event: RealtimeEvent }>();
+  private readonly events = new Subject<{ workspaceId: string } & RoutedEvent>();
   private subscriber: IORedis | null = null;
+  /** Department lookups run one after another, so events keep their order. */
+  private routing: Promise<void> = Promise.resolve();
   /** Fires on shutdown: SSE streams end and the process can exit. */
   readonly closed$ = new Subject<void>();
 
-  constructor(@Inject(REDIS) private readonly redis: IORedis) {}
+  constructor(
+    @Inject(REDIS) private readonly redis: IORedis,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async publish(workspaceId: string, event: RealtimeEvent): Promise<void> {
     try {
@@ -29,12 +44,9 @@ export class RealtimeService implements OnModuleDestroy {
     }
   }
 
-  stream(workspaceId: string): Observable<RealtimeEvent> {
+  stream(workspaceId: string): Observable<RoutedEvent> {
     this.ensureSubscribed();
-    return this.events.pipe(
-      filter((item) => item.workspaceId === workspaceId),
-      map((item) => item.event),
-    );
+    return this.events.pipe(filter((item) => item.workspaceId === workspaceId));
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -61,11 +73,31 @@ export class RealtimeService implements OnModuleDestroy {
     this.subscriber = subscriber;
     void subscriber.psubscribe(`${PREFIX}*`);
     subscriber.on('pmessage', (_pattern: string, channel: string, message: string) => {
+      let event: RealtimeEvent;
       try {
-        this.events.next({ workspaceId: channel.slice(PREFIX.length), event: JSON.parse(message) as RealtimeEvent });
+        event = JSON.parse(message) as RealtimeEvent;
       } catch {
         this.logger.warn(`Bad realtime message on ${channel}`);
+        return;
       }
+      const workspaceId = channel.slice(PREFIX.length);
+      this.routing = this.routing.then(async () => {
+        this.events.next({ workspaceId, event, departmentId: await this.departmentOf(event) });
+      });
     });
+  }
+
+  /** The ticket's current department; undefined when there is none to look up or the lookup failed. */
+  private async departmentOf(event: RealtimeEvent): Promise<string | null | undefined> {
+    if (!('ticketId' in event) || event.type === 'ticket.moved') {
+      return undefined;
+    }
+    try {
+      const ticket = await this.prisma.ticket.findUnique({ where: { id: event.ticketId }, select: { departmentId: true } });
+      return ticket === null ? undefined : ticket.departmentId;
+    } catch (error) {
+      this.logger.warn(`Realtime department lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
   }
 }

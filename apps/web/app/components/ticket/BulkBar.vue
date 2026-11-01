@@ -14,7 +14,7 @@ const props = defineProps<{ count: number; target: BulkTarget; tags: string[] }>
 const emit = defineEmits<{ done: [result: BulkUpdateTicketsResultDto]; clear: [] }>();
 
 const toast = useToast();
-const { workspaceId } = useWorkspace();
+const { workspaceId, canSee } = useWorkspace();
 const { me } = useAuth();
 const { departments, members } = useWorkspaceData();
 
@@ -22,9 +22,17 @@ type Changes = BulkUpdateTicketsInput['changes'];
 const busy = ref(false);
 const confirming = ref<Changes | null>(null);
 
-/** A change of every ticket by the filter is confirmed first: the selection is not on the screen. */
+/** A move to a department the user cannot see: they lose the tickets. */
+function leaves(changes: Changes): boolean {
+  return changes.departmentId !== undefined && !canSee(changes.departmentId);
+}
+
+/**
+ * A change of every ticket by the filter is confirmed first: the selection is not on the screen.
+ * So is a move to a department the user cannot see.
+ */
 function request(changes: Changes): void {
-  if ('filter' in props.target) {
+  if ('filter' in props.target || leaves(changes)) {
     confirming.value = changes;
   } else {
     void apply(changes);
@@ -80,10 +88,14 @@ function assign(assigneeId: string | null): void {
 }
 
 const departmentOpen = ref(false);
+// Handing tickets over to a department the user cannot see is allowed; it is marked, as they lose those tickets.
 const departmentItems = computed(() => [
   { label: t('tickets.filters.noDepartment'), id: null },
   ...departments.data.value.filter((d) => !d.archived).map((d) => ({ label: d.title, id: d.id })),
-].map(({ id, ...item }) => ({ ...item, onSelect: () => moveTo(id) })));
+].map(({ id, ...item }) => ({ ...item, ...(canSee(id) ? {} : { suffix: t('ticket.departmentNoAccess') }), onSelect: () => moveTo(id) })));
+function departmentTitle(departmentId: string | null): string {
+  return departmentId ? (departments.data.value.find((d) => d.id === departmentId)?.title ?? '—') : t('tickets.filters.noDepartment');
+}
 function moveTo(departmentId: string | null): void {
   departmentOpen.value = false;
   request({ departmentId });
@@ -152,7 +164,10 @@ function changeTags(): void {
 
     <UModal :open="confirming !== null" :title="t('tickets.bulk.confirmTitle')" @update:open="(v: boolean) => !v && (confirming = null)">
       <template #body>
-        <p class="text-sm">{{ t('tickets.bulk.confirmText', { count }) }}</p>
+        <div class="space-y-2 text-sm">
+          <p v-if="'filter' in target">{{ t('tickets.bulk.confirmText', { count }) }}</p>
+          <p v-if="confirming && leaves(confirming)">{{ t('tickets.bulk.moveOut', { department: departmentTitle(confirming.departmentId ?? null) }) }}</p>
+        </div>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">

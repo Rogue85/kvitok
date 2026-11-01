@@ -1,4 +1,4 @@
-import { notificationSettings, type NotificationSettingsInput } from '@kvitok/shared';
+import { ALL_DEPARTMENTS, notificationSettings, type NotificationSettingsInput } from '@kvitok/shared';
 import { describe, expect, it } from 'vitest';
 import { pickKind } from './notification-dispatcher';
 import { wants, type Recipient, type TicketFacts } from './notification-rules';
@@ -6,7 +6,7 @@ import { wants, type Recipient, type TicketFacts } from './notification-rules';
 const ME = 'u1';
 
 function recipient(settings: Partial<NotificationSettingsInput> = {}, extra: Partial<Recipient> = {}): Recipient {
-  return { userId: ME, role: 'operator', settings: notificationSettings(settings), departments: null, ...extra };
+  return { userId: ME, role: 'operator', settings: notificationSettings(settings), departments: ALL_DEPARTMENTS, ...extra };
 }
 
 const unassigned: TicketFacts = { departmentId: 'd1', assigneeId: null, priority: 'normal' };
@@ -61,10 +61,17 @@ describe('wants', () => {
   });
 
   it('never notifies about a department the member cannot see', () => {
-    const restricted = recipient({ events: { customerMessage: 'all' } }, { departments: new Set(['d2']) });
+    const restricted = recipient({ events: { customerMessage: 'all' } }, { departments: { all: false, departmentIds: ['d2'], unrouted: false } });
     expect(wants(restricted, 'customer_message', others)).toBe(false);
     expect(wants(restricted, 'customer_message', mine)).toBe(false);
     expect(wants(restricted, 'customer_message', { ...others, departmentId: 'd2' })).toBe(true);
+  });
+
+  it('notifies about tickets without a department only those who may see them', () => {
+    const none = { ...others, departmentId: null };
+    const settings = { events: { customerMessage: 'all' as const } };
+    expect(wants(recipient(settings, { departments: { all: false, departmentIds: ['d2'], unrouted: false } }), 'customer_message', none)).toBe(false);
+    expect(wants(recipient(settings, { departments: { all: false, departmentIds: ['d2'], unrouted: true } }), 'customer_message', none)).toBe(true);
   });
 
   it('notifies about undelivered replies of the member', () => {

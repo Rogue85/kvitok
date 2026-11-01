@@ -57,11 +57,12 @@ export class UsersAdminController {
 
   @Put(':userId/memberships/:workspaceId')
   setMembership(
+    @CurrentAuth() auth: AuthContext,
     @Param('userId') userId: string,
     @Param('workspaceId') workspaceId: string,
     @Body(new ZodValidationPipe(SetMembershipSchema)) body: SetMembershipInput,
   ): Promise<AdminUserDto> {
-    return this.users.setMembership(userId, workspaceId, body.role);
+    return this.users.setMembership(userId, workspaceId, body, auth.user.id);
   }
 
   @Delete(':userId/memberships/:workspaceId')

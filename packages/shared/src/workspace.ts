@@ -1,6 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { z } from 'zod';
 import { EmailSchema } from './auth.js';
+import { MemberDepartmentsSchema, type MemberDepartmentsInput } from './department-access.js';
 import { WorkspaceRoleSchema, type WorkspaceRole } from './roles.js';
 
 export const SlugSchema = z
@@ -37,15 +38,17 @@ export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceSchema>;
 
 export const UserNameSchema = z.string().trim().min(1).max(120);
 
-/** Add a member: an existing user of the installation, or invite a new person by email. */
+/** Add a member: an existing user of the installation, or invite a new person by email. Without `departments` — every department. */
 export const AddMemberSchema = z.union([
-  z.object({ userId: z.string().min(1), role: WorkspaceRoleSchema }),
-  z.object({ email: EmailSchema, name: UserNameSchema, role: WorkspaceRoleSchema }),
+  z.object({ userId: z.string().min(1), role: WorkspaceRoleSchema, departments: MemberDepartmentsSchema.optional() }),
+  z.object({ email: EmailSchema, name: UserNameSchema, role: WorkspaceRoleSchema, departments: MemberDepartmentsSchema.optional() }),
 ]);
 export type AddMemberInput = z.infer<typeof AddMemberSchema>;
 
+/** Only what changes; `departments` replaces the member's departments. */
 export const UpdateMemberSchema = z.object({
-  role: WorkspaceRoleSchema,
+  role: WorkspaceRoleSchema.optional(),
+  departments: MemberDepartmentsSchema.optional(),
 });
 export type UpdateMemberInput = z.infer<typeof UpdateMemberSchema>;
 
@@ -66,6 +69,7 @@ export interface MemberDto {
   email: string;
   name: string;
   role: WorkspaceRole;
+  departments: MemberDepartmentsInput;
   status: UserStatus;
   createdAt: string;
 }

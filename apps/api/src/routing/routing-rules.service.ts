@@ -14,6 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import { json } from '../common/json';
+import { ticketScopeWhere, type TicketAccess } from '../departments/department-access';
 import type { Prisma, RoutingRule } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildRuleContext } from './rule-context';
@@ -83,10 +84,11 @@ export class RoutingRulesService {
     await this.audit.record({ workspaceId, entity: 'routing_rule', entityId: id, action: 'delete', before: toRuleDto(existing) });
   }
 
-  /** Which rules would match this ticket (without applying them). */
-  async test(workspaceId: string, ticketId: string): Promise<RuleTestResultDto[]> {
+  /** Which rules would match this ticket (without applying them). The ticket is one the caller may see. */
+  async test(access: TicketAccess, ticketId: string): Promise<RuleTestResultDto[]> {
+    const { workspaceId } = access;
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, workspaceId },
+      where: { id: ticketId, workspaceId, ...ticketScopeWhere(access.scope) },
       include: { channel: true, customer: { include: { identities: true } } },
     });
     if (ticket === null) {

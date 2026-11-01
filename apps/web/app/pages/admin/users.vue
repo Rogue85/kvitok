@@ -3,6 +3,8 @@ import {
   WORKSPACE_ROLES,
   type AdminUserDto,
   type AuditLogDto,
+  type DepartmentDto,
+  type MemberDepartmentsInput,
   type PasswordLinkDto,
   type WorkspaceDto,
   type WorkspaceRole,
@@ -139,6 +141,40 @@ function setAccess(workspaceId: string, access: Access): Promise<void> {
   );
 }
 
+/** Every department, or how many. */
+function departmentsSummary(value: MemberDepartmentsInput): string {
+  return value.allDepartments ? t('members.allDepartments') : tp('members.departmentCount', value.departmentIds.length);
+}
+
+function membershipOf(user: AdminUserDto, workspaceId: string) {
+  return user.memberships.find((m) => m.workspaceId === workspaceId) ?? null;
+}
+
+// The departments of an operator or a viewer in one workspace.
+const departmentsEdit = ref<{ workspaceId: string; workspaceName: string; departments: DepartmentDto[] } | null>(null);
+const departmentsDraft = ref<MemberDepartmentsInput>({ allDepartments: true, departmentIds: [] });
+
+async function editDepartments(workspace: WorkspaceDto): Promise<void> {
+  const membership = membershipOf(editing.value!, workspace.id);
+  if (!membership) return;
+  try {
+    const departments = await api<DepartmentDto[]>(`/workspaces/${workspace.id}/departments`);
+    departmentsDraft.value = { ...membership.departments };
+    departmentsEdit.value = { workspaceId: workspace.id, workspaceName: workspace.name, departments };
+  } catch (e) {
+    notifyError(e);
+  }
+}
+
+async function saveDepartments(): Promise<void> {
+  const { workspaceId } = departmentsEdit.value!;
+  const role = accessOf(editing.value!, workspaceId);
+  departmentsEdit.value = null;
+  await apply(() =>
+    api<AdminUserDto>(`/admin/users/${editing.value!.id}/memberships/${workspaceId}`, { method: 'PUT', body: { role, departments: departmentsDraft.value } }),
+  );
+}
+
 async function issueLink(): Promise<void> {
   const user = editing.value;
   if (!user) return;
@@ -170,7 +206,9 @@ function historyChanges(entry: AuditLogDto): string {
     const view = entry.action === 'create' ? after : before;
     return typeof view.role === 'string' ? t(`members.role.${view.role as WorkspaceRole}`) : '';
   }
-  return keys.map((key) => `${key}: ${String(before[key] ?? '—')} → ${String(after[key] ?? '—')}`).join(', ');
+  const show = (key: string, value: unknown) =>
+    key === 'departments' && value ? departmentsSummary(value as MemberDepartmentsInput) : String(value ?? '—');
+  return keys.map((key) => `${key}: ${show(key, before[key])} → ${show(key, after[key])}`).join(', ');
 }
 </script>
 
@@ -276,12 +314,23 @@ function historyChanges(entry: AuditLogDto): string {
               <p v-if="editing.isSuperadmin" class="text-sm text-(--ui-text-muted)">{{ t('users.superadminAccess') }}</p>
               <div v-for="w in workspaces" :key="w.id" class="flex items-center justify-between gap-4">
                 <span class="truncate text-sm">{{ w.name }}</span>
-                <USelect
-                  :model-value="accessOf(editing, w.id)"
-                  :items="accessItems"
-                  class="w-44"
-                  @update:model-value="(value) => setAccess(w.id, value as Access)"
-                />
+                <div class="flex items-center gap-1">
+                  <UButton
+                    v-if="!['admin', NO_ACCESS].includes(accessOf(editing, w.id))"
+                    :label="departmentsSummary(membershipOf(editing, w.id)!.departments)"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="t('members.editDepartments')"
+                    @click="editDepartments(w)"
+                  />
+                  <USelect
+                    :model-value="accessOf(editing, w.id)"
+                    :items="accessItems"
+                    class="w-44"
+                    @update:model-value="(value) => setAccess(w.id, value as Access)"
+                  />
+                </div>
               </div>
             </section>
 
@@ -315,6 +364,27 @@ function historyChanges(entry: AuditLogDto): string {
           </div>
         </template>
       </USlideover>
+
+      <UModal
+        :open="departmentsEdit !== null"
+        :title="t('members.departmentsTitle', { name: editing?.name ?? '' })"
+        :description="departmentsEdit?.workspaceName"
+        @update:open="(open: boolean) => !open && (departmentsEdit = null)"
+      >
+        <template #body>
+          <MembersDepartmentsField
+            v-if="departmentsEdit && editing"
+            v-model="departmentsDraft"
+            :departments="departmentsEdit.departments"
+            :workspace-id="departmentsEdit.workspaceId"
+            :member="{ userId: editing.id, name: editing.name }"
+          />
+        </template>
+        <template #footer>
+          <UButton color="neutral" variant="ghost" @click="departmentsEdit = null">{{ t('common.cancel') }}</UButton>
+          <UButton @click="saveDepartments">{{ t('common.save') }}</UButton>
+        </template>
+      </UModal>
 
       <PasswordLinkModal :link="link" :name="linkName" @close="link = null" />
     </template>

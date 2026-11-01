@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  canSeeDepartment,
   TICKET_PRIORITIES,
   type CustomerLinkDto,
   type FieldDefinitionDto,
@@ -12,18 +13,29 @@ import {
 const props = defineProps<{ ticket: TicketDto; links: CustomerLinkDto[]; cost: TicketCostDto | null }>();
 const emit = defineEmits<{ update: [patch: UpdateTicketInput]; changed: []; openRuns: [] }>();
 
-const { can } = useWorkspace();
+const { can, canSee } = useWorkspace();
 const { departments, members, ticketFields, customerFields } = useWorkspaceData();
 const editable = computed(() => can('operator'));
 
 const priorityItems = TICKET_PRIORITIES.map((value) => ({ label: priorityLabel(value), value }));
+// Any active department: handing a ticket over to one the operator cannot see is allowed, and they lose it.
+const departmentLabel = (title: string, departmentId: string | null) => (canSee(departmentId) ? title : `${title} · ${t('ticket.departmentNoAccess')}`);
 const departmentItems = computed(() => [
-  { label: t('tickets.filters.noDepartment'), value: 'none' },
-  ...departments.data.value.filter((d) => !d.archived || d.id === props.ticket.departmentId).map((d) => ({ label: d.title, value: d.id })),
+  { label: departmentLabel(t('tickets.filters.noDepartment'), null), value: 'none' },
+  ...departments.data.value
+    .filter((d) => !d.archived || d.id === props.ticket.departmentId)
+    .map((d) => ({ label: departmentLabel(d.title, d.id), value: d.id })),
 ]);
+// The assignee always sees the ticket: only members of its department.
 const assigneeItems = computed(() => [
   { label: t('ticket.sidebar.unassigned'), value: 'none' },
-  ...members.data.value.filter((m) => m.role !== 'viewer' && (m.status !== 'disabled' || m.userId === props.ticket.assignee?.id)).map((m) => ({ label: m.name, value: m.userId })),
+  ...members.data.value
+    .filter(
+      (m) =>
+        m.userId === props.ticket.assignee?.id ||
+        (m.role !== 'viewer' && m.status !== 'disabled' && canSeeDepartment(memberScope(m, departments.data.value), props.ticket.departmentId)),
+    )
+    .map((m) => ({ label: m.name, value: m.userId })),
 ]);
 
 const visibleFields = computed(() =>

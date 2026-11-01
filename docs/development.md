@@ -194,7 +194,7 @@ A fresh installation without `db:seed` opens the first-run page `/setup`: it cre
 Users belong to the installation, access is granted per workspace with a role: administrator, operator or viewer.
 
 - **Administration → Users** (superadministrators): invite a user and choose their workspaces, change access, give or take the superadministrator flag, disable and enable, issue a password reset link, see the history. A disabled user cannot sign in or be assigned tickets; their sessions and tokens stop working.
-- **Settings → Members** (workspace administrators): give access to an existing user of the installation or invite a new person.
+- **Settings → Members** (workspace administrators): give access to an existing user of the installation or invite a new person, and limit an operator or a viewer to chosen departments. Such a member sees only tickets of those departments, and tickets without a department when the triage department is among them; administrators always see every ticket.
 - **Profile**: the name, the password and the sessions.
 
 There is no system mail, so an invitation or a reset is a one-time link (valid for 7 days) that the administrator copies and passes on. The person sets their own password with it.
