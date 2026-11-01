@@ -471,7 +471,12 @@ describe('department access', () => {
       (await h.get('/auth/me')).json().workspaces.find((w: { workspaceId: string }) => w.workspaceId === workspaceId).departments;
 
     expect(await scope(members.opA.http)).toEqual({ all: false, departmentIds: [departments.a.id], unrouted: false });
-    expect(await scope(members.opAT.http)).toEqual({ all: false, departmentIds: [departments.a.id, departments.t.id], unrouted: true });
+    const both = await scope(members.opAT.http);
+    expect({ ...both, departmentIds: both.departmentIds.toSorted() }).toEqual({
+      all: false,
+      departmentIds: [departments.a.id, departments.t.id].toSorted(),
+      unrouted: true,
+    });
     expect(await scope(members.opAll.http)).toEqual({ all: true });
     expect(await scope(root)).toEqual({ all: true });
   });
