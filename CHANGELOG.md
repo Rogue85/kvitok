@@ -4,6 +4,10 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+### Added
+
+- Web push notifications for operators. In Notifications (the bell next to the profile) each person turns them on per browser or device and chooses, per workspace, which events reach them: new tickets, assignments, customer messages, questions and proposals of the agent, undelivered replies and, for admins, agent failures. Each event can cover their own tickets, unassigned ones or all, and tickets of others can be narrowed by department and priority. A new ticket or customer message waits up to 45 seconds for the agent's analysis, so the notification shows the department and the summary; messages during the wait join one notification. The page checks the current device step by step (HTTPS, browser support, the Home Screen on iPhone and iPad, the permission) and says how to fix what fails. Signing out on a device stops its notifications. Push needs HTTPS; the VAPID keys are generated on first use, or set with `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`.
+
 ## [0.2.0] - 2026-11-01
 
 ### Added

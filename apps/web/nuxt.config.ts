@@ -15,6 +15,13 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
         { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        // Installed on the home screen, the app gets web push on iOS.
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+      ],
+      meta: [
+        { name: 'theme-color', content: '#F2551D' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-title', content: 'Kvitok' },
       ],
     },
   },

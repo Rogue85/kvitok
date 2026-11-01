@@ -15,6 +15,7 @@ import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
 import { IdentificationService } from '../identification/identification.service';
 import type { Channel, Prisma, Ticket } from '../generated/prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { recordEvent, type Actor } from '../tickets/ticket-events';
@@ -93,6 +94,7 @@ export class InboundService {
     private readonly ruleApplier: RuleApplier,
     private readonly identification: IdentificationService,
     private readonly agent: AgentTriggerService,
+    private readonly notifications: NotificationsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -134,11 +136,12 @@ export class InboundService {
         ...(result.ticketCreated ? {} : { messageId: result.messageId }),
       } as never);
       if (!input.isAutomated) {
-        await this.agent.trigger(
+        const triggered = await this.agent.trigger(
           result.ticketId,
           result.ticketCreated ? { type: 'ticket_created', messageId: result.messageId } : { type: 'customer_message', messageId: result.messageId },
           { mode: 'triage', delay: result.ticketCreated ? 0 : 'debounce' },
         );
+        await this.notifications.incoming(input.channel.workspaceId, result.ticketId, { messageId: result.messageId, created: result.ticketCreated, waitForAgent: triggered });
       }
       return result;
     } catch (error) {

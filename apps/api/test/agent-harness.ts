@@ -7,6 +7,7 @@ import { ConfigModule } from '../src/config/config.module';
 import { CryptoModule } from '../src/crypto/crypto.module';
 import { LLM_CLIENT_FACTORY } from '../src/llm/llm-client.factory';
 import type { LlmClient, LlmRequest, LlmResponse } from '../src/llm/llm.types';
+import { NotificationsModule } from '../src/notifications/notifications.module';
 import { PrismaModule } from '../src/prisma/prisma.module';
 import { QueueRootModule } from '../src/queue.module';
 import { RealtimeModule } from '../src/realtime/realtime.module';
@@ -29,7 +30,7 @@ export async function createAgentHarness(): Promise<AgentHarness> {
   const client: LlmClient = { chat: (request: LlmRequest): Promise<LlmResponse> => harness.llm.chat(request) };
 
   const moduleRef = await Test.createTestingModule({
-    imports: [ConfigModule, CryptoModule, PrismaModule, AuditModule, RedisModule, QueueRootModule, RealtimeModule, StorageModule, AgentCoreModule],
+    imports: [ConfigModule, CryptoModule, PrismaModule, AuditModule, RedisModule, QueueRootModule, RealtimeModule, NotificationsModule, StorageModule, AgentCoreModule],
   })
     .overrideProvider(LLM_CLIENT_FACTORY)
     .useValue(() => client)

@@ -6,6 +6,8 @@ import { ConfigModule } from './config/config.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { MailWorkerModule } from './mail/mail-worker.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { NotificationsWorkerModule } from './notifications/notifications.processor';
 import { OutboundWorkerModule } from './outbound/outbound-worker.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueRootModule } from './queue.module';
@@ -22,12 +24,14 @@ import { StorageModule } from './storage/storage.module';
     RedisModule,
     QueueRootModule,
     RealtimeModule,
+    NotificationsModule,
     StorageModule,
     MaintenanceModule,
     OutboundWorkerModule,
     MailWorkerModule,
     AgentWorkerModule,
     ActionsWorkerModule,
+    NotificationsWorkerModule,
   ],
 })
 export class WorkerModule {}

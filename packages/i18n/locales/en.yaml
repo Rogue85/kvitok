@@ -54,6 +54,7 @@ nav:
   tokens: Access tokens
   audit: Change log
   profile: Profile
+  notifications: Notifications
   administration: Administration
   users: Users
   workspaces: Workspaces
@@ -1209,6 +1210,9 @@ api:
   invalidFilterValue: Invalid filter value
   bulkTooMany: "The filter matches more than {limit} tickets: narrow it down"
   ticketViewNotFound: Saved view not found
+  notificationsNotMember: You are not a member of this workspace
+  pushSubscriptionNotFound: Device not found
+  pushSubscriptionGone: "The push service no longer knows this device ({error}): turn notifications on again"
   sharedViewsAdminOnly: Only admins share views and change shared ones
   noReplyMailbox: No mailbox to reply from
   sourceHasNoWebhook: The ticket source has no webhook for replies
@@ -1314,3 +1318,114 @@ api:
     noSubmit: The model did not call the tool that finishes the analysis
     invalidSubmit: "Invalid {tool}: {error}"
     tooManySteps: The agent did not finish the analysis within the allowed number of steps
+
+notifications:
+  intro: Notifications come to every browser and device where you turn them on. What to send is set separately in each workspace.
+  thisDevice: This device
+  enable: Turn on notifications
+  disable: Turn off on this device
+  disabled: Notifications are turned off on this device
+  enableFailed: Could not turn on notifications
+  sendTest: Send a test notification
+  testSent: The test notification was sent — it should appear in a few seconds
+  testFailed: "The push service did not accept the notification: {error}"
+  steps:
+    secure:
+      title: Secure connection
+      ok: The connection is secure
+      fail: Notifications work only over HTTPS. Open Kvitok at its https:// address; if there is none, ask the administrator to set up HTTPS.
+    homeScreen:
+      title: Kvitok on the Home Screen
+      ok: Kvitok is open as an app from the Home Screen
+      fail: On iPhone and iPad notifications come only to an app added to the Home Screen (iOS 16.4 or later).
+      step1: Open this page in Safari.
+      step2: Tap Share at the bottom of the screen.
+      step3: Choose “Add to Home Screen” and confirm.
+      step4: Open Kvitok from the Home Screen, sign in and turn on notifications on this page.
+    browser:
+      title: Browser support
+      ok: This browser supports notifications
+      fail: This browser cannot receive notifications. Open Kvitok in Chrome, Safari, Firefox or Edge.
+      inApp: This page is open in a browser built into another app. Open it in a regular browser, for example with “Open in browser” in the menu.
+    permission:
+      title: Permission
+      ok: Notifications are allowed
+      pending: The browser asks for permission when you turn notifications on
+      fail: Notifications are blocked for this site.
+      reset:
+        chrome: Click the icon to the left of the address, open the site settings, set “Notifications” to “Allow” and reload the page.
+        safari: "Open Safari → Settings → Websites → Notifications, allow this site and reload the page."
+        ios: "Open Settings → Notifications → Kvitok and turn on “Allow Notifications”."
+        firefox: Click the icon to the left of the address, remove the block on notifications and reload the page.
+        generic: Allow notifications for this site in the browser's site settings and reload the page.
+    subscribed:
+      title: Subscription
+      ok: Notifications come to this device
+      pending: Notifications are not turned on on this device yet
+  system:
+    title: The test notification did not appear?
+    macos: Check System Settings → Notifications → your browser, and that Focus is off.
+    windows: Check Settings → System → Notifications for your browser, and that Do Not Disturb is off.
+    android: Check that the browser may show notifications in the Android settings and that battery saving does not stop it.
+    ios: Check Settings → Notifications → Kvitok, and that Focus is off.
+    linux: Check that notifications of your desktop are on and Do Not Disturb is off.
+    generic: Check that the operating system allows the browser to show notifications.
+  otherDevices: How to turn them on on other devices
+  guide:
+    iosTitle: iPhone and iPad
+    ios: iOS 16.4 or later. Open Kvitok in Safari, tap Share → “Add to Home Screen”, open Kvitok from the Home Screen, sign in and turn on notifications on this page.
+    androidTitle: Android
+    android: Open Kvitok in Chrome, Firefox or Samsung Internet, sign in and turn on notifications on this page. Adding it to the home screen is optional.
+    desktopTitle: Computer
+    desktop: Open Kvitok in Chrome, Edge, Firefox or Safari (macOS 13 or later), sign in and turn on notifications on this page. The operating system must allow the browser to show notifications.
+  devices: Devices
+  devicesHint: Signing out on a device stops its notifications.
+  devicesEmpty: Notifications are not turned on on any device yet.
+  unknownDevice: Unknown device
+  lastDelivered: "Delivered {time}"
+  neverDelivered: Nothing delivered yet
+  removeDevice: Stop notifications on this device
+  what: What to send
+  notMember: You are not a member of this workspace, so it sends you no notifications.
+  saved: Notification settings saved
+  saveFailed: Could not save the notification settings
+  waitHint: A new ticket and a customer message wait up to 45 seconds for the agent's analysis, so the notification already shows the department and the summary.
+  events:
+    ticketCreated: New ticket
+    assigned: A ticket is assigned to me
+    customerMessage: New customer message
+    agentNeedsOperator: The agent needs an operator
+    agentNeedsOperatorHint: A question to the operator or an action waiting for a decision
+    deliveryFailed: A reply was not delivered
+    agentFailed: Agent failures
+    agentFailedHint: Administrators only
+  scope:
+    "on": "On"
+    off: "Off"
+    mine: In my tickets
+    mine_unassigned: In my and unassigned tickets
+    all: In all tickets
+    unassigned: Unassigned tickets
+    allTickets: All tickets
+    myReplies: My replies
+    allReplies: All replies
+  filters: Filters
+  filtersHint: They apply to tickets not assigned to you; your own tickets always notify you.
+  departments: Departments
+  allDepartments: All departments
+  noDepartment: Tickets without a department
+  minPriority: Priority from
+  push:
+    ticketCreated: "New ticket T-{number}"
+    ticketCreatedIn: "New ticket T-{number} · {department}"
+    assigned: "T-{number} is assigned to you"
+    customerMessages:
+      one: "{count} new message in T-{number}"
+      other: "{count} new messages in T-{number}"
+    agentNeedsOperator: "The agent is waiting for an operator in T-{number}"
+    agentAsks: "The agent asks: {question}"
+    actionProposed: The agent proposed an action that needs a decision
+    deliveryFailed: "The reply in T-{number} was not delivered"
+    agentFailed: "The agent failed on T-{number}"
+    testTitle: Notifications work
+    testBody: This is a test notification from Kvitok.

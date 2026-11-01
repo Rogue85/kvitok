@@ -14,6 +14,7 @@ import { CryptoModule } from '../src/crypto/crypto.module';
 import { EmailSender, MAIL_TRANSPORT_FACTORY, type MailTransportFactory } from '../src/mail/email-sender';
 import { DeliveryRunner } from '../src/outbound/delivery-runner';
 import { WebhookSender } from '../src/outbound/webhook-sender';
+import { NotificationsModule } from '../src/notifications/notifications.module';
 import { PrismaModule } from '../src/prisma/prisma.module';
 import { RealtimeModule } from '../src/realtime/realtime.module';
 import { RedisModule } from '../src/redis/redis.module';
@@ -103,7 +104,7 @@ export async function createWorkerHarness(): Promise<WorkerHarness> {
       AuditModule,
       RedisModule,
       QueueRootModule,
-      RealtimeModule,
+      RealtimeModule, NotificationsModule,
       StorageModule,
       ChannelsModule,
       IngestModule,

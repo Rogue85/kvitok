@@ -10,6 +10,7 @@ export * from './fields.js';
 export * from './identification.js';
 export * from './identities.js';
 export * from './integrations.js';
+export * from './notifications.js';
 export * from './ingest.js';
 export * from './patch.js';
 export * from './realtime.js';

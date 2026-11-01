@@ -25,6 +25,7 @@ import { DepartmentsService } from '../departments/departments.service';
 import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
 import { Prisma, type Channel, type Delivery, type Ticket, type Workspace } from '../generated/prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OutboundService, ticketWebhookRef } from '../outbound/outbound.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -47,6 +48,7 @@ export class TicketsService {
     private readonly departments: DepartmentsService,
     private readonly outbound: OutboundService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(workspaceId: string, query: TicketListQuery, currentUserId: string): Promise<TicketListDto> {
@@ -280,6 +282,7 @@ export class TicketsService {
     const { workspaceId, id } = ticket;
     const actor: Actor = { type: 'user', id: userId };
     let fieldResult: ReturnType<typeof applyFieldValues> | null = null;
+    let assignedTo = null as string | null;
     if (input.fields) {
       const state = fieldState(ticket);
       fieldResult = applyFieldValues({
@@ -339,6 +342,7 @@ export class TicketsService {
         await event('department_changed', { from: ticket.departmentId, to: input.departmentId });
       }
       if (input.assigneeId !== undefined && input.assigneeId !== ticket.assigneeId) {
+        assignedTo = input.assigneeId;
         data.assignee = input.assigneeId ? { connect: { id: input.assigneeId } } : { disconnect: true };
         await event('assignee_changed', { from: ticket.assigneeId, to: input.assigneeId });
       }
@@ -370,6 +374,7 @@ export class TicketsService {
 
     await this.outbound.schedule(deliveries);
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: id });
+    if (assignedTo !== null && assignedTo !== userId) await this.notifications.assigned(workspaceId, id, userId);
   }
 
   async replyOptions(

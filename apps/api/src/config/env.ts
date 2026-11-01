@@ -25,6 +25,11 @@ const EnvSchema = z.object({
   REOPEN_WINDOW_DAYS: z.coerce.number().int().min(1).default(30),
   INTEGRATION_SYNC_MINUTES: z.coerce.number().int().min(1).default(15),
   INTEGRATION_TIMEOUT_MS: z.coerce.number().int().min(500).max(120_000).default(15_000),
+  /** VAPID keys for web push (base64url); without them the keys are generated once and stored in the database. */
+  VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  /** A contact for push services: `mailto:` or an https URL; WEB_ORIGIN when it is https. */
+  VAPID_SUBJECT: z.string().min(1).optional(),
 });
 
 export interface AppConfig {
@@ -52,6 +57,8 @@ export interface AppConfig {
   integrationSyncMinutes: number;
   /** Timeout of a single request to an integration. */
   integrationTimeoutMs: number;
+  vapid: { publicKey: string; privateKey: string } | null;
+  vapidSubject: string;
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -84,5 +91,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     reopenWindowDays: e.REOPEN_WINDOW_DAYS,
     integrationSyncMinutes: e.INTEGRATION_SYNC_MINUTES,
     integrationTimeoutMs: e.INTEGRATION_TIMEOUT_MS,
+    vapid: e.VAPID_PUBLIC_KEY && e.VAPID_PRIVATE_KEY ? { publicKey: e.VAPID_PUBLIC_KEY, privateKey: e.VAPID_PRIVATE_KEY } : null,
+    vapidSubject: e.VAPID_SUBJECT ?? (e.WEB_ORIGIN.startsWith('https://') ? e.WEB_ORIGIN : 'mailto:admin@localhost'),
   };
 }

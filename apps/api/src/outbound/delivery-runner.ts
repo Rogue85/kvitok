@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { apiConfig } from '../channels/channel-config';
 import { ChannelsService } from '../channels/channels.service';
 import { EmailSender } from '../mail/email-sender';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { recordEvent, SYSTEM_ACTOR } from '../tickets/ticket-events';
@@ -20,6 +21,7 @@ export class DeliveryRunner {
     private readonly email: EmailSender,
     private readonly webhook: WebhookSender,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async run(deliveryId: string, options: { finalAttempt: boolean }): Promise<DeliveryOutcome> {
@@ -90,6 +92,8 @@ export class DeliveryRunner {
           );
         }
         await this.publish(delivery.workspaceId, delivery.ticketId, delivery.messageId, deliveryId, 'failed');
+        // Only replies: a failed status webhook is the backend's problem, not an operator's.
+        if (delivery.ticketId && delivery.messageId) await this.notifications.deliveryFailed(delivery.workspaceId, delivery.ticketId, delivery.messageId);
       }
       throw error;
     }

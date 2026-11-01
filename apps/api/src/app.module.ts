@@ -19,6 +19,8 @@ import { HealthController } from './health/health.controller';
 import { MetaController } from './health/meta.controller';
 import { MailModule } from './mail/mail.module';
 import { McpModule } from './mcp/mcp.module';
+import { NotificationsApiModule } from './notifications/notifications-api.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { IdentificationModule } from './identification/identification.module';
 import { IngestModule } from './ingest/ingest.module';
 import { IntegrationsModule } from './integrations/integrations.module';
@@ -42,6 +44,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     QueueRootModule,
     StorageModule,
     RealtimeModule,
+    NotificationsModule,
     AuthModule,
     UsersModule,
     WorkspacesModule,
@@ -60,6 +63,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AgentModule,
     AnalyticsModule,
     McpModule,
+    NotificationsApiModule,
   ],
   controllers: [HealthController, MetaController, AuditController],
   providers: [

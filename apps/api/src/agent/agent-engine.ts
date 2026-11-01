@@ -7,6 +7,7 @@ import { json } from '../common/json';
 import { Prisma, type AgentRun } from '../generated/prisma/client';
 import { LLM_CLIENT_FACTORY, type LlmClientFactory } from '../llm/llm-client.factory';
 import type { LlmMessage } from '../llm/llm.types';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { REDIS } from '../redis/redis.module';
@@ -58,6 +59,7 @@ export class AgentEngine {
     private readonly drafts: DraftsService,
     private readonly triggers: AgentTriggerService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
     private readonly integrations: IntegrationRuntimeService,
     @Inject(LLM_CLIENT_FACTORY) private readonly clientFactory: LlmClientFactory,
     @Inject(REDIS) private readonly redis: IORedis,
@@ -65,6 +67,7 @@ export class AgentEngine {
 
   /** Handles a queue job: take the accumulated triggers, run, queue the next run if needed. */
   async processTicket(ticketId: string, jobId: string): Promise<RunOutcome | 'skipped'> {
+    const startedAt = new Date();
     const claim = await this.prisma.$transaction(async (tx) => {
       const row = await lockTicket(tx, ticketId);
       if (row.agent_job_id !== jobId) return null;
@@ -125,6 +128,9 @@ export class AgentEngine {
     }
     await this.realtime.publish(claim.workspaceId, { type: 'agent.updated', ticketId, state: next.state });
     await this.realtime.publish(claim.workspaceId, { type: 'ticket.updated', ticketId });
+    if (outcome === 'failed') await this.notifications.agentFailed(claim.workspaceId, ticketId);
+    // Another run is queued: a waiting notification keeps waiting for its analysis.
+    if (next.jobId === null) await this.notifications.agentSettled(claim.workspaceId, ticketId, startedAt);
     return outcome;
   }
 

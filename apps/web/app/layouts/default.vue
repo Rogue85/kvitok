@@ -107,6 +107,15 @@ const adminItems = computed<NavigationMenuItem[]>(() =>
             <UAvatar :alt="me?.user.name" size="sm" />
             <span v-if="!collapsed" class="flex-1 truncate text-sm">{{ me?.user.name }}</span>
           </NuxtLink>
+          <UButton
+            v-if="!collapsed"
+            to="/notifications"
+            icon="i-lucide-bell"
+            color="neutral"
+            variant="ghost"
+            :aria-label="t('nav.notifications')"
+            :title="t('nav.notifications')"
+          />
           <UButton icon="i-lucide-log-out" color="neutral" variant="ghost" :aria-label="t('common.logout')" @click="logout" />
         </div>
       </template>

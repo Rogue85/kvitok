@@ -204,6 +204,8 @@ All settings are environment variables in `.env`. The compose file passes all of
 | `MAIL_POLL_SECONDS` | `60` | Mailbox polling interval |
 | `INTEGRATION_SYNC_MINUTES` | `15` | How often integration manifests are synced |
 | `MIGRATE_ON_START` | `true` | Migrations on start of the `api` container |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generated | Web push keys (base64url, `npx web-push generate-vapid-keys`). Without them the keys are generated on first use and stored encrypted with `APP_SECRET`; changing either invalidates every browser subscription |
+| `VAPID_SUBJECT` | `mailto:admin@localhost` | A contact for push services: `mailto:you@example.com` or an https URL |
 
 ## Building the image
 

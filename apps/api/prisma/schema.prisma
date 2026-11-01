@@ -15,43 +15,74 @@ enum WorkspaceRole {
 }
 
 model User {
-  id             String           @id
-  email          String           @unique
-  name           String
+  id                String             @id
+  email             String             @unique
+  name              String
   /// Empty until the user accepts the invitation and sets a password.
-  passwordHash   String?          @map("password_hash")
-  isSuperadmin   Boolean          @default(false) @map("is_superadmin")
-  disabledAt     DateTime?        @map("disabled_at") @db.Timestamptz
+  passwordHash      String?            @map("password_hash")
+  isSuperadmin      Boolean            @default(false) @map("is_superadmin")
+  disabledAt        DateTime?          @map("disabled_at") @db.Timestamptz
   /// The last sign-in or activity in the interface; sessions are deleted on sign-out, this stays.
-  lastSeenAt     DateTime?        @map("last_seen_at") @db.Timestamptz
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
-  sessions       Session[]
-  passwordTokens PasswordToken[]
-  apiTokens      ApiToken[]
-  memberships    Membership[]
-  assigned       Ticket[]         @relation("TicketAssignee")
-  messages       Message[]
-  decidedActions ActionProposal[]
-  ticketViews    TicketView[]
+  lastSeenAt        DateTime?          @map("last_seen_at") @db.Timestamptz
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  sessions          Session[]
+  passwordTokens    PasswordToken[]
+  apiTokens         ApiToken[]
+  memberships       Membership[]
+  assigned          Ticket[]           @relation("TicketAssignee")
+  messages          Message[]
+  decidedActions    ActionProposal[]
+  ticketViews       TicketView[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
 
 model Session {
-  id         String   @id
-  tokenHash  String   @unique @map("token_hash")
-  userId     String   @map("user_id")
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userAgent  String?  @map("user_agent")
-  ip         String?
-  expiresAt  DateTime @map("expires_at") @db.Timestamptz
-  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                String             @id
+  tokenHash         String             @unique @map("token_hash")
+  userId            String             @map("user_id")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent         String?            @map("user_agent")
+  ip                String?
+  expiresAt         DateTime           @map("expires_at") @db.Timestamptz
+  lastSeenAt        DateTime           @default(now()) @map("last_seen_at") @db.Timestamptz
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  pushSubscriptions PushSubscription[]
 
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+/// A browser subscribed to web push. It belongs to the session it was made in: signing out on the device stops its notifications.
+model PushSubscription {
+  id            String    @id
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId     String    @map("session_id")
+  session       Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  userAgent     String?   @map("user_agent")
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/// Secrets of the installation generated on first use (VAPID keys), encrypted with APP_SECRET.
+model InstallationSecret {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("installation_secrets")
 }
 
 enum PasswordTokenPurpose {
@@ -131,13 +162,15 @@ model Workspace {
 }
 
 model Membership {
-  workspaceId String        @map("workspace_id")
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  userId      String        @map("user_id")
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role        WorkspaceRole
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  workspaceId          String        @map("workspace_id")
+  workspace            Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId               String        @map("user_id")
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role                 WorkspaceRole
+  /// What the member gets notified about in this workspace (NotificationSettingsSchema); null — the defaults.
+  notificationSettings Json?         @map("notification_settings")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   @@id([workspaceId, userId])
   @@index([userId])

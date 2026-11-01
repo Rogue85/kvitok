@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { emailConfig } from '../channels/channel-config';
 import type { Channel } from '../generated/prisma/client';
 import { InboundService, type StoredAttachment } from '../ingest/inbound.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { StorageService } from '../storage/storage.service';
@@ -30,6 +31,7 @@ export class MailIngestService {
     private readonly inbound: InboundService,
     private readonly storage: StorageService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async ingest(channel: Channel, raw: Buffer | string): Promise<MailIngestResult> {
@@ -149,6 +151,7 @@ export class MailIngestService {
       });
     });
     await this.realtime.publish(channel.workspaceId, { type: 'ticket.updated', ticketId: original.ticketId });
+    await this.notifications.deliveryFailed(channel.workspaceId, original.ticketId, original.id);
     return { status: 'bounce', ticketId: original.ticketId };
   }
 
