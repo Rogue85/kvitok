@@ -17,7 +17,7 @@ Kvitok knows nothing about your business. A backend describes its data and actio
   <img src="docs/screenshots/ticket.webp" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator">
 </picture>
 
-<sub>A guest got neither points nor a promo cup for a purchase. The agent found the receipt in the backend, worked out what was missing and proposed two actions. Each one waits for the operator.</sub>
+<sub>A guest got neither points nor a promo cup for a purchase. Kvitok found her in the backend and filled in her tier and balance, the agent found the receipt, worked out what was missing and proposed two actions. Each one waits for the operator.</sub>
 
 ## At a glance
 
@@ -48,7 +48,17 @@ Kvitok replaces that script with a full loop. The agent works on the ticket as l
 1. A request arrives through a mailbox (IMAP) or the ingest API. Kvitok finds the customer in your backend by phone, email, card number or any other identity the backend supports.
 2. Deterministic rules run first. They can set a department, priority, tags or fields, or skip the agent entirely, for example for partner emails.
 3. The agent loads the customer card and calls read tools in your backend: receipts, orders, coupons, whatever the backend exposes. It follows playbooks for typical requests, picks a department with a confidence score and writes a reply draft.
+
+<img src="docs/screenshots/customer-data.webp" alt="Left: the customer in the ticket sidebar with the cashback tier, points and city from the backend. Right: the agent's run, a list of calls: resolve_customer, get_customer_context, read_playbook, get_receipt and two proposals">
+
+<sub>The guest from the first screenshot. Kvitok found her in the backend by phone and copied her cashback tier, points and city into the ticket. On the right is the agent's run: it read the customer card, two playbooks and the receipt, then proposed two actions. Every call and its result is kept with the ticket.</sub>
+
 4. Each action the agent proposes is validated by the backend right away. If the receipt belongs to another customer or the points were already credited, the agent sees the error and corrects itself.
+
+<img src="docs/screenshots/proposed-actions.webp" alt="The agent's analysis of the receipt and two proposed actions, crediting 24 points and one cup, each with a preview from the backend and Approve and Reject buttons">
+
+<sub>The agent shows its findings and the arithmetic. Each proposal carries the preview the backend returned when it validated the parameters.</sub>
+
 5. The operator sees all of this in the ticket, which works like a chat. Anything the operator types goes to the agent: "the guest says the receipt was 540", "offer a coupon instead", "make the reply shorter". The agent updates only what the message affects.
 6. Approved actions are executed by the backend with an idempotency key, so a retry never applies an action twice. The reply goes out by email or to the source's webhook.
 
@@ -67,9 +77,11 @@ The agent finds the guest by the phone number from the form and fetches the rece
 
 After a phone call with the guest, the operator writes to the agent: "Boris called back: the October 13 receipt is the only one missing. He asked when the points will show up, please mention that in the reply." The agent checks its numbers again, leaves the proposal as it was and rewrites only the draft.
 
+<img src="docs/screenshots/agent-chat.webp" alt="The operator's message to the agent about the phone call and the agent's answer: the numbers match the proposal, only the draft changed">
+
 The operator approves the action and the backend credits the points. One more message, "The points are credited. Update the reply: say they are already on his card", and the agent updates the draft again. The operator sends it by email and the ticket is resolved.
 
-<img src="docs/screenshots/ticket-chat.webp" alt="The whole ticket: the guest's message, the agent's proposal, two operator messages to the agent, the executed action and the reply sent by email">
+<img src="docs/screenshots/approved-and-sent.webp" alt="The action approved by the operator and executed by the backend, the operator's request to update the reply, the agent's answer and the reply sent to the guest by email">
 
 You can run the same scenarios on your machine with the coffee shop simulator described below.
 
