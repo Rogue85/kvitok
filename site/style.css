@@ -304,13 +304,11 @@ h1 {
   height: 18px;
 }
 
+/* The screenshots carry their own frame: rounded corners, a border and a shadow. */
 .shot {
+  display: grid;
+  gap: 16px;
   margin: 56px auto 0;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  overflow: hidden;
 }
 
 .caption {
