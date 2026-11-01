@@ -4,6 +4,8 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-01
+
 The first release.
 
 ### Added

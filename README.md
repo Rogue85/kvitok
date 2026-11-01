@@ -30,7 +30,7 @@ Kvitok knows nothing about your business. A backend describes its data and actio
 - [Getting started](#getting-started). Run it in Docker with a fake LLM and a coffee shop simulator, or let Claude Code connect your project.
 - [Evaluating the agent](#evaluating-the-agent). `pnpm eval` runs test scenarios against a real model and reports which passed and what it cost.
 - [Working with an external agent](#working-with-an-external-agent). Claude Code and other agents can configure and tune a workspace over MCP.
-- [Status](#status). Early development, no releases yet, not ready for production.
+- [Status](#status). Early development: version 0.1, not yet proven in production.
 
 ## Why
 
@@ -126,7 +126,7 @@ The existing support pipeline can stay in place: Kvitok can receive copies of th
 ## Getting started
 
 > [!WARNING]
-> Kvitok is not ready for production. It has no releases, it has not run in production, and the only stack in the repository is the development one: hot reload, demo credentials, example secrets in `.env.example`, nothing hardened. There is no deployment guide yet. Use Kvitok locally to try it and to connect your project in development, with synthetic or staging data, never real customer requests.
+> Kvitok is in early development and has not yet run in production. Until 1.0.0 a minor version may break compatibility: read the [changelog](CHANGELOG.md) before updating. Try it and connect your project with synthetic or staging data first. The development stack below has demo credentials and example secrets; a server installation follows [docs/deployment.md](docs/deployment.md).
 
 ### Run Kvitok locally
 
@@ -198,7 +198,7 @@ Kvitok serves an MCP endpoint at `/api/mcp`. With a personal access token, Claud
 
 ## Status
 
-Kvitok is in early development: it has no releases and has not run in production. Working today: email and API channels, routing rules, custom fields, the agent with read tools and validated actions, the ticket chat with the agent, integrations through the protocol, agent evaluation, an MCP server for external agents and the English and Russian interface.
+Kvitok is in early development. The first release is 0.1.0 (see the [changelog](CHANGELOG.md)); it has not run in production yet. Working today: email and API channels, routing rules, custom fields, the agent with read tools and validated actions, the ticket chat with the agent, integrations through the protocol, agent evaluation, an MCP server for external agents and the English and Russian interface.
 
 The agent's prompt is in English. The agent drafts replies in the customer's language and writes summaries, findings and messages for the operator in the installation language. Next up are operator notifications (web push and Telegram), then an automatic mode for safe cases, SLA, templates and macros, and a website widget and a Telegram bot as sources.
 
