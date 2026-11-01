@@ -186,7 +186,7 @@ describe('workspace settings', () => {
     it('a mailbox is not created without an SMTP password; a viewer does not manage channels', async () => {
       const { workspaceId, http } = await setupWorkspace(app);
       const viewer = await createUser(app);
-      await http.post(`/workspaces/${workspaceId}/members`, { email: viewer.email, role: 'viewer' });
+      await http.post(`/workspaces/${workspaceId}/members`, { userId: viewer.id, role: 'viewer' });
 
       const noPassword = await http.post(`/workspaces/${workspaceId}/channels`, {
         type: 'email',

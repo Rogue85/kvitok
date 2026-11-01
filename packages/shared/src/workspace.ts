@@ -1,6 +1,6 @@
 import { t } from '@kvitok/i18n';
 import { z } from 'zod';
-import { EmailSchema, PasswordSchema } from './auth.js';
+import { EmailSchema } from './auth.js';
 import { WorkspaceRoleSchema, type WorkspaceRole } from './roles.js';
 
 export const SlugSchema = z
@@ -11,12 +11,6 @@ export const SlugSchema = z
   .max(48)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { error: () => t('validation.slug') });
 
-export const CreateWorkspaceSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  slug: SlugSchema,
-});
-export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
-
 /** An ISO 4217 code: model prices and run costs of the workspace are in it. */
 export const CurrencySchema = z
   .string()
@@ -24,6 +18,13 @@ export const CurrencySchema = z
   .toUpperCase()
   .regex(/^[A-Z]{3}$/, { error: () => t('validation.currency') })
   .refine((code) => Intl.supportedValuesOf('currency').includes(code), { error: () => t('validation.currency') });
+
+export const CreateWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: SlugSchema,
+  currency: CurrencySchema.optional(),
+});
+export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
 
 export const UpdateWorkspaceSchema = z
   .object({
@@ -34,13 +35,13 @@ export const UpdateWorkspaceSchema = z
   .partial();
 export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceSchema>;
 
-/** Add a member: an existing user by email or a new one (then name and password are required). */
-export const AddMemberSchema = z.object({
-  email: EmailSchema,
-  role: WorkspaceRoleSchema,
-  name: z.string().trim().min(1).max(120).optional(),
-  password: PasswordSchema.optional(),
-});
+export const UserNameSchema = z.string().trim().min(1).max(120);
+
+/** Add a member: an existing user of the installation, or invite a new person by email. */
+export const AddMemberSchema = z.union([
+  z.object({ userId: z.string().min(1), role: WorkspaceRoleSchema }),
+  z.object({ email: EmailSchema, name: UserNameSchema, role: WorkspaceRoleSchema }),
+]);
 export type AddMemberInput = z.infer<typeof AddMemberSchema>;
 
 export const UpdateMemberSchema = z.object({
@@ -57,10 +58,57 @@ export interface WorkspaceDto {
   createdAt: string;
 }
 
+/** active — can sign in; invited — has not set a password yet; disabled — cannot sign in. */
+export type UserStatus = 'active' | 'invited' | 'disabled';
+
 export interface MemberDto {
   userId: string;
   email: string;
   name: string;
   role: WorkspaceRole;
+  status: UserStatus;
   createdAt: string;
 }
+
+/** A one-time link to set a password. The token is shown once; the web builds `/invite/<token>` from it. */
+export interface PasswordLinkDto {
+  token: string;
+  purpose: 'invite' | 'reset';
+  expiresAt: string;
+}
+
+export interface AddMemberResult {
+  member: MemberDto;
+  /** For a newly invited person. */
+  link: PasswordLinkDto | null;
+}
+
+/** A user of the installation who can be given access to the workspace. */
+export interface MemberCandidateDto {
+  id: string;
+  email: string;
+  name: string;
+  status: UserStatus;
+}
+
+/**
+ * A slug from a name: Cyrillic is transliterated, everything else that is not a letter or a digit becomes a hyphen.
+ * Returns an empty string when nothing is left.
+ */
+export function slugify(name: string): string {
+  return [...name.toLowerCase()]
+    .map((char) => CYRILLIC[char] ?? char)
+    .join('')
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48)
+    .replace(/-+$/, '');
+}
+
+const CYRILLIC: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm',
+  н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch',
+  ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya', і: 'i', ї: 'yi', є: 'ye', ґ: 'g', ў: 'u',
+};

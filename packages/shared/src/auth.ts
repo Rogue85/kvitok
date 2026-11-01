@@ -20,10 +20,13 @@ export interface AuthUser {
 
 export interface MeResponse {
   user: AuthUser;
-  memberships: Array<{
+  /** Workspaces the user can open: their memberships, and every workspace for a superadmin. */
+  workspaces: Array<{
     workspaceId: string;
     workspaceName: string;
     workspaceSlug: string;
     role: z.infer<typeof WorkspaceRoleSchema>;
+    /** False when a superadmin opens a workspace without being its member. */
+    isMember: boolean;
   }>;
 }

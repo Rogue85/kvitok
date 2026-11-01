@@ -23,7 +23,7 @@ const departmentItems = computed(() => [
 ]);
 const assigneeItems = computed(() => [
   { label: t('ticket.sidebar.unassigned'), value: 'none' },
-  ...members.data.value.filter((m) => m.role !== 'viewer').map((m) => ({ label: m.name, value: m.userId })),
+  ...members.data.value.filter((m) => m.role !== 'viewer' && (m.status !== 'disabled' || m.userId === props.ticket.assignee?.id)).map((m) => ({ label: m.name, value: m.userId })),
 ]);
 
 const visibleFields = computed(() =>

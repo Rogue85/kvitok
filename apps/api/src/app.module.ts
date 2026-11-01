@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { AdminModule } from './admin/admin.module';
 import { AgentConfigModule } from './agent/agent-config.module';
 import { AgentModule } from './agent/agent.module';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -44,6 +45,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AuthModule,
     UsersModule,
     WorkspacesModule,
+    AdminModule,
     FieldsModule,
     DepartmentsModule,
     ChannelsModule,

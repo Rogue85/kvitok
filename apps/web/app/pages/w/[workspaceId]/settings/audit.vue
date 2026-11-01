@@ -13,7 +13,8 @@ const loading = ref(false);
 
 const entityItems = [
   { label: t('audit.allEntities'), value: ALL },
-  ...AUDIT_ENTITIES.map((value) => ({ label: t(`audit.entity.${value}`), value })),
+  // User changes belong to the installation, not to a workspace.
+  ...AUDIT_ENTITIES.filter((value) => value !== 'user').map((value) => ({ label: t(`audit.entity.${value}`), value })),
 ];
 
 const columns: TableColumn<AuditLogDto>[] = [

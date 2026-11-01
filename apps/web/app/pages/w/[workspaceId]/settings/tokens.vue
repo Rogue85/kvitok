@@ -29,7 +29,7 @@ const scopeItems = computed(() =>
 const ALL_WORKSPACES = 'all';
 const workspaceItems = computed(() => [
   { label: t('tokens.allWorkspaces'), value: ALL_WORKSPACES },
-  ...(me.value?.memberships ?? []).map((m) => ({ label: m.workspaceName, value: m.workspaceId })),
+  ...(me.value?.workspaces ?? []).map((w) => ({ label: w.workspaceName, value: w.workspaceId })),
 ]);
 const expiryItems = [
   { label: t('tokens.expiry.d30'), value: 30 },

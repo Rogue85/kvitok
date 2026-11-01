@@ -1,7 +1,16 @@
 import { t } from '@kvitok/i18n';
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { LoginSchema, type LoginInput, type MeResponse } from '@kvitok/shared';
+import {
+  ChangePasswordSchema,
+  LoginSchema,
+  UpdateProfileSchema,
+  type ChangePasswordInput,
+  type LoginInput,
+  type MeResponse,
+  type SessionDto,
+  type UpdateProfileInput,
+} from '@kvitok/shared';
 import type { FastifyReply } from 'fastify';
 import { APP_CONFIG, type AppConfig } from '../config/env';
 import { errors } from '../common/errors';
@@ -9,6 +18,7 @@ import type { AppRequest, AuthContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { AuthService } from './auth.service';
 import { CurrentAuth, Public } from './decorators';
+import { setSessionCookie } from './session-cookie';
 import { SESSION_COOKIE } from './session-token';
 
 @Controller('auth')
@@ -35,14 +45,7 @@ export class AuthController {
       throw errors.unauthorized(t('api.invalidCredentials'));
     }
 
-    reply.setCookie(SESSION_COOKIE, result.token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: this.config.cookieSecure,
-      path: '/',
-      expires: result.expiresAt,
-    });
-
+    setSessionCookie(reply, this.config, result);
     return this.authService.me(result.auth.user.id);
   }
 
@@ -58,6 +61,43 @@ export class AuthController {
     const me = await this.authService.me(auth.user.id);
     // A token restricted to one workspace does not reveal the others.
     const tokenWorkspaceId = auth.token?.workspaceId ?? null;
-    return tokenWorkspaceId === null ? me : { ...me, memberships: me.memberships.filter((m) => m.workspaceId === tokenWorkspaceId) };
+    return tokenWorkspaceId === null ? me : { ...me, workspaces: me.workspaces.filter((w) => w.workspaceId === tokenWorkspaceId) };
+  }
+
+  @Patch('me')
+  async updateProfile(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodValidationPipe(UpdateProfileSchema)) body: UpdateProfileInput,
+  ): Promise<MeResponse> {
+    await this.authService.updateProfile(auth.user.id, body.name);
+    return this.authService.me(auth.user.id);
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Post('password')
+  @HttpCode(204)
+  changePassword(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodValidationPipe(ChangePasswordSchema)) body: ChangePasswordInput,
+  ): Promise<void> {
+    return this.authService.changePassword(auth, body.currentPassword, body.newPassword);
+  }
+
+  @Get('sessions')
+  sessions(@CurrentAuth() auth: AuthContext): Promise<SessionDto[]> {
+    return this.authService.sessions(auth);
+  }
+
+  /** Signs out everywhere except here. */
+  @Delete('sessions')
+  @HttpCode(204)
+  endOtherSessions(@CurrentAuth() auth: AuthContext): Promise<void> {
+    return this.authService.endOtherSessions(auth);
+  }
+
+  @Delete('sessions/:sessionId')
+  @HttpCode(204)
+  endSession(@CurrentAuth() auth: AuthContext, @Param('sessionId') sessionId: string): Promise<void> {
+    return this.authService.endSession(auth, sessionId);
   }
 }

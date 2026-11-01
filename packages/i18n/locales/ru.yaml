@@ -50,12 +50,87 @@ nav:
   identification: Определение клиента
   tokens: Токены доступа
   audit: Журнал изменений
+  profile: Профиль
+  administration: Администрирование
+  users: Пользователи
+  workspaces: Workspace
 
 auth:
   subtitle: Вход для операторов
   password: Пароль
   signIn: Войти
   signInFailed: Не удалось войти
+  newPassword: Новый пароль
+  confirmPassword: Повторите пароль
+  passwordHelp: Не меньше 8 символов
+  passwordsDiffer: Пароли не совпадают
+
+setup:
+  intro: Первый запуск. Создайте учётную запись суперадминистратора и первый workspace — остальные можно добавить потом.
+  admin: Суперадминистратор
+  workspace: Первый workspace
+  workspaceHelp: Проект или бренд, поддержку которого вы настраиваете, например название компании
+  submit: Создать и войти
+  failed: Не удалось настроить установку
+
+passwordLink:
+  inviteTitle: Ссылка-приглашение
+  resetTitle: Ссылка для сброса пароля
+  description: "Передайте эту ссылку пользователю {name}. Она одноразовая; новая ссылка заменяет старую."
+  expires: "Действует до {date}"
+  inviteIntro: "{name}, вас пригласили в Kvitok. Задайте пароль, чтобы войти."
+  resetIntro: Задайте новый пароль. На остальных устройствах вы выйдете из системы.
+  submit: Задать пароль и войти
+  failed: Не удалось задать пароль
+
+profile:
+  saved: Профиль сохранён
+  saveFailed: Не удалось сохранить профиль
+  password: Пароль
+  currentPassword: Текущий пароль
+  changePassword: Сменить пароль
+  passwordHint: После смены вы выйдете из системы на остальных устройствах.
+  passwordChanged: Пароль изменён
+  passwordFailed: Не удалось сменить пароль
+  sessions: Сеансы
+  device: Устройство
+  lastSeen: Последняя активность
+  thisDevice: Это устройство
+  unknownDevice: Неизвестное устройство
+  endSession: Выйти на этом устройстве
+  endOthers: Выйти на остальных устройствах
+  othersEnded: Вы вышли на всех остальных устройствах
+
+users:
+  intro: Все, кто может войти в эту установку. Доступ выдаётся отдельно для каждого workspace; суперадминистратор управляет пользователями и workspace и везде работает как администратор.
+  new: Новый пользователь
+  newHint: Человек получит ссылку, чтобы задать пароль. До этого он не сможет войти.
+  invite: Пригласить
+  statusColumn: Статус
+  status:
+    active: Активен
+    invited: Приглашён
+    disabled: Отключён
+  superadmin: Суперадминистратор
+  superadminHelp: Управляет пользователями и workspace, в каждом workspace работает как администратор
+  superadminAccess: У суперадминистратора есть доступ ко всем workspace. Членство нужно, чтобы его можно было назначать на тикеты.
+  access: Доступ к workspace
+  noAccess: Нет доступа
+  lastSeen: Последняя активность
+  never: никогда
+  inviteLink: Ссылка-приглашение
+  resetLink: Ссылка для сброса пароля
+  disableHint: Отключённый пользователь не может войти, его сеансы и токены перестают работать, ему нельзя назначать тикеты. История и доступы сохраняются, поэтому включение всё восстанавливает.
+  disabledToast: "{name}: пользователь отключён"
+  enabledToast: "{name}: пользователь включён"
+  saved: Сохранено
+  createFailed: Не удалось создать пользователя
+  history: История
+
+adminWorkspaces:
+  intro: Все workspace установки. Суперадминистратор может открыть любой из них, даже не будучи участником.
+  created: Создан
+  notMember: вы не участник
 
 workspaceSetup:
   noWorkspaces: Нет доступных workspace
@@ -151,6 +226,7 @@ validation:
   currency: трёхбуквенный код валюты (ISO 4217), например RUB
   minLength: "Не короче {min} символов"
   slug: латиница, цифры и дефисы
+  duplicateWorkspace: каждый workspace только один раз
   identifier: латиница в нижнем регистре, цифры и _, начинается с буквы
   fieldKey: латиница в нижнем регистре, цифры и _, начинается с буквы
   customerRefOrIdentities: Либо customerRef, либо identities
@@ -441,7 +517,12 @@ members:
   removed: "{name} удалён из workspace"
   addFailed: Не удалось добавить участника
   new: Новый участник
-  newUserHint: Если пользователя ещё нет, укажите имя и пароль — он будет создан.
+  existing: Существующий пользователь
+  inviteNew: Пригласить нового
+  user: Пользователь
+  chooseUser: Выберите пользователя
+  noCandidates: У всех пользователей установки уже есть доступ. Пригласите нового человека.
+  inviteHint: Вы получите ссылку, которую нужно передать человеку. По ней он задаст пароль и получит доступ к этому workspace.
 
 tokens:
   intro: Персональный токен доступа позволяет внешнему агенту, например Claude Code через MCP, работать с Kvitok от вашего имени. У токена ваши права, сужённые до его скоупов и workspace.
@@ -499,6 +580,7 @@ audit:
     identification_settings: Настройки определения клиента
     channel: Канал
     integration: Интеграция
+    user: Пользователь
   action:
     create: создание
     update: изменение
@@ -507,6 +589,7 @@ audit:
     rotate_key: новый ключ
     rotate_webhook_secret: новый секрет вебхука
     set_default_mailbox: ящик по умолчанию
+    password_link: ссылка для пароля
 
 departments:
   department: Отдел
@@ -1055,6 +1138,7 @@ api:
   unknownField: Неизвестное поле
   ticketNotFound: Тикет не найден
   assigneeMustBeOperator: Исполнитель должен быть оператором workspace
+  assigneeDisabled: Пользователь отключён, его нельзя назначить
   fillField: "Заполните «{label}»"
   requiredFieldsBeforeResolve: Перед решением тикета заполните обязательные поля
   invalidFilterValue: Некорректное значение фильтра
@@ -1071,10 +1155,10 @@ api:
   webhookOnlyForApiChannel: Webhook есть только у API-канала
   onlyMailboxCanBeDefault: По умолчанию можно сделать только почтовый ящик
   onlySuperadminCreatesWorkspaces: Создавать workspace может только суперадминистратор
-  newUserNeedsNameAndPassword: Для нового пользователя нужны name и password
-  userNotFoundCreate: "Пользователь не найден: укажите имя и пароль, чтобы создать его"
   alreadyMember: "{email} уже участник"
   memberNotFound: Участник не найден
+  memberNotInvited: Участник уже задал пароль — ссылку для сброса может выдать суперадминистратор
+  inviteLinkForeign: Ссылку для этого пользователя может выдать только суперадминистратор — у него есть доступы, которыми вы не управляете
   lastAdmin: Нельзя убрать последнего администратора workspace
   slugTaken: "Slug «{slug}» уже занят"
   workspaceNotFound: Workspace не найден
@@ -1088,6 +1172,7 @@ api:
     departmentNotFound: отдел не найден
     departmentPinned: отдел закреплён оператором
     assigneeNotOperator: исполнитель не оператор workspace
+    assigneeDisabled: исполнитель отключён
     assigneeAlreadySet: исполнитель уже назначен
     valueNotFound: значение не найдено
     fieldPinned: поле закреплено оператором
@@ -1102,6 +1187,14 @@ api:
   playbookKeyTakenByIntegration: ключ занят плейбуком другой интеграции
   playbookKeyTakenByUi: ключ занят плейбуком из интерфейса
   userExists: "Пользователь {email} уже существует"
+  userNotFound: Пользователь не найден
+  userDisabled: Пользователь отключён — сначала включите его
+  cannotDisableSelf: Нельзя отключить самого себя
+  lastSuperadmin: В установке должен остаться хотя бы один активный суперадминистратор
+  adminNeedsSession: Пользователями установки управляют только в интерфейсе, не через токен доступа
+  setupDone: Установка уже настроена — войдите
+  passwordLinkInvalid: Ссылка недействительна или устарела — попросите у администратора новую
+  wrongPassword: Неверный текущий пароль
   attachmentNotFound: Вложение не найдено
   invalidChannelKey: Неверный ключ канала
   channelDisabled: Канал отключён

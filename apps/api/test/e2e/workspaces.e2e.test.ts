@@ -40,12 +40,12 @@ describe('workspaces', () => {
 
     const denied = await request(await login(app, user), 'POST', '/workspaces', { name: 'X', slug: 'x-ws' });
     const rootCookie = await login(app, root);
-    const created = await request(rootCookie, 'POST', '/workspaces', { name: 'Acme', slug: 'acme' });
+    const created = await request(rootCookie, 'POST', '/workspaces', { name: 'Acme', slug: 'acme', currency: 'eur' });
     const duplicate = await request(rootCookie, 'POST', '/workspaces', { name: 'Acme 2', slug: 'acme' });
 
     expect(denied.statusCode).toBe(403);
     expect(created.statusCode).toBe(201);
-    expect(created.json()).toMatchObject({ name: 'Acme', slug: 'acme', locale: 'ru' });
+    expect(created.json()).toMatchObject({ name: 'Acme', slug: 'acme', locale: 'ru', currency: 'EUR' });
     expect(duplicate.statusCode).toBe(409);
 
     const members = await request(rootCookie, 'GET', `/workspaces/${created.json().id}/members`);
@@ -98,43 +98,62 @@ describe('workspaces', () => {
       cookie = await login(app, admin);
     });
 
-    it('adds an existing user by email', async () => {
+    it('gives access to an existing user and lists the others as candidates', async () => {
       const existing = await createUser(app);
+      const candidates = await request(cookie, 'GET', `/workspaces/${workspaceId}/members/candidates`);
+      expect(candidates.json().map((c: { id: string }) => c.id)).toEqual([existing.id]);
 
-      const response = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, {
-        email: existing.email.toUpperCase(),
-        role: 'operator',
-      });
-      const again = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, {
-        email: existing.email,
-        role: 'viewer',
-      });
+      const response = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, { userId: existing.id, role: 'operator' });
+      const again = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, { userId: existing.id, role: 'viewer' });
 
       expect(response.statusCode).toBe(201);
-      expect(response.json()).toMatchObject({ userId: existing.id, role: 'operator' });
+      expect(response.json()).toMatchObject({ member: { userId: existing.id, role: 'operator', status: 'active' }, link: null });
       expect(again.statusCode).toBe(409);
+      expect((await request(cookie, 'GET', `/workspaces/${workspaceId}/members/candidates`)).json()).toEqual([]);
     });
 
-    it('creates a new user if a name and a password are passed', async () => {
-      const withoutPassword = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, {
-        email: 'new@example.com',
+    it('invites a new person: the account works after the password is set by the link', async () => {
+      const invited = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, {
+        email: 'New@example.com',
+        name: 'Новый',
         role: 'operator',
       });
-      const created = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, {
+      const duplicate = await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, {
         email: 'new@example.com',
+        name: 'Другой',
         role: 'operator',
-        name: 'Новый',
-        password: 'password123',
       });
 
-      expect(withoutPassword.statusCode).toBe(422);
-      expect(created.statusCode).toBe(201);
-      await login(app, { id: created.json().userId, email: 'new@example.com', password: 'password123' });
+      expect(invited.statusCode).toBe(201);
+      const { member, link } = invited.json();
+      expect(member).toMatchObject({ email: 'new@example.com', status: 'invited' });
+      expect(link).toMatchObject({ purpose: 'invite' });
+      expect(duplicate.statusCode).toBe(409);
+      const signIn = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'new@example.com', password: 'password123' } });
+      expect(signIn.statusCode).toBe(401);
+
+      // A new link replaces the old one.
+      const reissued = await request(cookie, 'POST', `/workspaces/${workspaceId}/members/${member.userId}/invite-link`);
+      expect(reissued.statusCode).toBe(201);
+      expect((await app.inject({ method: 'GET', url: `/api/password-links/${link.token}` })).statusCode).toBe(404);
+
+      const accepted = await app.inject({
+        method: 'POST',
+        url: `/api/password-links/${reissued.json().token}`,
+        payload: { password: 'password123' },
+      });
+      expect(accepted.statusCode).toBe(200);
+      expect(accepted.json()).toMatchObject({ user: { email: 'new@example.com' }, workspaces: [{ workspaceId, role: 'operator' }] });
+      await login(app, { id: member.userId, email: 'new@example.com', password: 'password123' });
+
+      // An active member's password is reset only by a superadmin.
+      const again = await request(cookie, 'POST', `/workspaces/${workspaceId}/members/${member.userId}/invite-link`);
+      expect(again.statusCode).toBe(409);
     });
 
     it('changes the role and removes a member', async () => {
       const member = await createUser(app);
-      await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, { email: member.email, role: 'viewer' });
+      await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, { userId: member.id, role: 'viewer' });
 
       const promoted = await request(cookie, 'PATCH', `/workspaces/${workspaceId}/members/${member.id}`, {
         role: 'operator',
@@ -159,16 +178,18 @@ describe('workspaces', () => {
 
     it('an operator does not manage members', async () => {
       const operator = await createUser(app);
-      await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, { email: operator.email, role: 'operator' });
+      await request(cookie, 'POST', `/workspaces/${workspaceId}/members`, { userId: operator.id, role: 'operator' });
 
-      const response = await request(await login(app, operator), 'POST', `/workspaces/${workspaceId}/members`, {
+      const operatorCookie = await login(app, operator);
+      const response = await request(operatorCookie, 'POST', `/workspaces/${workspaceId}/members`, {
         email: 'x@example.com',
-        role: 'admin',
         name: 'X',
-        password: 'password123',
+        role: 'admin',
       });
+      const candidates = await request(operatorCookie, 'GET', `/workspaces/${workspaceId}/members/candidates`);
 
       expect(response.statusCode).toBe(403);
+      expect(candidates.statusCode).toBe(403);
     });
   });
 });

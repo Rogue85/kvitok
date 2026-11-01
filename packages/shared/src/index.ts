@@ -17,5 +17,6 @@ export * from './roles.js';
 export * from './rules.js';
 export * from './tickets.js';
 export * from './tokens.js';
+export * from './users.js';
 export * from './validation-locale.js';
 export * from './workspace.js';

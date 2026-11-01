@@ -101,7 +101,7 @@ describe('tickets', () => {
   it('the assignee must be an operator of the workspace', async () => {
     const { workspaceId, http, channel, url } = await setup();
     const viewer = await createUser(app);
-    await http.post(`/workspaces/${workspaceId}/members`, { email: viewer.email, role: 'viewer' });
+    await http.post(`/workspaces/${workspaceId}/members`, { userId: viewer.id, role: 'viewer' });
     const outsider = await createUser(app);
     const ticket = (await ingest(app, channel)).json();
 

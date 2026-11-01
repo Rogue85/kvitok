@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { getLocale } from '@kvitok/i18n';
 import type { WorkspaceDto } from '@kvitok/shared';
 
 const toast = useToast();
@@ -18,11 +17,7 @@ watch(
 );
 const changed = computed(() => !!workspace.value && (form.name.trim() !== workspace.value.name || form.currency !== workspace.value.currency));
 
-/** Every ISO 4217 currency the browser knows, by code with its name in the interface language. */
-const currencyItems = (() => {
-  const names = new Intl.DisplayNames(getLocale(), { type: 'currency' });
-  return Intl.supportedValuesOf('currency').map((code) => ({ label: `${code} — ${names.of(code) ?? code}`, value: code }));
-})();
+const currencies = currencyItems();
 
 const saving = ref(false);
 async function save(): Promise<void> {
@@ -53,7 +48,7 @@ async function save(): Promise<void> {
           <UInput v-model="form.name" :disabled="!isAdmin" class="w-full" />
         </UFormField>
         <UFormField :label="t('generalSettings.currency')" :help="t('generalSettings.currencyHelp')">
-          <USelectMenu v-model="form.currency" :items="currencyItems" value-key="value" :disabled="!isAdmin" class="w-full" />
+          <USelectMenu v-model="form.currency" :items="currencies" value-key="value" :disabled="!isAdmin" class="w-full" />
         </UFormField>
         <UAlert
           v-if="workspace && form.currency !== workspace.currency"

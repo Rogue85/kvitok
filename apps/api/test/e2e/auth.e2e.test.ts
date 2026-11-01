@@ -21,7 +21,7 @@ describe('auth', () => {
     await app.close();
   });
 
-  it('login sets an httpOnly cookie and returns the user with memberships', async () => {
+  it('login sets an httpOnly cookie and returns the user with their workspaces', async () => {
     const user = await createUser(app, { email: 'Op@Example.com' });
     const workspaceId = await createWorkspace(app, [{ user, role: 'operator' }]);
 
@@ -37,7 +37,7 @@ describe('auth', () => {
     expect(cookie?.sameSite).toBe('Lax');
     expect(response.json()).toMatchObject({
       user: { email: 'op@example.com', isSuperadmin: false },
-      memberships: [{ workspaceId, role: 'operator' }],
+      workspaces: [{ workspaceId, role: 'operator', isMember: true }],
     });
 
     const session = await prisma.session.findFirstOrThrow();
@@ -100,7 +100,7 @@ describe('auth', () => {
     const response = await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ user: { id: user.id, email: user.email }, memberships: [] });
+    expect(response.json()).toMatchObject({ user: { id: user.id, email: user.email }, workspaces: [] });
   });
 
   it('logout deletes the session', async () => {

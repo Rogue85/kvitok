@@ -18,12 +18,16 @@ model User {
   id             String           @id
   email          String           @unique
   name           String
-  passwordHash   String           @map("password_hash")
+  /// Empty until the user accepts the invitation and sets a password.
+  passwordHash   String?          @map("password_hash")
   isSuperadmin   Boolean          @default(false) @map("is_superadmin")
   disabledAt     DateTime?        @map("disabled_at") @db.Timestamptz
+  /// The last sign-in or activity in the interface; sessions are deleted on sign-out, this stays.
+  lastSeenAt     DateTime?        @map("last_seen_at") @db.Timestamptz
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
   sessions       Session[]
+  passwordTokens PasswordToken[]
   apiTokens      ApiToken[]
   memberships    Membership[]
   assigned       Ticket[]         @relation("TicketAssignee")
@@ -47,6 +51,26 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+enum PasswordTokenPurpose {
+  invite
+  reset
+}
+
+/// A one-time link to set a password: an invitation or a reset. The database stores its sha256.
+model PasswordToken {
+  id        String               @id
+  userId    String               @map("user_id")
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   PasswordTokenPurpose
+  tokenHash String               @unique @map("token_hash")
+  expiresAt DateTime             @map("expires_at") @db.Timestamptz
+  usedAt    DateTime?            @map("used_at") @db.Timestamptz
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("password_tokens")
 }
 
 /// A personal access token for external agents (the MCP server). The database stores its sha256.

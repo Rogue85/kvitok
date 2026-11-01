@@ -13,6 +13,7 @@ export const AUDIT_ENTITIES = [
   'identification_settings',
   'channel',
   'integration',
+  'user',
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 
@@ -24,6 +25,7 @@ export const AUDIT_ACTIONS = [
   'rotate_key',
   'rotate_webhook_secret',
   'set_default_mailbox',
+  'password_link',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -40,6 +42,8 @@ export type AuditQuery = z.output<typeof AuditQuerySchema>;
 
 export interface AuditLogDto {
   id: string;
+  /** Null for installation changes, such as users. */
+  workspaceId: string | null;
   entity: AuditEntity;
   entityId: string | null;
   action: AuditAction;

@@ -1,5 +1,5 @@
 import { getLocale } from '@kvitok/i18n';
-import type { DeliveryStatus, TicketPriority, TicketStatus } from '@kvitok/shared';
+import type { DeliveryStatus, TicketPriority, TicketStatus, UserStatus } from '@kvitok/shared';
 import { t } from './i18n';
 
 type BadgeColor = 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error' | 'neutral';
@@ -26,6 +26,22 @@ export const DELIVERY_COLORS: Record<DeliveryStatus, BadgeColor> = {
   failed: 'error',
   cancelled: 'neutral',
 };
+
+export const USER_STATUS_COLORS: Record<UserStatus, BadgeColor> = {
+  active: 'success',
+  invited: 'info',
+  disabled: 'neutral',
+};
+
+export function userStatusLabel(status: UserStatus): string {
+  return t(`users.status.${status}`);
+}
+
+/** Every ISO 4217 currency the browser knows, by code with its name in the interface language. */
+export function currencyItems(): Array<{ label: string; value: string }> {
+  const names = new Intl.DisplayNames(getLocale(), { type: 'currency' });
+  return Intl.supportedValuesOf('currency').map((code) => ({ label: `${code} — ${names.of(code) ?? code}`, value: code }));
+}
 
 export function statusLabel(status: TicketStatus): string {
   return t(`ticketStatus.${status}`);

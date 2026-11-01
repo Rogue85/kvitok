@@ -187,7 +187,19 @@ An evaluation spends money on the model: run it deliberately and with `--budget`
 
 A reply "to the source" goes through the webhook of the API channel the ticket came through. A webhook of another channel is not used for it.
 
-Create a user:
+## Users and access
+
+A fresh installation without `db:seed` opens the first-run page `/setup`: it creates the first superadministrator and the first workspace (name and currency) and signs in. The page closes as soon as the installation has a superadministrator.
+
+Users belong to the installation, access is granted per workspace with a role: administrator, operator or viewer.
+
+- **Administration → Users** (superadministrators): invite a user and choose their workspaces, change access, give or take the superadministrator flag, disable and enable, issue a password reset link, see the history. A disabled user cannot sign in or be assigned tickets; their sessions and tokens stop working.
+- **Settings → Members** (workspace administrators): give access to an existing user of the installation or invite a new person.
+- **Profile**: the name, the password and the sessions.
+
+There is no system mail, so an invitation or a reset is a one-time link (valid for 7 days) that the administrator copies and passes on. The person sets their own password with it.
+
+A user can also be created from the command line:
 
 ```bash
 pnpm --filter @kvitok/api build && pnpm --filter @kvitok/api cli user:create --email ops@example.com --password 'secret-pass' --name 'Ops' --superadmin

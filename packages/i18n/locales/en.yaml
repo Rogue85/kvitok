@@ -51,12 +51,87 @@ nav:
   identification: Customer identification
   tokens: Access tokens
   audit: Change log
+  profile: Profile
+  administration: Administration
+  users: Users
+  workspaces: Workspaces
 
 auth:
   subtitle: Operator sign-in
   password: Password
   signIn: Sign in
   signInFailed: Could not sign in
+  newPassword: New password
+  confirmPassword: Repeat the password
+  passwordHelp: At least 8 characters
+  passwordsDiffer: The passwords do not match
+
+setup:
+  intro: The first run. Create the superadministrator account and the first workspace — more can be added later.
+  admin: Superadministrator
+  workspace: First workspace
+  workspaceHelp: A project or a brand whose support you set up, for example the company name
+  submit: Create and sign in
+  failed: Could not set up the installation
+
+passwordLink:
+  inviteTitle: Invitation link
+  resetTitle: Password reset link
+  description: "Pass this link on to {name}. It works once; a new link replaces the old one."
+  expires: "Valid until {date}"
+  inviteIntro: "{name}, you were invited to Kvitok. Set a password to sign in."
+  resetIntro: Set a new password. You will be signed out on every other device.
+  submit: Set the password and sign in
+  failed: Could not set the password
+
+profile:
+  saved: Profile saved
+  saveFailed: Could not save the profile
+  password: Password
+  currentPassword: Current password
+  changePassword: Change the password
+  passwordHint: After the change you will be signed out on every other device.
+  passwordChanged: Password changed
+  passwordFailed: Could not change the password
+  sessions: Sessions
+  device: Device
+  lastSeen: Last activity
+  thisDevice: This device
+  unknownDevice: Unknown device
+  endSession: Sign out on this device
+  endOthers: Sign out everywhere else
+  othersEnded: Signed out on every other device
+
+users:
+  intro: Everyone who can sign in to this installation. Access is granted per workspace; a superadministrator manages users and workspaces and works as an administrator everywhere.
+  new: New user
+  newHint: The person will get a link to set a password. Until then they cannot sign in.
+  invite: Invite
+  statusColumn: Status
+  status:
+    active: Active
+    invited: Invited
+    disabled: Disabled
+  superadmin: Superadministrator
+  superadminHelp: Manages users and workspaces, works as an administrator in every workspace
+  superadminAccess: A superadministrator has access to every workspace. Membership is needed to be assigned tickets.
+  access: Access to workspaces
+  noAccess: No access
+  lastSeen: Last activity
+  never: never
+  inviteLink: Invitation link
+  resetLink: Password reset link
+  disableHint: A disabled user cannot sign in, their sessions and tokens stop working, and they cannot be assigned tickets. History and access are kept, so enabling them restores everything.
+  disabledToast: "{name} is disabled"
+  enabledToast: "{name} is enabled"
+  saved: Saved
+  createFailed: Could not create the user
+  history: History
+
+adminWorkspaces:
+  intro: Every workspace of the installation. A superadministrator can open any of them, even without being a member.
+  created: Created
+  notMember: not a member
 
 workspaceSetup:
   noWorkspaces: No workspaces available
@@ -152,6 +227,7 @@ validation:
   currency: a three-letter currency code (ISO 4217), e.g. USD
   minLength: "At least {min} characters"
   slug: lowercase letters, digits and hyphens
+  duplicateWorkspace: each workspace only once
   identifier: lowercase letters, digits and _, starting with a letter
   fieldKey: lowercase letters, digits and _, starting with a letter
   customerRefOrIdentities: Either customerRef or identities
@@ -438,7 +514,12 @@ members:
   removed: "{name} was removed from the workspace"
   addFailed: Could not add the member
   new: New member
-  newUserHint: If the user does not exist yet, enter a name and a password — the account will be created.
+  existing: Existing user
+  inviteNew: Invite a new person
+  user: User
+  chooseUser: Choose a user
+  noCandidates: Every user of the installation already has access. Invite a new person instead.
+  inviteHint: You will get a link to pass on to the person. With it they set a password and get access to this workspace.
 
 tokens:
   intro: A personal access token lets an external agent, such as Claude Code over MCP, work with Kvitok on your behalf. The token has your rights, narrowed down to its scopes and workspace.
@@ -496,6 +577,7 @@ audit:
     identification_settings: Customer identification settings
     channel: Channel
     integration: Integration
+    user: User
   action:
     create: creation
     update: change
@@ -504,6 +586,7 @@ audit:
     rotate_key: new key
     rotate_webhook_secret: new webhook secret
     set_default_mailbox: default mailbox
+    password_link: password link
 
 departments:
   department: Department
@@ -1042,6 +1125,7 @@ api:
   unknownField: Unknown field
   ticketNotFound: Ticket not found
   assigneeMustBeOperator: The assignee must be an operator of the workspace
+  assigneeDisabled: The user is disabled and cannot be assigned
   fillField: "Fill in “{label}”"
   requiredFieldsBeforeResolve: Fill in the required fields before resolving the ticket
   invalidFilterValue: Invalid filter value
@@ -1058,10 +1142,10 @@ api:
   webhookOnlyForApiChannel: Only an API channel has a webhook
   onlyMailboxCanBeDefault: Only a mailbox can be the default
   onlySuperadminCreatesWorkspaces: Only a superadministrator can create workspaces
-  newUserNeedsNameAndPassword: A new user needs a name and a password
-  userNotFoundCreate: "User not found: enter a name and a password to create one"
   alreadyMember: "{email} is already a member"
   memberNotFound: Member not found
+  memberNotInvited: The member has already set a password — a superadministrator can issue a reset link
+  inviteLinkForeign: Only a superadministrator can issue a link for this user — they have access you do not manage
   lastAdmin: The last administrator of the workspace cannot be removed
   slugTaken: "The slug “{slug}” is already taken"
   workspaceNotFound: Workspace not found
@@ -1075,6 +1159,7 @@ api:
     departmentNotFound: department not found
     departmentPinned: department pinned by an operator
     assigneeNotOperator: the assignee is not an operator of the workspace
+    assigneeDisabled: the assignee is disabled
     assigneeAlreadySet: an assignee is already set
     valueNotFound: value not found
     fieldPinned: field pinned by an operator
@@ -1089,6 +1174,14 @@ api:
   playbookKeyTakenByIntegration: the key is taken by a playbook of another integration
   playbookKeyTakenByUi: the key is taken by a playbook created in the interface
   userExists: "User {email} already exists"
+  userNotFound: User not found
+  userDisabled: The user is disabled — enable them first
+  cannotDisableSelf: You cannot disable yourself
+  lastSuperadmin: The installation must keep at least one active superadministrator
+  adminNeedsSession: Users of the installation are managed only in the interface, not with an access token
+  setupDone: The installation is already set up — sign in
+  passwordLinkInvalid: The link is invalid or expired — ask an administrator for a new one
+  wrongPassword: Wrong current password
   attachmentNotFound: Attachment not found
   invalidChannelKey: Invalid channel key
   channelDisabled: The channel is disabled

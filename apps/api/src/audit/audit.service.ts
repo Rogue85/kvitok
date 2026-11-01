@@ -66,6 +66,7 @@ export class AuditService {
 export function toAuditLogDto(row: AuditLog): AuditLogDto {
   return {
     id: row.id,
+    workspaceId: row.workspaceId,
     entity: row.entity as AuditEntity,
     entityId: row.entityId,
     action: row.action as AuditAction,

@@ -83,9 +83,12 @@ export class RuleApplier {
           case 'assign': {
             const membership = await tx.membership.findUnique({
               where: { workspaceId_userId: { workspaceId: ticket.workspaceId, userId: effect.userId } },
+              include: { user: true },
             });
             if (membership === null || membership.role === 'viewer') {
               note(effect, 'skipped', t('api.rule.assigneeNotOperator'));
+            } else if (membership.user.disabledAt !== null) {
+              note(effect, 'skipped', t('api.rule.assigneeDisabled'));
             } else if (ticket.assigneeId === null) {
               await event('assignee_changed', { from: null, to: effect.userId });
               ticket = await tx.ticket.update({ where: { id: ticketId }, data: { assigneeId: effect.userId } });

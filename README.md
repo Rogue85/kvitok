@@ -146,7 +146,7 @@ The first start installs dependencies and applies migrations, which takes a coup
 docker compose exec api pnpm --filter @kvitok/api db:seed
 ```
 
-Open http://localhost:3000 and sign in as `admin@example.com` / `admin12345`. The API is at http://localhost:3001.
+Open http://localhost:3000 and sign in as `admin@example.com` / `admin12345`. The API is at http://localhost:3001. Without `db:seed`, the first visit opens a setup page that creates the first superadmin and workspace.
 
 ### Try it on the simulator
 

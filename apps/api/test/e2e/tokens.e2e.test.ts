@@ -102,7 +102,7 @@ describe('personal access tokens', () => {
 
     expect(list.json().map((w: { id: string }) => w.id)).toEqual([own]);
     const me = await bearer(secret).get('/auth/me');
-    expect(me.json().memberships.map((m: { workspaceId: string }) => m.workspaceId)).toEqual([own]);
+    expect(me.json().workspaces.map((w: { workspaceId: string }) => w.workspaceId)).toEqual([own]);
     expect(otherGet.statusCode).toBe(404);
     expect(ownGet.statusCode).toBe(200);
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AddMemberSchema,
+  CreateUserSchema,
   CreateWorkspaceSchema,
   LoginSchema,
   roleSatisfies,
@@ -10,6 +11,7 @@ import {
   UpdateLlmProviderSchema,
   UpdatePlaybookSchema,
   UpdateRoutingRuleSchema,
+  slugify,
 } from './index.js';
 
 describe('LoginSchema', () => {
@@ -33,12 +35,46 @@ describe('CreateWorkspaceSchema', () => {
 });
 
 describe('AddMemberSchema', () => {
-  it('requires a password of at least 8 characters', () => {
-    expect(AddMemberSchema.safeParse({ email: 'a@b.co', role: 'operator', password: 'short' }).success).toBe(false);
+  it('takes an existing user by id or invites a new person by email and name', () => {
+    expect(AddMemberSchema.parse({ userId: 'u1', role: 'viewer' })).toEqual({ userId: 'u1', role: 'viewer' });
+    expect(AddMemberSchema.parse({ email: ' A@B.co ', name: ' Анна ', role: 'operator' })).toEqual({ email: 'a@b.co', name: 'Анна', role: 'operator' });
   });
 
-  it('rejects an unknown role', () => {
-    expect(AddMemberSchema.safeParse({ email: 'a@b.co', role: 'owner' }).success).toBe(false);
+  it('never accepts a password from the admin', () => {
+    expect(AddMemberSchema.parse({ email: 'a@b.co', name: 'A', role: 'operator', password: 'password123' })).not.toHaveProperty('password');
+  });
+
+  it('rejects an unknown role and an invitation without a name', () => {
+    expect(AddMemberSchema.safeParse({ userId: 'u1', role: 'owner' }).success).toBe(false);
+    expect(AddMemberSchema.safeParse({ email: 'a@b.co', role: 'operator' }).success).toBe(false);
+  });
+});
+
+describe('CreateUserSchema', () => {
+  it('rejects the same workspace twice', () => {
+    const memberships = [
+      { workspaceId: 'w1', role: 'admin' },
+      { workspaceId: 'w1', role: 'viewer' },
+    ];
+    expect(CreateUserSchema.safeParse({ email: 'a@b.co', name: 'A', memberships }).success).toBe(false);
+  });
+});
+
+describe('slugify', () => {
+  it.each([
+    ['Кофейня «Зёрна»', 'kofeynya-zerna'],
+    ['Acme Coffee & Co.', 'acme-coffee-co'],
+    ['Café Crème', 'cafe-creme'],
+    ['  --Щука--  ', 'schuka'],
+    ['!!!', ''],
+  ])('%s → %s', (name, slug) => {
+    expect(slugify(name)).toBe(slug);
+  });
+
+  it('fits the slug length and never ends with a hyphen', () => {
+    const slug = slugify(`${'a'.repeat(47)} b`);
+    expect(slug.length).toBeLessThanOrEqual(48);
+    expect(slug.endsWith('-')).toBe(false);
   });
 });
 

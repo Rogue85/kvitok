@@ -3,9 +3,14 @@ import {
   AddMemberSchema,
   UpdateMemberSchema,
   type AddMemberInput,
+  type AddMemberResult,
+  type MemberCandidateDto,
   type MemberDto,
+  type PasswordLinkDto,
   type UpdateMemberInput,
 } from '@kvitok/shared';
+import { CurrentAuth } from '../auth/decorators';
+import type { AuthContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { MembersService } from './members.service';
 import { RequireRole, WorkspaceGuard } from './workspace.guard';
@@ -20,13 +25,31 @@ export class MembersController {
     return this.members.list(workspaceId);
   }
 
+  /** Users of the installation who can be given access. */
+  @Get('candidates')
+  @RequireRole('admin')
+  candidates(@Param('workspaceId') workspaceId: string): Promise<MemberCandidateDto[]> {
+    return this.members.candidates(workspaceId);
+  }
+
   @Post()
   @RequireRole('admin')
   add(
     @Param('workspaceId') workspaceId: string,
     @Body(new ZodValidationPipe(AddMemberSchema)) body: AddMemberInput,
-  ): Promise<MemberDto> {
+  ): Promise<AddMemberResult> {
     return this.members.add(workspaceId, body);
+  }
+
+  /** A new invitation link for a member who has not accepted the previous one. */
+  @Post(':userId/invite-link')
+  @RequireRole('admin')
+  inviteLink(
+    @CurrentAuth() auth: AuthContext,
+    @Param('workspaceId') workspaceId: string,
+    @Param('userId') userId: string,
+  ): Promise<PasswordLinkDto> {
+    return this.members.inviteLink(auth, workspaceId, userId);
   }
 
   @Patch(':userId')

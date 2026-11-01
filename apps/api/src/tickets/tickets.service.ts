@@ -149,9 +149,13 @@ export class TicketsService {
     if (input.assigneeId) {
       const membership = await this.prisma.membership.findUnique({
         where: { workspaceId_userId: { workspaceId, userId: input.assigneeId } },
+        include: { user: true },
       });
       if (membership === null || membership.role === 'viewer') {
         throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeMustBeOperator'), code: 'custom' }]);
+      }
+      if (membership.user.disabledAt !== null) {
+        throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeDisabled'), code: 'custom' }]);
       }
     }
 

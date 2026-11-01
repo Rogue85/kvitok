@@ -1,11 +1,11 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import type { CreateWorkspaceInput, UpdateWorkspaceInput, WorkspaceDto } from '@kvitok/shared';
+import { slugify, type CreateWorkspaceInput, type UpdateWorkspaceInput, type WorkspaceDto } from '@kvitok/shared';
 import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
 import type { AuthUser } from '@kvitok/shared';
-import type { Workspace } from '../generated/prisma/client';
+import type { Prisma, Workspace } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -23,22 +23,37 @@ export class WorkspacesService {
     return workspaces.map(toWorkspaceDto);
   }
 
-  async create(input: CreateWorkspaceInput, creator: AuthUser): Promise<WorkspaceDto> {
-    if (await this.prisma.workspace.findUnique({ where: { slug: input.slug } })) {
+  async create(
+    input: CreateWorkspaceInput,
+    creator: Pick<AuthUser, 'id'>,
+    db: Pick<Prisma.TransactionClient, 'workspace' | 'auditLog'> = this.prisma,
+  ): Promise<WorkspaceDto> {
+    if (await db.workspace.findUnique({ where: { slug: input.slug } })) {
       throw errors.conflict(t('api.slugTaken', { slug: input.slug }));
     }
 
-    const workspace = await this.prisma.workspace.create({
+    const workspace = await db.workspace.create({
       data: {
         id: newId(),
         name: input.name,
         slug: input.slug,
+        ...(input.currency === undefined ? {} : { currency: input.currency }),
         memberships: { create: { userId: creator.id, role: 'admin' } },
       },
     });
     const dto = toWorkspaceDto(workspace);
-    await this.audit.record({ workspaceId: workspace.id, entity: 'workspace', entityId: workspace.id, action: 'create', after: dto });
+    await this.audit.record({ workspaceId: workspace.id, entity: 'workspace', entityId: workspace.id, action: 'create', after: dto }, db);
     return dto;
+  }
+
+  /** A free slug from the workspace name: `support`, then `support-2`, `support-3`… */
+  async freeSlug(name: string, db: Pick<Prisma.TransactionClient, 'workspace'> = this.prisma): Promise<string> {
+    const base = slugify(name).slice(0, 40).replace(/-+$/, '');
+    const root = base.length >= 2 ? base : 'support';
+    const taken = new Set((await db.workspace.findMany({ where: { slug: { startsWith: root } }, select: { slug: true } })).map((w) => w.slug));
+    let slug = root;
+    for (let n = 2; taken.has(slug); n += 1) slug = `${root}-${n}`;
+    return slug;
   }
 
   async get(workspaceId: string): Promise<WorkspaceDto> {
