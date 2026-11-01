@@ -4,6 +4,8 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
 ### Changed
 
 - **Breaking:** `VAPID_SUBJECT` must now be `mailto:…` or an https URL, or the API does not start. If you set it to a bare address such as `you@example.com`, change it to `mailto:you@example.com` before updating, or remove it to use the default. `deploy/.env.example` now lists the VAPID settings.

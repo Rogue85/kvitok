@@ -1,6 +1,6 @@
 {
   "name": "@kvitok/protocol",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "license": "MIT",
   "description": "Support Action Protocol: schemas, request signing, client and conformance checks",
