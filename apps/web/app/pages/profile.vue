@@ -55,10 +55,7 @@ const columns: TableColumn<SessionDto>[] = [
 ];
 const hasOthers = computed(() => sessions.value.some((s) => !s.current));
 
-/* The running release, to quote in a bug report. Health answers 503 while a dependency is down: the line is then hidden. */
-const { data: version } = await useAsyncData('version', () =>
-  api<{ version: string }>('/health').then((health) => health.version, () => null),
-);
+const version = useVersion();
 
 async function endSession(session: SessionDto): Promise<void> {
   try {

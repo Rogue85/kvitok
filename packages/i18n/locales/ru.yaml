@@ -3,6 +3,7 @@
 
 common:
   appName: Kvitok
+  sourceOnGithub: Kvitok на GitHub
   save: Сохранить
   cancel: Отмена
   edit: Изменить

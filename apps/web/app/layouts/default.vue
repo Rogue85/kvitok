@@ -76,10 +76,13 @@ const adminItems = computed<NavigationMenuItem[]>(() =>
   <UDashboardGroup>
     <UDashboardSidebar collapsible resizable>
       <template #header="{ collapsed }">
-        <NuxtLink :to="current ? `/w/${current.workspaceId}/tickets` : '/'" class="flex items-center px-2.5">
-          <AppMark v-if="collapsed" class="size-6" />
-          <AppLogo v-else class="h-5" />
-        </NuxtLink>
+        <div class="flex items-baseline gap-2 px-2.5">
+          <NuxtLink :to="current ? `/w/${current.workspaceId}/tickets` : '/'" class="flex items-center">
+            <AppMark v-if="collapsed" class="size-6" />
+            <AppLogo v-else class="h-5" />
+          </NuxtLink>
+          <AppVersion v-if="!collapsed" />
+        </div>
       </template>
 
       <template #default="{ collapsed }">
