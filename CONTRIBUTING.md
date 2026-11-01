@@ -140,7 +140,7 @@ A release is cut from `main` when it is green:
    git push origin main v0.2.0
    ```
 
-CI ([release.yml](.github/workflows/release.yml)) checks that the tag matches `package.json`. It then publishes the image as `0.2.0`, `0.2` and `latest`, and creates a GitHub release with the changelog section. A wrong tag is fixed by deleting it before the image is used, never by moving it to another commit.
+CI ([release.yml](.github/workflows/release.yml)) checks that the tag matches `package.json`. It then publishes the image as `0.2.0`, `0.2` and `latest`, and creates a GitHub release with the changelog section. If the release build fails, nothing is published: fix the cause on `main`, then delete the tag and create it again on the fixed commit. Once the image is published, the tag never moves, and a fix is a new patch release.
 
 ## Branches and pull requests
 
