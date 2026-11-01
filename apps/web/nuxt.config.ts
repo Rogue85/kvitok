@@ -11,6 +11,8 @@ export default defineNuxtConfig({
     head: {
       title: 'Kvitok',
       htmlAttrs: { lang: 'en' },
+      // Edge to edge on phones (the layout pads the safe areas); on Android the keyboard shrinks the layout, keeping the composer in view.
+      viewport: 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },

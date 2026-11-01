@@ -119,7 +119,7 @@ async function endOthers(): Promise<void> {
           <h2 class="font-semibold">{{ t('profile.sessions') }}</h2>
           <UButton v-if="hasOthers" color="neutral" variant="soft" icon="i-lucide-log-out" @click="endOthers">{{ t('profile.endOthers') }}</UButton>
         </div>
-        <UTable :data="sessions" :columns="columns" :loading="status === 'pending'">
+        <ResponsiveTable :data="sessions" :columns="columns" :loading="status === 'pending'">
           <template #userAgent-cell="{ row }">
             <div class="flex items-center gap-2">
               <span class="max-w-md truncate" :title="row.original.userAgent ?? ''">{{ row.original.userAgent ?? t('profile.unknownDevice') }}</span>
@@ -138,7 +138,7 @@ async function endOthers(): Promise<void> {
               @click="endSession(row.original)"
             />
           </template>
-        </UTable>
+        </ResponsiveTable>
       </section>
 
       <p v-if="version" class="mt-8 text-xs text-(--ui-text-dimmed)">{{ t('profile.version', { version }) }}</p>

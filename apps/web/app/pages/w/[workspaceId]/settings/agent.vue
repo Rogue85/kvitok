@@ -186,7 +186,7 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
     </template>
 
     <template #body>
-      <div class="grid max-w-5xl gap-6 lg:grid-cols-[1fr_22rem]">
+      <div class="grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="space-y-5">
           <UCard>
             <div class="flex items-center justify-between gap-4">
@@ -200,7 +200,7 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
 
           <UCard>
             <template #header><p class="font-medium">{{ t('agentSettings.model') }}</p></template>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('agentSettings.provider')">
                 <USelect v-model="providerIdModel" :items="providerItems" :placeholder="t('agentSettings.notSelected')" class="w-full" :disabled="!isAdmin" />
               </UFormField>
@@ -228,7 +228,7 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
 
           <UCard>
             <template #header><p class="font-medium">{{ t('agentSettings.behavior') }}</p></template>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('nav.playbooks')" :help="t('agentSettings.playbooksHelp')">
                 <USelect
                   v-model="form.playbookMode"
@@ -303,7 +303,7 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
       <UModal v-model:open="providerOpen" :title="providerForm.id ? t('agentSettings.provider') : t('agentSettings.newProvider')" :ui="{ content: 'max-w-2xl' }">
         <template #body>
           <form id="provider-form" class="space-y-4" @submit.prevent="saveProvider">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('common.name')" required><UInput v-model="providerForm.name" placeholder="OpenAI" class="w-full" /></UFormField>
               <UFormField label="Base URL" required><UInput v-model="providerForm.baseUrl" class="w-full" /></UFormField>
               <UFormField :label="t('agentSettings.apiKey')" :help="providerForm.id ? t('agentSettings.keepCurrent') : undefined" class="col-span-2">
@@ -319,8 +319,9 @@ async function removeProvider(provider: LlmProviderDto): Promise<void> {
                   <NuxtLink :to="`/w/${workspaceId}/settings/general`" class="underline" @click="providerOpen = false">{{ t('agentSettings.generalSettings') }}</NuxtLink>
                 </p>
               </div>
-              <div v-for="(model, index) in providerForm.models" :key="index" class="grid grid-cols-[2fr_1fr_1fr_auto] gap-2">
-                <UInput v-model="model.id" placeholder="gpt-4.1-mini" size="sm" />
+              <div v-for="(model, index) in providerForm.models" :key="index" class="grid grid-cols-[1fr_1fr_auto] gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+                <!-- On phones the model takes its own line above the prices. -->
+                <UInput v-model="model.id" placeholder="gpt-4.1-mini" size="sm" class="max-sm:col-span-2" />
                 <UInputNumber v-model="model.inputPerMillion" :placeholder="t('agentSettings.priceInput')" size="sm" :min="0" :step="0.1" />
                 <UInputNumber v-model="model.outputPerMillion" :placeholder="t('agentSettings.priceOutput')" size="sm" :min="0" :step="0.1" />
                 <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" @click="providerForm.models.splice(index, 1)" />

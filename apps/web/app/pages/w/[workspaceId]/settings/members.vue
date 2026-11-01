@@ -170,7 +170,7 @@ async function onAdd(): Promise<void> {
     </template>
 
     <template #body>
-      <UTable :data="members" :columns="columns" :loading="status === 'pending'">
+      <ResponsiveTable :data="members" :columns="columns" :loading="status === 'pending'">
         <template #name-cell="{ row }">
           <div class="flex items-center gap-2">
             <span :class="{ 'text-(--ui-text-muted)': row.original.status === 'disabled' }">{{ row.original.name }}</span>
@@ -214,7 +214,7 @@ async function onAdd(): Promise<void> {
             <UButton icon="i-lucide-trash-2" color="error" variant="ghost" :aria-label="t('common.delete')" @click="remove(row.original)" />
           </div>
         </template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="addOpen" :title="t('members.new')">
         <template #body>

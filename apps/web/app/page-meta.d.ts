@@ -6,6 +6,8 @@ declare module '#app' {
     keepSession?: boolean;
     /** Installation management: superadmins only. */
     superadmin?: boolean;
+    /** A full-screen page on phones (a ticket with its composer): the tab bar hides, the navbar leads back. */
+    hideTabBar?: boolean;
   }
 }
 

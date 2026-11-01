@@ -11,6 +11,13 @@ const copy = useCopy();
 const { workspaceId, can } = useWorkspace();
 const { channels } = useWorkspaceData();
 const isAdmin = computed(() => can('admin'));
+/** On phones the three ways to add a channel share one menu, so the title stays visible. */
+const mobile = useMobile();
+const addItems = computed(() => [
+  { label: t('channels.apiChannel'), icon: 'i-lucide-webhook', onSelect: () => editApi(null) },
+  { label: t('channels.mailbox'), icon: 'i-lucide-mail-plus', onSelect: () => editMail(null) },
+  { label: t('channels.sandbox'), icon: 'i-lucide-flask-conical', onSelect: () => editMail(null, 'sandbox') },
+]);
 const origin = import.meta.client ? window.location.origin : '';
 
 /* Customer identification rules that can apply to a channel: those without a channel condition and those naming it. */
@@ -199,7 +206,10 @@ async function toggle(channel: ChannelDto): Promise<void> {
     <template #header>
       <UDashboardNavbar :title="t('nav.channels')">
         <template #right>
-          <template v-if="isAdmin">
+          <UDropdownMenu v-if="isAdmin && mobile" :items="addItems" :content="{ align: 'end' }">
+            <UButton icon="i-lucide-plus" :label="t('common.add')" />
+          </UDropdownMenu>
+          <template v-else-if="isAdmin">
             <UButton icon="i-lucide-flask-conical" :label="t('channels.sandbox')" variant="soft" color="neutral" @click="editMail(null, 'sandbox')" />
             <UButton icon="i-lucide-mail-plus" :label="t('channels.mailbox')" variant="soft" @click="editMail(null)" />
             <UButton icon="i-lucide-webhook" :label="t('channels.apiChannel')" @click="editApi(null)" />
@@ -312,7 +322,7 @@ async function toggle(channel: ChannelDto): Promise<void> {
       <UModal v-model:open="mailOpen" :title="mailTitle" :ui="{ content: 'max-w-2xl' }">
         <template #body>
           <form id="mail-form" class="space-y-4" @submit.prevent="saveMail">
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid gap-3 sm:grid-cols-3">
               <UFormField :label="t('common.name')" required><UInput v-model="mailForm.name" class="w-full" /></UFormField>
               <UFormField :label="t('integrations.address')" required><UInput v-model="mailForm.address" type="email" :disabled="Boolean(mailForm.id)" class="w-full" /></UFormField>
               <UFormField :label="t('channels.senderName')"><UInput v-model="mailForm.displayName" :placeholder="t('channels.senderNamePlaceholder')" class="w-full" /></UFormField>

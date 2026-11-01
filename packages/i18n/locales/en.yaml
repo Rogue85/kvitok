@@ -22,6 +22,7 @@ common:
   yes: "Yes"
   no: "No"
   none: "—"
+  noData: No data
   loading: Loading…
   error: Error
   logout: Log out
@@ -58,6 +59,7 @@ nav:
   administration: Administration
   users: Users
   workspaces: Workspaces
+  more: More
 
 auth:
   subtitle: Operator sign-in
@@ -302,6 +304,7 @@ tickets:
       today: Today
       7d: Last 7 days
       30d: Last 30 days
+  sortBy: Sorting
   sort:
     updated: Newest messages first
     oldest: Oldest messages first

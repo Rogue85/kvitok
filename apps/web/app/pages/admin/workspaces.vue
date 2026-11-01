@@ -63,7 +63,7 @@ async function onCreate(event: FormSubmitEvent<CreateWorkspaceInput>): Promise<v
 
     <template #body>
       <p class="mb-4 max-w-2xl text-sm text-(--ui-text-muted)">{{ t('adminWorkspaces.intro') }}</p>
-      <UTable :data="workspaces" :columns="columns" :loading="status === 'pending'">
+      <ResponsiveTable :data="workspaces" :columns="columns" :loading="status === 'pending'">
         <template #name-cell="{ row }">
           <div class="flex items-center gap-2">
             <NuxtLink :to="`/w/${row.original.id}/tickets`" class="font-medium hover:underline">{{ row.original.name }}</NuxtLink>
@@ -72,7 +72,7 @@ async function onCreate(event: FormSubmitEvent<CreateWorkspaceInput>): Promise<v
         </template>
         <template #slug-cell="{ row }"><span class="font-mono text-sm">{{ row.original.slug }}</span></template>
         <template #createdAt-cell="{ row }">{{ formatDate(row.original.createdAt) }}</template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="open" :title="t('workspaceSetup.create')">
         <template #body>

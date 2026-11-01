@@ -182,7 +182,7 @@ const fieldItems = computed(() => ticketFields.value.map((f) => ({ label: f.labe
       <UModal v-model:open="open" :title="form.id ? t('rules.rule') : t('rules.new')" :ui="{ content: 'max-w-3xl' }">
         <template #body>
           <form id="rule-form" class="space-y-4" @submit.prevent="save">
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid gap-3 sm:grid-cols-3">
               <UFormField :label="t('common.name')" required class="col-span-2"><UInput v-model="form.name" class="w-full" /></UFormField>
               <UFormField :label="t('rules.stageLabel')">
                 <USelect v-model="form.stage" :items="STAGES.map((s) => ({ label: s.title, value: s.value }))" :disabled="Boolean(form.id)" class="w-full" />

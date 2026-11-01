@@ -72,7 +72,7 @@ async function remove(): Promise<void> {
       <p class="mb-4 max-w-3xl text-sm text-(--ui-text-muted)">
         {{ t('playbooks.intro') }}
       </p>
-      <UTable :data="playbooks" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: PlaybookDto }) => isAdmin && edit(row.original)">
+      <ResponsiveTable :data="playbooks" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: PlaybookDto }) => isAdmin && edit(row.original)">
         <template #key-cell="{ row }"><code class="text-xs">{{ row.original.key }}</code></template>
         <template #when-cell="{ row }"><p class="max-w-md truncate text-(--ui-text-muted)">{{ row.original.when }}</p></template>
         <template #flags-cell="{ row }">
@@ -83,7 +83,7 @@ async function remove(): Promise<void> {
           </div>
         </template>
         <template #empty><UEmpty icon="i-lucide-book-open" :title="t('playbooks.empty.title')" :description="t('playbooks.empty.description')" /></template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="open" :title="form.id ? t('playbooks.playbook') : t('playbooks.new')" :ui="{ content: 'max-w-3xl' }">
         <template #body>
@@ -96,7 +96,7 @@ async function remove(): Promise<void> {
               :title="t('playbooks.fromIntegration', { integration: integrationName(form.integrationId) })"
               :description="t('playbooks.fromIntegrationHint')"
             />
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid gap-3 sm:grid-cols-3">
               <UFormField :label="t('common.name')" required class="col-span-2"><UInput v-model="form.title" :disabled="fromManifest" class="w-full" /></UFormField>
               <UFormField :label="t('common.key')" required :help="t('playbooks.keyHelp')"><UInput v-model="form.key" :disabled="Boolean(form.id)" placeholder="missing_points" class="w-full" /></UFormField>
             </div>

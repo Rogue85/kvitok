@@ -224,7 +224,7 @@ function historyChanges(entry: AuditLogDto): string {
 
     <template #body>
       <p class="mb-4 max-w-2xl text-sm text-(--ui-text-muted)">{{ t('users.intro') }}</p>
-      <UTable :data="users" :columns="columns" :loading="status === 'pending'">
+      <ResponsiveTable :data="users" :columns="columns" :loading="status === 'pending'">
         <template #name-cell="{ row }">
           <p class="font-medium">{{ row.original.name }}</p>
           <p class="text-sm text-(--ui-text-muted)">{{ row.original.email }}</p>
@@ -249,7 +249,7 @@ function historyChanges(entry: AuditLogDto): string {
         <template #actions-cell="{ row }">
           <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" :aria-label="t('common.edit')" @click="edit(row.original)" />
         </template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="createOpen" :title="t('users.new')" :description="t('users.newHint')">
         <template #body>

@@ -12,6 +12,8 @@ import {
   type UpdateTicketInput,
 } from '@kvitok/shared';
 
+definePageMeta({ hideTabBar: true });
+
 const route = useRoute();
 const toast = useToast();
 const { workspaceId, can, canSee } = useWorkspace();
@@ -222,7 +224,9 @@ async function cancelFromTimeline(messageId: string): Promise<void> {
 
 const replyTo = ref<{ id: string; text: string } | null>(null);
 
-/* Properties on the right — collapsible, the choice is remembered */
+/* Properties on the right — collapsible, the choice is remembered; on phones a sheet, closed until asked for */
+const mobile = useMobile();
+const sheetOpen = ref(false);
 const propsOpen = ref(true);
 onMounted(() => {
   try {
@@ -232,6 +236,10 @@ onMounted(() => {
   }
 });
 function toggleProps(): void {
+  if (mobile.value) {
+    sheetOpen.value = !sheetOpen.value;
+    return;
+  }
   propsOpen.value = !propsOpen.value;
   try {
     localStorage.setItem('ticket:props-open', propsOpen.value ? '1' : '0');
@@ -261,8 +269,9 @@ watch(
           <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" :to="`/w/${workspaceId}/tickets`" :aria-label="t('ticket.backToList')" />
         </template>
         <template #title>
-          <span v-if="ticket" class="truncate">
-            <span class="text-(--ui-text-muted)">T-{{ ticket.number }}</span> · {{ ticket.subject }}
+          <span v-if="ticket" class="flex min-w-0 flex-col truncate lg:block">
+            <span class="text-xs font-normal text-(--ui-text-muted) lg:text-base lg:font-semibold">T-{{ ticket.number }}<span class="max-lg:hidden"> · </span></span>
+            <span class="truncate text-sm lg:text-base">{{ ticket.subject }}</span>
           </span>
         </template>
         <template #right>
@@ -281,12 +290,12 @@ watch(
             :model-value="ticket.status"
             :items="statusItems"
             :disabled="!can('operator')"
-            class="w-40"
+            class="w-32 lg:w-40"
             @update:model-value="update({ status: $event as TicketStatus })"
           />
-          <UTooltip :text="propsOpen ? t('ticket.hideProperties') : t('ticket.showProperties')">
+          <UTooltip :text="propsOpen && !mobile ? t('ticket.hideProperties') : t('ticket.showProperties')">
             <UButton
-              :icon="propsOpen ? 'i-lucide-panel-right-close' : 'i-lucide-panel-right-open'"
+              :icon="propsOpen && !mobile ? 'i-lucide-panel-right-close' : 'i-lucide-panel-right-open'"
               color="neutral"
               variant="ghost"
               :aria-label="t('ticket.properties')"
@@ -377,7 +386,12 @@ watch(
           </div>
         </div>
 
-        <aside v-if="propsOpen" class="w-80 shrink-0 overflow-y-auto border-l border-(--ui-border) p-6">
+        <USlideover v-if="mobile" v-model:open="sheetOpen" :title="t('ticket.properties')" :ui="{ content: 'max-w-md pt-[env(safe-area-inset-top)]', body: 'pb-[calc(1rem+env(safe-area-inset-bottom))]' }">
+          <template #body>
+            <TicketSidebar :ticket="ticket" :links="links" :cost="agent?.cost ?? null" @update="update" @changed="refreshAll" @open-runs="openRun(null)" />
+          </template>
+        </USlideover>
+        <aside v-else-if="propsOpen" class="w-80 shrink-0 overflow-y-auto border-l border-(--ui-border) p-6">
           <TicketSidebar :ticket="ticket" :links="links" :cost="agent?.cost ?? null" @update="update" @changed="refreshAll" @open-runs="openRun(null)" />
         </aside>
         <AgentRunsModal v-if="agent" v-model:open="runsOpen" :runs="agent.runs" :run-id="runId" :currency="agent.cost.currency" />

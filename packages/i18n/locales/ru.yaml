@@ -21,6 +21,7 @@ common:
   yes: Да
   no: Нет
   none: "—"
+  noData: Нет данных
   loading: Загрузка…
   error: Ошибка
   logout: Выйти
@@ -57,6 +58,7 @@ nav:
   administration: Администрирование
   users: Пользователи
   workspaces: Workspace
+  more: Ещё
 
 auth:
   subtitle: Вход для операторов
@@ -303,6 +305,7 @@ tickets:
       today: Сегодня
       7d: Последние 7 дней
       30d: Последние 30 дней
+  sortBy: Сортировка
   sort:
     updated: Сначала новые сообщения
     oldest: Сначала старые сообщения

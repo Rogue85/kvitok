@@ -139,6 +139,15 @@ const viewItems = computed(() =>
   }),
 );
 const sortItems = TICKET_SORTS.map((value) => ({ label: t(`tickets.sort.${value}`), value }));
+/** On phones the sort is an icon menu next to the views. */
+const sortMenu = computed<DropdownMenuItem[]>(() =>
+  sortItems.map((item) => ({
+    label: item.label,
+    type: 'checkbox' as const,
+    checked: sort.value === item.value,
+    onSelect: () => (sort.value = item.value),
+  })),
+);
 
 /* Filters */
 
@@ -294,7 +303,9 @@ function onBulkDone(result: BulkUpdateTicketsResultDto): void {
   void refreshTags();
 }
 
-/* Table */
+/* Table, and a list of cards on phones */
+
+const mobile = useMobile();
 
 const listFields = computed(() => ticketFields.value.filter((f) => f.display.includes('list_column')));
 const selectable = computed(() => can('operator'));
@@ -329,15 +340,18 @@ function open(row: TicketListRowDto): void {
           <UTooltip v-if="!scope.all" :text="t('tickets.scopeHint')">
             <UIcon name="i-lucide-building-2" class="size-4 text-(--ui-text-muted)" :aria-label="t('tickets.scopeHint')" />
           </UTooltip>
-          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('tickets.searchPlaceholder')" class="w-72" />
+          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('tickets.searchPlaceholder')" class="w-48 sm:w-72" />
         </template>
       </UDashboardNavbar>
-      <UDashboardToolbar>
+      <UDashboardToolbar :ui="{ root: 'overflow-x-visible', left: 'min-w-0 overflow-x-auto', right: 'shrink-0' }">
         <template #left>
           <UTabs v-model="view" :items="viewItems" :content="false" size="sm" />
         </template>
         <template #right>
-          <USelect v-model="sort" :items="sortItems" icon="i-lucide-arrow-down-wide-narrow" class="w-64" />
+          <UDropdownMenu v-if="mobile" :items="sortMenu" :content="{ align: 'end' }">
+            <UButton color="neutral" variant="ghost" icon="i-lucide-arrow-down-wide-narrow" :aria-label="t('tickets.sortBy')" />
+          </UDropdownMenu>
+          <USelect v-else v-model="sort" :items="sortItems" icon="i-lucide-arrow-down-wide-narrow" class="w-64" />
         </template>
       </UDashboardToolbar>
       <UDashboardToolbar>
@@ -389,7 +403,74 @@ function open(row: TicketListRowDto): void {
         </template>
       </div>
 
+      <ul v-if="mobile && rows.length" class="-mx-4 -mt-4 divide-y divide-(--ui-border) border-b border-(--ui-border) sm:-mx-6 sm:-mt-6" :class="status === 'pending' ? 'opacity-60' : ''">
+        <li v-for="(row, index) in rows" :key="row.id" class="flex">
+          <div v-if="selectable" class="flex items-start py-3.5 pr-1 pl-4 sm:pl-6">
+            <UCheckbox
+              :model-value="allMatching || selected.has(row.id)"
+              :aria-label="t('tickets.selection.selectRow', { number: row.number })"
+              @update:model-value="(value: boolean | 'indeterminate') => toggleRow(index, value)"
+            />
+          </div>
+          <NuxtLink
+            :to="`/w/${workspaceId}/tickets/${row.id}`"
+            class="min-w-0 flex-1 space-y-1 py-3 pr-4 active:bg-(--ui-bg-elevated) sm:pr-6"
+            :class="selectable ? 'pl-2' : 'pl-4 sm:pl-6'"
+          >
+            <div class="flex items-center gap-2 text-xs text-(--ui-text-muted)">
+              <span class="shrink-0">T-{{ row.number }}</span>
+              <span class="truncate">
+                {{ row.customer?.name ?? row.customer?.primaryIdentity?.value ?? t('tickets.noCustomer') }}
+                <template v-if="row.channel"> · {{ row.channel.name }}</template>
+              </span>
+              <span class="ml-auto shrink-0" :title="formatDateTime(row.lastMessageAt)">{{ formatRelative(row.lastMessageAt) }}</span>
+            </div>
+            <p class="flex items-start gap-1.5 font-medium">
+              <UIcon v-if="row.attention" name="i-lucide-hand" class="mt-0.5 size-4 shrink-0 text-(--ui-warning)" :title="t('tickets.filters.attention')" />
+              <span class="line-clamp-2">{{ row.subject }}</span>
+            </p>
+            <div class="flex flex-wrap items-center gap-1.5 text-xs text-(--ui-text-muted)">
+              <UBadge :color="STATUS_COLORS[row.status]" variant="subtle" size="sm">{{ statusLabel(row.status) }}</UBadge>
+              <UBadge v-if="row.priority === 'high' || row.priority === 'urgent'" :color="PRIORITY_COLORS[row.priority]" variant="outline" size="sm">
+                {{ priorityLabel(row.priority) }}
+              </UBadge>
+              <UIcon
+                v-if="row.agentState !== 'idle'"
+                :name="AGENT_ICONS[row.agentState].icon"
+                class="size-4"
+                :class="AGENT_ICONS[row.agentState].class"
+                :title="t(`ticket.agentState.${row.agentState}`)"
+              />
+              <span class="truncate">
+                {{ row.departmentId ? (departmentById.get(row.departmentId)?.title ?? '—') : '—' }}
+                · {{ row.assignee ? (memberById.get(row.assignee.id)?.name ?? row.assignee.name) : t('tickets.filters.unassigned') }}
+              </span>
+            </div>
+            <div v-if="listFields.length || row.tags.length" class="flex flex-wrap items-center gap-1.5 text-xs text-(--ui-text-muted)">
+              <template v-for="field in listFields" :key="field.key">
+                <span v-if="row.fields[field.key] !== undefined && row.fields[field.key] !== null">
+                  {{ field.label }}: {{ formatFieldValue(row.fields[field.key], field.options) }}
+                </span>
+              </template>
+              <UBadge v-for="tag in row.tags.slice(0, 3)" :key="tag" size="sm" color="neutral" variant="soft">{{ tag }}</UBadge>
+              <span v-if="row.tags.length > 3">+{{ row.tags.length - 3 }}</span>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
+      <template v-else-if="mobile">
+        <UEmpty
+          v-if="activeFilters.length || searchQuery"
+          icon="i-lucide-list-filter"
+          :title="t('tickets.empty.filteredTitle')"
+          :description="t('tickets.empty.filteredDescription')"
+          :actions="[{ label: t('tickets.filters.reset'), color: 'neutral', variant: 'subtle', onClick: resetFilters }]"
+        />
+        <UEmpty v-else-if="status !== 'pending'" icon="i-lucide-inbox" :title="t('tickets.empty.title')" :description="t('tickets.empty.description')" />
+      </template>
+
       <UTable
+        v-else
         :data="rows"
         :columns="columns"
         :loading="status === 'pending'"
@@ -472,7 +553,7 @@ function open(row: TicketListRowDto): void {
       </UTable>
 
       <div v-if="data.total > data.pageSize" class="flex justify-center border-t border-(--ui-border) pt-4">
-        <UPagination v-model:page="page" :total="data.total" :items-per-page="data.pageSize" />
+        <UPagination v-model:page="page" :total="data.total" :items-per-page="data.pageSize" :sibling-count="mobile ? 0 : 2" />
       </div>
 
       <div v-if="selectedCount > 0" class="sticky bottom-4 z-10 mx-auto mt-auto w-fit">

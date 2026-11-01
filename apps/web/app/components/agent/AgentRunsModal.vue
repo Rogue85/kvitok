@@ -5,6 +5,7 @@ import type { AgentRunDetailDto, AgentRunDto } from '@kvitok/shared';
 const props = defineProps<{ runs: AgentRunDto[]; runId?: string | null; currency: string }>();
 const open = defineModel<boolean>('open', { default: false });
 const { workspaceId } = useWorkspace();
+const mobile = useMobile();
 
 const STATUS_COLORS: Record<string, 'neutral' | 'success' | 'warning' | 'error' | 'info'> = {
   queued: 'neutral',
@@ -47,10 +48,11 @@ function pretty(value: unknown): string {
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="t('ticket.agentRuns')" :ui="{ content: 'max-w-5xl' }">
+  <UModal v-model:open="open" :title="t('ticket.agentRuns')" :fullscreen="mobile" :ui="{ content: 'max-w-5xl' }">
     <template #body>
-      <div class="flex h-[70vh] gap-4">
-        <ul class="w-64 shrink-0 space-y-1 overflow-y-auto">
+      <!-- On phones the runs stack above the selected one, and the screen scrolls as a whole. -->
+      <div class="flex flex-col gap-4 lg:h-[70vh] lg:flex-row">
+        <ul class="max-h-48 shrink-0 space-y-1 overflow-y-auto border-b border-(--ui-border) pb-3 lg:max-h-none lg:w-64 lg:border-b-0 lg:pb-0">
           <li v-for="run in runs" :key="run.id">
             <button
               class="w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-(--ui-bg-muted)"
@@ -68,7 +70,7 @@ function pretty(value: unknown): string {
             </button>
           </li>
         </ul>
-        <div class="min-w-0 flex-1 space-y-3 overflow-y-auto text-xs">
+        <div class="min-w-0 flex-1 space-y-3 text-xs lg:overflow-y-auto">
           <template v-if="detail">
             <div class="flex flex-wrap gap-x-4 gap-y-1 text-(--ui-text-muted)">
               <span>{{ t('agentRuns.model', { model: detail.model ?? '—' }) }}</span>

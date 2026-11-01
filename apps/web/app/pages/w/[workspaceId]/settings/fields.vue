@@ -144,7 +144,7 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
       <p class="mb-4 max-w-2xl text-sm text-(--ui-text-muted)">
         {{ t('fieldsSettings.intro') }}
       </p>
-      <UTable :data="rows" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: FieldDefinitionDto }) => isAdmin && edit(row.original)">
+      <ResponsiveTable :data="rows" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: FieldDefinitionDto }) => isAdmin && edit(row.original)">
         <template #key-cell="{ row }"><code class="text-xs">{{ row.original.key }}</code></template>
         <template #type-cell="{ row }">{{ typeLabel(row.original.type) }}</template>
         <template #fillMode-cell="{ row }">{{ fillLabel(row.original.fillMode) }}</template>
@@ -157,12 +157,12 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
         <template #empty>
           <UEmpty icon="i-lucide-list" :title="t('fieldsSettings.empty')" />
         </template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="open" :title="form.id ? t('fieldsSettings.editTitle', { label: form.label }) : t('fieldsSettings.new')" :ui="{ content: 'max-w-2xl' }">
         <template #body>
           <form id="field-form" class="space-y-4" @submit.prevent="save">
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid gap-3 sm:grid-cols-3">
               <UFormField :label="t('common.name')" required class="col-span-1"><UInput v-model="form.label" class="w-full" /></UFormField>
               <UFormField :label="t('common.key')" required :help="t('playbooks.keyHelp')"><UInput v-model="form.key" :disabled="Boolean(form.id)" placeholder="dept_number" class="w-full" /></UFormField>
               <UFormField :label="t('fieldsSettings.typeColumn')" :help="t('playbooks.keyHelp')">
@@ -172,16 +172,17 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
 
             <div v-if="hasOptions" class="space-y-2">
               <p class="text-sm font-medium">{{ t('fieldsSettings.options') }}</p>
-              <div v-for="(option, index) in form.options" :key="index" class="grid grid-cols-[1fr_1fr_2fr_auto] gap-2">
+              <div v-for="(option, index) in form.options" :key="index" class="grid grid-cols-[1fr_1fr_auto] gap-2 sm:grid-cols-[1fr_1fr_2fr_auto]">
                 <UInput v-model="option.value" :placeholder="t('fieldsSettings.optionValue')" size="sm" />
                 <UInput v-model="option.label" :placeholder="t('fieldsSettings.optionLabel')" size="sm" />
-                <UInput v-model="option.agentHint" :placeholder="t('fieldsSettings.optionHint')" size="sm" />
+                <!-- On phones the hint takes its own line under the value and the label. -->
+                <UInput v-model="option.agentHint" :placeholder="t('fieldsSettings.optionHint')" size="sm" class="max-sm:order-last max-sm:col-span-3" />
                 <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" @click="form.options.splice(index, 1)" />
               </div>
               <UButton icon="i-lucide-plus" size="xs" variant="soft" @click="form.options.push({ value: '', label: '' })">{{ t('fieldsSettings.option') }}</UButton>
             </div>
 
-            <div v-if="form.type === 'number'" class="grid grid-cols-3 items-end gap-3">
+            <div v-if="form.type === 'number'" class="grid items-end gap-3 sm:grid-cols-3">
               <UCheckbox v-model="form.integer" :label="t('fieldsSettings.integersOnly')" />
               <UFormField :label="t('fieldsSettings.min')"><UInputNumber v-model="form.min" class="w-full" /></UFormField>
               <UFormField :label="t('fieldsSettings.max')"><UInputNumber v-model="form.max" class="w-full" /></UFormField>
@@ -190,7 +191,7 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
               <UInput v-model="form.pattern" class="w-full" />
             </UFormField>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('fieldsSettings.whoFills')">
                 <USelect v-model="form.fillMode" :items="FIELD_FILL_MODES.map((m) => ({ label: fillLabel(m), value: m }))" class="w-full" />
               </UFormField>
@@ -202,7 +203,7 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
               <UTextarea v-model="form.agentHint" autoresize :rows="2" class="w-full" :placeholder="t('fieldsSettings.agentHintPlaceholder')" />
             </UFormField>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('fieldsSettings.whereToShow')">
                 <UCheckboxGroup v-model="form.display" :items="FIELD_DISPLAY.map((d) => ({ label: displayLabel(d), value: d }))" />
               </UFormField>

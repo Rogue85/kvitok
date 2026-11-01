@@ -95,7 +95,7 @@ async function clear(): Promise<void> {
           <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" :to="`/w/${workspaceId}/settings/channels`" :aria-label="t('outbox.backToChannels')" />
         </template>
         <template #right>
-          <UInput v-model="address" icon="i-lucide-search" :placeholder="t('outbox.recipientAddress')" class="w-64" />
+          <UInput v-model="address" icon="i-lucide-search" :placeholder="t('outbox.recipientAddress')" class="w-40 sm:w-64" />
           <UButton v-if="can('admin') && data.total > 0" icon="i-lucide-trash-2" color="neutral" variant="soft" :label="t('common.clear')" @click="clearOpen = true" />
         </template>
       </UDashboardNavbar>
@@ -110,7 +110,7 @@ async function clear(): Promise<void> {
         :description="t('outbox.notice', { address: channel?.address ?? '' })"
       />
 
-      <UTable
+      <ResponsiveTable
         :data="data.items"
         :columns="columns"
         :loading="status === 'pending'"
@@ -145,7 +145,7 @@ async function clear(): Promise<void> {
             :description="t('outbox.empty.description')"
           />
         </template>
-      </UTable>
+      </ResponsiveTable>
 
       <div v-if="data.total > data.pageSize" class="flex justify-center border-t border-(--ui-border) pt-4">
         <UPagination v-model:page="page" :total="data.total" :items-per-page="data.pageSize" />

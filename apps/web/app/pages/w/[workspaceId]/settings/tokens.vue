@@ -103,7 +103,7 @@ async function revoke(token: ApiTokenDto): Promise<void> {
       <p class="mb-4 max-w-2xl text-sm text-(--ui-text-muted)">
         {{ t('tokens.intro') }}
       </p>
-      <UTable :data="tokens" :columns="columns" :loading="status === 'pending'">
+      <ResponsiveTable :data="tokens" :columns="columns" :loading="status === 'pending'">
         <template #name-cell="{ row }">
           <p class="font-medium">{{ row.original.name }}</p>
           <p class="font-mono text-xs text-(--ui-text-muted)">{{ API_TOKEN_PREFIX }}…{{ row.original.hint }}</p>
@@ -128,7 +128,7 @@ async function revoke(token: ApiTokenDto): Promise<void> {
         <template #empty>
           <UEmpty icon="i-lucide-key-round" :title="t('tokens.empty')" />
         </template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="open" :title="t('tokens.new')" :ui="{ content: 'max-w-xl' }">
         <template #body>
@@ -139,7 +139,7 @@ async function revoke(token: ApiTokenDto): Promise<void> {
             <UFormField :label="t('tokens.scopes')" required>
               <UCheckboxGroup v-model="form.scopes" :items="scopeItems" :ui="{ label: 'font-mono' }" />
             </UFormField>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('tokens.workspace')">
                 <USelect v-model="form.workspaceId" :items="workspaceItems" class="w-full" />
               </UFormField>

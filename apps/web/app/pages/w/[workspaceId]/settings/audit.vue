@@ -85,7 +85,7 @@ function changes(entry: AuditLogDto): Array<{ key: string; before: string; after
     <template #header>
       <UDashboardNavbar :title="t('nav.audit')">
         <template #right>
-          <USelect v-model="entity" :items="entityItems" class="w-56" />
+          <USelect v-model="entity" :items="entityItems" class="w-40 sm:w-56" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -94,7 +94,7 @@ function changes(entry: AuditLogDto): Array<{ key: string; before: string; after
       <p class="mb-4 max-w-2xl text-sm text-(--ui-text-muted)">
         {{ t('audit.intro') }}
       </p>
-      <UTable :data="entries" :columns="columns" :loading="loading" :ui="{ td: 'whitespace-normal align-top' }">
+      <ResponsiveTable :data="entries" :columns="columns" :loading="loading" :ui="{ td: 'whitespace-normal align-top' }">
         <template #createdAt-cell="{ row }">
           <span class="whitespace-nowrap text-(--ui-text-muted)">{{ formatDateTime(row.original.createdAt) }}</span>
         </template>
@@ -121,7 +121,7 @@ function changes(entry: AuditLogDto): Array<{ key: string; before: string; after
         <template #empty>
           <UEmpty icon="i-lucide-history" :title="t('audit.empty')" />
         </template>
-      </UTable>
+      </ResponsiveTable>
       <div v-if="hasMore" class="mt-4 flex justify-center">
         <UButton color="neutral" variant="soft" :loading="loading" @click="load(true)">{{ t('audit.loadMore') }}</UButton>
       </div>

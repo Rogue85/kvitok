@@ -55,6 +55,22 @@ const navItems = computed<NavigationMenuItem[]>(() => {
   ];
 });
 
+/** Phones and tablets: the main sections stay under the thumb, the rest of the menu opens from "More". */
+const sidebarOpen = ref(false);
+const tabBar = computed(() => !route.meta.hideTabBar);
+const tabs = computed(() => {
+  const base = current.value ? `/w/${current.value.workspaceId}` : null;
+  return [
+    ...(base
+      ? [
+          { label: t('nav.tickets'), icon: 'i-lucide-inbox', to: `${base}/tickets` },
+          { label: t('nav.analytics'), icon: 'i-lucide-chart-column', to: `${base}/analytics` },
+        ]
+      : []),
+    { label: t('nav.notifications'), icon: 'i-lucide-bell', to: '/notifications' },
+  ];
+});
+
 const adminItems = computed<NavigationMenuItem[]>(() =>
   me.value?.user.isSuperadmin
     ? [
@@ -73,8 +89,16 @@ const adminItems = computed<NavigationMenuItem[]>(() =>
 </script>
 
 <template>
-  <UDashboardGroup>
-    <UDashboardSidebar collapsible resizable>
+  <UDashboardGroup
+    class="pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]"
+    :class="tabBar ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0' : 'pb-[env(safe-area-inset-bottom)]'"
+  >
+    <UDashboardSidebar
+      v-model:open="sidebarOpen"
+      collapsible
+      resizable
+      :menu="{ ui: { content: 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' } }"
+    >
       <template #header="{ collapsed }">
         <div class="flex items-baseline gap-2 px-2.5">
           <NuxtLink :to="current ? `/w/${current.workspaceId}/tickets` : '/'" class="flex items-center">
@@ -122,5 +146,30 @@ const adminItems = computed<NavigationMenuItem[]>(() =>
     </UDashboardSidebar>
 
     <slot />
+
+    <nav
+      v-if="tabBar"
+      class="fixed inset-x-0 bottom-0 z-40 flex border-t border-(--ui-border) bg-(--ui-bg) pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:hidden"
+    >
+      <NuxtLink
+        v-for="tab in tabs"
+        :key="tab.to"
+        :to="tab.to"
+        class="flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]"
+        :class="route.path.startsWith(tab.to) ? 'text-(--ui-primary)' : 'text-(--ui-text-muted)'"
+      >
+        <UIcon :name="tab.icon" class="size-5" />
+        <span>{{ tab.label }}</span>
+      </NuxtLink>
+      <button
+        type="button"
+        class="flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]"
+        :class="sidebarOpen ? 'text-(--ui-primary)' : 'text-(--ui-text-muted)'"
+        @click="sidebarOpen = true"
+      >
+        <UIcon name="i-lucide-menu" class="size-5" />
+        <span>{{ t('nav.more') }}</span>
+      </button>
+    </nav>
   </UDashboardGroup>
 </template>

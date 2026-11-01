@@ -64,12 +64,12 @@ async function submit(): Promise<void> {
       </div>
     </template>
     <template #footer>
-      <div class="flex items-center gap-1.5 text-xs text-(--ui-text-muted)">
-        <UIcon name="i-lucide-lock" class="size-3.5" />
-        {{ t('agentChat.teamOnly') }}
+      <div class="flex min-w-0 items-center gap-1.5 text-xs text-(--ui-text-muted)" :title="t('agentChat.teamOnly')">
+        <UIcon name="i-lucide-lock" class="size-3.5 shrink-0" />
+        <span class="truncate max-sm:sr-only">{{ t('agentChat.teamOnly') }}</span>
       </div>
       <div class="flex items-center gap-2">
-        <UButton v-if="!replyOpen" size="sm" color="neutral" variant="outline" icon="i-lucide-reply" @click="emit('reply')">{{ t('agentChat.replyToCustomer') }}</UButton>
+        <UButton v-if="!replyOpen" size="sm" color="neutral" variant="outline" icon="i-lucide-reply" class="whitespace-nowrap" @click="emit('reply')">{{ t('agentChat.replyToCustomer') }}</UButton>
         <UChatPromptSubmit :status="sending ? 'submitted' : 'ready'" :disabled="!text.trim()" />
       </div>
     </template>

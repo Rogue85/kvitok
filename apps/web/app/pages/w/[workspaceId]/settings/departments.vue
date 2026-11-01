@@ -78,7 +78,7 @@ async function save(): Promise<void> {
       <p class="mb-4 max-w-2xl text-sm text-(--ui-text-muted)">
         {{ t('departments.intro') }}
       </p>
-      <UTable :data="departments.data.value" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: DepartmentDto }) => isAdmin && edit(row.original)">
+      <ResponsiveTable :data="departments.data.value" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: DepartmentDto }) => isAdmin && edit(row.original)">
         <template #description-cell="{ row }">
           <p class="max-w-md truncate text-(--ui-text-muted)">{{ row.original.description || '—' }}</p>
         </template>
@@ -91,12 +91,12 @@ async function save(): Promise<void> {
         <template #empty>
           <UEmpty icon="i-lucide-users" :title="t('departments.empty.title')" :description="t('departments.empty.description')" />
         </template>
-      </UTable>
+      </ResponsiveTable>
 
       <UModal v-model:open="open" :title="form.id ? t('departments.department') : t('departments.new')" :ui="{ content: 'max-w-xl' }">
         <template #body>
           <form id="department-form" class="space-y-4" @submit.prevent="save">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('common.name')" required><UInput v-model="form.title" class="w-full" /></UFormField>
               <UFormField :label="t('common.key')" required :help="t('departments.keyHelp')"><UInput v-model="form.key" :disabled="Boolean(form.id)" class="w-full" /></UFormField>
             </div>

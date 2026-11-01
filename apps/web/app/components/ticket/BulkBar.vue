@@ -20,6 +20,8 @@ const { departments, members } = useWorkspaceData();
 
 type Changes = BulkUpdateTicketsInput['changes'];
 const busy = ref(false);
+/** On phones the actions are icons, so the bar fits the screen. */
+const mobile = useMobile();
 const confirming = ref<Changes | null>(null);
 
 /** A move to a department the user cannot see: they lose the tickets. */
@@ -123,29 +125,29 @@ function changeTags(): void {
     <USeparator orientation="vertical" class="h-5" />
 
     <UDropdownMenu :items="statusItems" :content="{ side: 'top' }">
-      <UButton color="neutral" variant="ghost" icon="i-lucide-circle-dot" :label="t('tickets.columns.status')" :disabled="busy" />
+      <UButton color="neutral" variant="ghost" icon="i-lucide-circle-dot" :label="mobile ? undefined : t('tickets.columns.status')" :aria-label="t('tickets.columns.status')" :disabled="busy" />
     </UDropdownMenu>
 
     <UPopover v-model:open="assigneeOpen" :content="{ side: 'top' }">
-      <UButton color="neutral" variant="ghost" icon="i-lucide-user" :label="t('tickets.columns.assignee')" :disabled="busy" />
+      <UButton color="neutral" variant="ghost" icon="i-lucide-user" :label="mobile ? undefined : t('tickets.columns.assignee')" :aria-label="t('tickets.columns.assignee')" :disabled="busy" />
       <template #content>
         <UCommandPalette :groups="[{ id: 'assignee', items: assigneeItems }]" :placeholder="t('common.search')" class="max-h-80 w-72" />
       </template>
     </UPopover>
 
     <UDropdownMenu :items="priorityItems" :content="{ side: 'top' }">
-      <UButton color="neutral" variant="ghost" icon="i-lucide-signal" :label="t('tickets.filters.priority')" :disabled="busy" />
+      <UButton color="neutral" variant="ghost" icon="i-lucide-signal" :label="mobile ? undefined : t('tickets.filters.priority')" :aria-label="t('tickets.filters.priority')" :disabled="busy" />
     </UDropdownMenu>
 
     <UPopover v-model:open="departmentOpen" :content="{ side: 'top' }">
-      <UButton color="neutral" variant="ghost" icon="i-lucide-building-2" :label="t('tickets.columns.department')" :disabled="busy" />
+      <UButton color="neutral" variant="ghost" icon="i-lucide-building-2" :label="mobile ? undefined : t('tickets.columns.department')" :aria-label="t('tickets.columns.department')" :disabled="busy" />
       <template #content>
         <UCommandPalette :groups="[{ id: 'department', items: departmentItems }]" :placeholder="t('common.search')" class="max-h-80 w-64" />
       </template>
     </UPopover>
 
     <UPopover v-model:open="tagsOpen" :content="{ side: 'top' }">
-      <UButton color="neutral" variant="ghost" icon="i-lucide-tag" :label="t('tickets.filters.tags')" :disabled="busy" />
+      <UButton color="neutral" variant="ghost" icon="i-lucide-tag" :label="mobile ? undefined : t('tickets.filters.tags')" :aria-label="t('tickets.filters.tags')" :disabled="busy" />
       <template #content>
         <div class="flex w-72 flex-col gap-3 p-3">
           <UFormField :label="t('tickets.bulk.addTags')" size="sm">

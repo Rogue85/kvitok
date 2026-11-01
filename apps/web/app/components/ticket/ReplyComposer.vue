@@ -6,6 +6,7 @@ const props = defineProps<{ ticket: TicketDto; lastSeenMessageId: string | null;
 const emit = defineEmits<{ sent: [message: MessageDto]; changed: []; close: [] }>();
 
 const toast = useToast();
+const mobile = useMobile();
 /** Text of sent replies without the signature — to put it back into the editor on cancel. */
 const sentDrafts = new Map<string, { html: string; toastId: string | number }>();
 const { workspaceId } = useWorkspace();
@@ -208,8 +209,8 @@ defineExpose({ cancel, flush });
 <template>
   <div class="rounded-lg border border-(--ui-primary)/40 bg-(--ui-bg)">
     <div class="flex items-center gap-2 px-3 pt-2 text-sm">
-      <UIcon name="i-lucide-reply" class="size-4 text-(--ui-primary)" />
-      <span class="font-medium">{{ t('reply.title') }}</span>
+      <UIcon name="i-lucide-reply" class="size-4 shrink-0 text-(--ui-primary)" />
+      <span class="shrink-0 font-medium">{{ t('reply.title') }}</span>
       <button v-if="canReply" type="button" class="min-w-0 truncate text-xs text-(--ui-text-muted) hover:text-(--ui-text)" @click="editRecipients = !editRecipients">
         {{ recipientsLine }} · <span class="underline decoration-dotted">{{ editRecipients ? t('reply.collapse') : t('reply.change') }}</span>
       </button>
@@ -271,8 +272,8 @@ defineExpose({ cancel, flush });
         />
 
         <div class="flex items-center gap-2">
-          <span v-if="draftLabel" class="text-xs text-(--ui-text-muted)">{{ draftLabel }}</span>
-          <UFieldGroup class="ml-auto">
+          <span v-if="draftLabel" class="min-w-0 truncate text-xs text-(--ui-text-muted)">{{ draftLabel }}</span>
+          <UFieldGroup class="ml-auto shrink-0">
             <UButton icon="i-lucide-send" :loading="sending" :disabled="isEmptyHtml || via.length === 0 || missingRecipient" @click="sendReply()">
               {{ t(`reply.send.${statusAfter}`) }}
             </UButton>
@@ -284,9 +285,9 @@ defineExpose({ cancel, flush });
       </template>
     </div>
 
-    <UModal v-model:open="compareOpen" :title="t('reply.compareTitle')" :ui="{ content: 'max-w-4xl' }">
+    <UModal v-model:open="compareOpen" :title="t('reply.compareTitle')" :fullscreen="mobile" :ui="{ content: 'max-w-4xl' }">
       <template #body>
-        <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="grid gap-4 text-sm sm:grid-cols-2">
           <div>
             <p class="mb-2 font-medium">{{ t('reply.yourVersion') }}</p>
             <div class="message-html rounded-md border border-(--ui-border) p-3" v-html="html" />
