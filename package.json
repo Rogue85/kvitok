@@ -1,5 +1,6 @@
 {
   "name": "kvitok",
+  "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "packageManager": "pnpm@10.34.9",
@@ -14,6 +15,7 @@
     "test": "pnpm -r test && node --test 'scripts/*.test.mjs'",
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "eval": "pnpm --filter @kvitok/api eval"
+    "eval": "pnpm --filter @kvitok/api eval",
+    "release": "node scripts/release.mjs"
   }
 }

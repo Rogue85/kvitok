@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { parseArgs } from 'node:util';
 import { newId } from './common/ids';
 import { ConfigModule } from './config/config.module';
+import { APP_CONFIG, type AppConfig } from './config/env';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrismaService } from './prisma/prisma.service';
 import { UsersModule } from './users/users.module';
@@ -48,6 +49,10 @@ async function main(): Promise<void> {
       }
 
       case 'seed:dev': {
+        // A well-known superadmin password must never reach a production installation.
+        if (app.get<AppConfig>(APP_CONFIG).nodeEnv === 'production') {
+          throw new Error('seed:dev is for development only; a production installation starts at /setup');
+        }
         const email = 'admin@example.com';
         const password = 'admin12345';
         const admin =

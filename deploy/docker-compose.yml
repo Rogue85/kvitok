@@ -1,0 +1,103 @@
+# Kvitok in production: the app (API with the web interface), the queue worker and, optionally,
+# Postgres, Redis and Caddy with automatic HTTPS. Settings are in .env next to this file (see .env.example);
+# which of the optional services run is set by COMPOSE_PROFILES there. Requires Docker Compose 2.20+.
+# Guide: https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md
+
+name: kvitok
+
+x-kvitok: &kvitok
+  image: ${KVITOK_IMAGE:-ghcr.io/rogue85/kvitok}:${KVITOK_VERSION:-latest}
+  restart: unless-stopped
+  init: true
+  # Every setting from .env reaches the app; the addresses below default to the bundled services.
+  env_file: .env
+  environment:
+    DATABASE_URL: ${DATABASE_URL:-postgresql://kvitok:${POSTGRES_PASSWORD:-}@postgres:5432/kvitok}
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  volumes:
+    - storage:/data/storage
+  # A backend on this host (an integration, a webhook target) is http://host.docker.internal:<port>.
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+  # The API and the web interface on port 3001 inside the network. Applies migrations on start.
+  kvitok:
+    <<: *kvitok
+    command: api
+    ports:
+      # 127.0.0.1:3000 by default: reachable by a reverse proxy on this host, not from outside.
+      # Without a proxy: KVITOK_LISTEN=80 (or 0.0.0.0:3000).
+      - ${KVITOK_LISTEN:-127.0.0.1:3000}:3001
+    healthcheck:
+      test: ["CMD", "kvitok", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      # required: false — with an external database or Redis these services are not started.
+      postgres:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+
+  # Queues: sending replies and webhooks, receiving mail, the agent. Starts after migrations are applied.
+  worker:
+    <<: *kvitok
+    command: worker
+    depends_on:
+      kvitok:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    profiles: [postgres]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kvitok
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: kvitok
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kvitok"]
+      interval: 5s
+      retries: 10
+
+  # Queues live here: append-only persistence, and keys are never evicted (BullMQ requires it).
+  redis:
+    image: redis:7
+    profiles: [redis]
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  # HTTPS with a Let's Encrypt certificate for DOMAIN. DOMAIN=http://… or :80 serves plain HTTP.
+  caddy:
+    image: caddy:2
+    profiles: [caddy]
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${DOMAIN:-localhost} --to kvitok:3001
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy:/data
+    depends_on:
+      kvitok:
+        condition: service_healthy
+
+volumes:
+  storage:
+  postgres:
+  redis:
+  caddy:

@@ -148,6 +148,10 @@ docker compose exec api pnpm --filter @kvitok/api db:seed
 
 Open http://localhost:3000 and sign in as `admin@example.com` / `admin12345`. The API is at http://localhost:3001. Without `db:seed`, the first visit opens a setup page that creates the first superadmin and workspace.
 
+### Run it on a server
+
+A production installation runs from the published Docker image with one compose file: the app, the queue worker and, optionally, Postgres, Redis and Caddy with automatic HTTPS. Each of the three can be replaced with your own. See [docs/deployment.md](docs/deployment.md).
+
 ### Try it on the simulator
 
 1. Settings → Agent → LLM providers: add `http://fake-llm:3999/v1` with any model name, or a real provider and key. The fake LLM only shows the flow; to see the agent reason, use a real model.
@@ -206,7 +210,9 @@ NestJS on Fastify, Prisma with PostgreSQL, BullMQ with Redis, Nuxt 4 with Nuxt U
 
 - [docs/protocol.md](docs/protocol.md): the Support Action Protocol
 - [docs/development.md](docs/development.md): running, configuring and testing
+- [docs/deployment.md](docs/deployment.md): running in production from the Docker image
 - [docs/mcp.md](docs/mcp.md): the MCP server for external agents
+- [CHANGELOG.md](CHANGELOG.md): what each release changed
 
 ## Contributing
 

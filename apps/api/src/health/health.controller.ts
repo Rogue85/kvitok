@@ -2,6 +2,7 @@ import { Controller, Get, HttpStatus, Inject, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import type IORedis from 'ioredis';
 import { Public } from '../auth/decorators';
+import { APP_CONFIG, type AppConfig } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS } from '../redis/redis.module';
 
@@ -9,6 +10,8 @@ type CheckStatus = 'ok' | 'error';
 
 export interface HealthResponse {
   status: CheckStatus;
+  /** The running release, for bug reports and for checking an update went through. */
+  version: string;
   checks: { database: CheckStatus; redis: CheckStatus };
 }
 
@@ -17,6 +20,7 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS) private readonly redis: IORedis,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   @Public()
@@ -30,7 +34,7 @@ export class HealthController {
     if (status === 'error') {
       reply.status(HttpStatus.SERVICE_UNAVAILABLE);
     }
-    return { status, checks: { database, redis } };
+    return { status, version: this.config.version, checks: { database, redis } };
   }
 
   private async probe(fn: () => Promise<unknown>): Promise<CheckStatus> {

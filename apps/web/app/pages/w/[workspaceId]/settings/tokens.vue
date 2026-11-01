@@ -3,6 +3,7 @@ import { API_TOKEN_PREFIX, API_TOKEN_SCOPES, type ApiTokenDto, type ApiTokenScop
 import type { TableColumn } from '@nuxt/ui';
 
 const toast = useToast();
+const copy = useCopy();
 const { me } = useAuth();
 const { workspaceId } = useWorkspace();
 
@@ -85,11 +86,6 @@ async function revoke(token: ApiTokenDto): Promise<void> {
     toast.add({ color: 'error', title: e instanceof ApiError ? e.message : t('common.error') });
   }
   await refresh();
-}
-
-async function copy(text: string): Promise<void> {
-  await navigator.clipboard.writeText(text);
-  toast.add({ title: t('common.copied'), icon: 'i-lucide-copy' });
 }
 </script>
 

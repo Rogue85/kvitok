@@ -7,6 +7,7 @@ interface MailboxTestResult {
 }
 
 const toast = useToast();
+const copy = useCopy();
 const { workspaceId, can } = useWorkspace();
 const { channels } = useWorkspaceData();
 const isAdmin = computed(() => can('admin'));
@@ -190,11 +191,6 @@ async function toggle(channel: ChannelDto): Promise<void> {
   } catch (e) {
     notifyError(e, t('channels.updateFailed'));
   }
-}
-
-async function copy(text: string): Promise<void> {
-  await navigator.clipboard.writeText(text);
-  toast.add({ title: t('common.copied'), icon: 'i-lucide-copy' });
 }
 </script>
 

@@ -22,7 +22,7 @@ export function testEnv(): Record<string, string> {
     REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
     APP_SECRET: 'test-secret-test-secret-test-secret-00',
     SESSION_TTL_DAYS: '30',
-    COOKIE_SECURE: 'false',
+    COOKIE_SECURE: 'auto',
     WEB_ORIGIN: 'http://localhost:3000',
     LOGIN_RATE_LIMIT: '1000',
     QUEUE_PREFIX: 'test-bull',

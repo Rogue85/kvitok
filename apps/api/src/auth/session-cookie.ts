@@ -7,7 +7,8 @@ export function setSessionCookie(reply: FastifyReply, config: AppConfig, session
   reply.setCookie(SESSION_COOKIE, session.token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: config.cookieSecure,
+    // trustProxy: behind a TLS-terminating proxy the protocol comes from X-Forwarded-Proto.
+    secure: config.cookieSecure === 'auto' ? reply.request.protocol === 'https' : config.cookieSecure,
     path: '/',
     expires: session.expiresAt,
   });

@@ -95,6 +95,53 @@ This runs type checking, tests and a build of all packages. Postgres and Redis m
 
 Agent evaluation (`pnpm eval`) is not part of the check: it spends money on the model. Run it when you change the agent prompt or its behavior, with `--budget`.
 
+## Changelog
+
+[CHANGELOG.md](CHANGELOG.md) is for people who run Kvitok or connect a backend to it. A commit that changes something they notice adds a line to the `## [Unreleased]` section in the same commit, under one of the groups `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`. Examples: a new feature, a fix of a visible bug, a new or renamed setting, a change in the protocol, the API or the image. Refactoring, tests, CI and internal documentation need no entry.
+
+The line says what changed for the reader, not what the commit did in the code. A breaking change starts with **Breaking** and says how to migrate.
+
+## Versions
+
+Kvitok has one version for the whole repository, by [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The root `package.json` and every package under `apps/` and `packages/` carry it. A `vX.Y.Z` tag on `main` is a release, and the image is published from it. The version reaches the running app as `APP_VERSION`, which CI bakes into the image: `0.2.0` for a release, `edge-<sha>` for `main`, `dev` locally. Do not edit versions by hand: `pnpm release` sets them.
+
+Until 1.0.0:
+
+- **patch** (`0.2.1`): fixes only, safe to update to without reading anything;
+- **minor** (`0.3.0`): new features, and breaking changes, marked in the changelog.
+
+After 1.0.0, a breaking change takes a major version.
+
+A change is breaking when an existing installation or integration stops working without action from its owner: a setting is renamed or removed, an endpoint of the ingest API or the protocol changes incompatibly, an MCP tool changes its input, a deployment option disappears, or an update needs a manual step.
+
+Some things have versions of their own, independent of the release:
+
+- **the protocol**, `protocol_version` in [docs/protocol.md](docs/protocol.md): goes up only on an incompatible change of the protocol;
+- **the agent's core prompt**, `CORE_PROMPT_VERSION`: goes up on every change of the prompt;
+- **database migrations**: a released migration is never edited, a fix is a new migration. An update across several versions applies them in order.
+
+## Releases
+
+A release is cut from `main` when it is green:
+
+1. Check that `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) is complete. Compare it with `git log v<previous>..HEAD`.
+2. Pick the version by the rules above and run `pnpm release <version>`. It sets the version in every `package.json` and moves the Unreleased entries under the new version's heading.
+3. Review the diff, then commit, tag and push:
+
+   ```bash
+   git commit -am "chore: release 0.2.0"
+   ```
+
+   ```bash
+   git tag v0.2.0
+   ```
+
+   ```bash
+   git push origin main v0.2.0
+   ```
+
+CI ([release.yml](.github/workflows/release.yml)) checks that the tag matches `package.json`. It then publishes the image as `0.2.0`, `0.2` and `latest`, and creates a GitHub release with the changelog section. A wrong tag is fixed by deleting it before the image is used, never by moving it to another commit.
+
 ## Branches and pull requests
 
 - Branches are named `<type>/<short-name>`, for example `feat/actions-approve`, `fix/ingest-timezone`.

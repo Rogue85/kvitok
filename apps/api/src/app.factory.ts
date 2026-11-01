@@ -4,6 +4,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import type { LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { APP_CONFIG, type AppConfig } from './config/env';
+import { serveWebUi } from './web-ui';
 
 export function createFastifyAdapter(): FastifyAdapter {
   // forceCloseConnections: open SSE streams must not keep the process alive on shutdown.
@@ -15,6 +16,7 @@ export async function configureApp(app: NestFastifyApplication): Promise<NestFas
   await app.register(fastifyCookie, { secret: config.appSecret });
   app.setGlobalPrefix('api');
   app.enableCors({ origin: config.webOrigin, credentials: true });
+  if (config.webDir !== null) await serveWebUi(app, config.webDir);
   app.enableShutdownHooks();
   return app;
 }

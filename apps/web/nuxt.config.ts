@@ -19,8 +19,11 @@ export default defineNuxtConfig({
     },
   },
   // @nuxt/fonts (enabled by Nuxt UI) self-hosts Onest from --font-sans; the interface is also in Russian.
+  // Onest comes from Google; the other providers are off, otherwise the build queries each of them
+  // and an unreachable one (fontshare from a container) stalls it for minutes.
   fonts: {
     defaults: { weights: [400, 500, 600, 700], subsets: ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext'] },
+    providers: { adobe: false, bunny: false, fontshare: false, fontsource: false, googleicons: false, npm: false },
   },
   routeRules: {
     // The API runs separately; proxy it so the session cookie is same-origin.

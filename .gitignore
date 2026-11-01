@@ -16,6 +16,8 @@ apps/api/storage/
 apps/api/storage-test/
 apps/api/dist-dev/
 apps/api/dist-worker/
+# nuxt generate links the built site here
+apps/web/dist
 
 # Agent evaluation reports (pnpm eval)
 eval-reports/

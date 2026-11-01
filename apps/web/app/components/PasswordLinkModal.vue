@@ -5,13 +5,8 @@ import type { PasswordLinkDto } from '@kvitok/shared';
 const props = defineProps<{ link: PasswordLinkDto | null; name: string }>();
 const emit = defineEmits<{ close: [] }>();
 
-const toast = useToast();
+const copy = useCopy();
 const url = computed(() => (props.link ? `${window.location.origin}/invite/${props.link.token}` : ''));
-
-async function copy(): Promise<void> {
-  await navigator.clipboard.writeText(url.value);
-  toast.add({ title: t('common.copied'), icon: 'i-lucide-copy' });
-}
 </script>
 
 <template>
@@ -25,7 +20,7 @@ async function copy(): Promise<void> {
       <div v-if="link" class="space-y-2">
         <div class="flex gap-2">
           <UInput :model-value="url" readonly class="flex-1 font-mono" @focus="($event.target as HTMLInputElement).select()" />
-          <UButton icon="i-lucide-copy" color="neutral" variant="soft" :aria-label="t('common.copy')" @click="copy" />
+          <UButton icon="i-lucide-copy" color="neutral" variant="soft" :aria-label="t('common.copy')" @click="copy(url)" />
         </div>
         <p class="text-sm text-(--ui-text-muted)">{{ t('passwordLink.expires', { date: formatDateTime(link.expiresAt) }) }}</p>
       </div>

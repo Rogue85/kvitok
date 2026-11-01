@@ -1,0 +1,22 @@
+# Build context of docker/Dockerfile: sources only, everything built or local stays out.
+**/node_modules
+**/dist
+**/dist-dev
+**/dist-worker
+**/.output
+**/.nuxt
+**/.nitro
+**/.cache
+**/.env
+**/.env.*
+!**/.env.example
+**/.DS_Store
+.git
+.private
+.claude
+eval-reports
+deploy
+apps/api/storage
+apps/api/storage-test
+apps/api/src/generated
+packages/i18n/src/generated

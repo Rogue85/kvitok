@@ -11,6 +11,16 @@ The project is Kvitok, an open-source customer support system with an AI agent. 
 - **Do not bypass** the `commit-msg` hook with `--no-verify`. If the hook rejected a message, fix the message.
 - **Before committing:** a green `pnpm check`.
 
+## Versions and changelog
+
+Rules: `CONTRIBUTING.md`, sections "Changelog", "Versions", "Releases".
+
+- **A change that people who run Kvitok or connect a backend would notice** adds a line to `## [Unreleased]` in `CHANGELOG.md`, in the same commit. Examples: a feature, a visible fix, a setting, the protocol, the API, the image. Write it for them, not as a retelling of the commit. A breaking change starts with **Breaking** and says how to migrate.
+- **Never edit versions in `package.json` by hand.** One version covers the whole repository and only `pnpm release <version>` sets it.
+- **Do not cut a release** (`pnpm release`, a `v*` tag, pushing a tag) unless the user asks. When asked, propose the version by the SemVer rules in `CONTRIBUTING.md` and confirm it first.
+- **A released migration is never edited.** A fix is a new migration.
+- **The protocol's `protocol_version` and `CORE_PROMPT_VERSION` are independent of the release.**
+
 ## Working with the code
 
 - Code, comments and documentation are in English.

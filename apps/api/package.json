@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
+  "files": [
+    "dist",
+    "prisma",
+    "prisma.config.ts"
+  ],
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "nest start --watch --config nest-cli.dev.json",
@@ -22,6 +27,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
+    "@fastify/static": "^8.3.0",
     "@kvitok/i18n": "workspace:*",
     "@kvitok/protocol": "workspace:*",
     "@kvitok/shared": "workspace:*",
@@ -44,6 +50,7 @@
     "ioredis": "5.11.1",
     "mailparser": "^3.14.1",
     "nodemailer": "^10.3.1",
+    "prisma": "7.10.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "sanitize-html": "^2.18.1",
@@ -62,7 +69,6 @@
     "@types/pg": "^8.23.1",
     "@types/sanitize-html": "^2.16.2",
     "pg": "^8.23.1",
-    "prisma": "7.10.1",
     "typescript": "5.9.3",
     "unplugin-swc": "^2.0.0",
     "vite": "7.3.7",

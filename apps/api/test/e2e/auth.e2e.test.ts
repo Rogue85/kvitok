@@ -44,6 +44,17 @@ describe('auth', () => {
     expect(session.tokenHash).toBe(hashSessionToken(cookie!.value));
   });
 
+  it('the cookie is Secure when the request came over HTTPS, directly or through a proxy', async () => {
+    const user = await createUser(app);
+    const payload = { email: user.email, password: user.password };
+
+    const plain = await app.inject({ method: 'POST', url: '/api/auth/login', payload });
+    const proxied = await app.inject({ method: 'POST', url: '/api/auth/login', payload, headers: { 'x-forwarded-proto': 'https' } });
+
+    expect(plain.cookies.find((c) => c.name === 'sid')?.secure).toBeUndefined();
+    expect(proxied.cookies.find((c) => c.name === 'sid')?.secure).toBe(true);
+  });
+
   it('a wrong password and a nonexistent email give the same 401', async () => {
     const user = await createUser(app);
 

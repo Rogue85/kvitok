@@ -17,6 +17,6 @@ describe('GET /api/health', () => {
     const response = await app.inject({ method: 'GET', url: '/api/health' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok', checks: { database: 'ok', redis: 'ok' } });
+    expect(response.json()).toEqual({ status: 'ok', version: 'dev', checks: { database: 'ok', redis: 'ok' } });
   });
 });
