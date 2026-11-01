@@ -162,3 +162,73 @@ export function identificationText(event: TicketEventDto): string {
       return t('events.identification.asked', { identities, customer: customers });
   }
 }
+
+/** Failures the operator must notice: never hidden in a group, shown in the error color. */
+const ALERT_EVENTS = new Set(['fields_rejected', 'delivery_failed', 'delivery_bounced', 'action_failed']);
+
+export function isAlertEvent(event: TicketEventDto): boolean {
+  return ALERT_EVENTS.has(event.type);
+}
+
+/** Events that stay on their own line between groups: failures and status changes, the milestones of the conversation. */
+export function isStandaloneEvent(event: TicketEventDto): boolean {
+  return isAlertEvent(event) || event.type === 'status_changed';
+}
+
+/** What a run of events left behind, for its collapsed line: the latest value of each property, tags net of each other. */
+export function eventsSummary(events: TicketEventDto[], lookups: EventLookups): string[] {
+  const parts = new Map<string, string>();
+  const tags = new Map<string, boolean>();
+  for (const event of events) {
+    const d = event.data as Record<string, unknown>;
+    switch (event.type) {
+      case 'ticket_created':
+        parts.set('created', t('events.summary.created'));
+        break;
+      case 'priority_changed':
+        parts.set('priority', priorityLabel(d.to as TicketPriority));
+        break;
+      case 'department_changed':
+        parts.set(
+          'department',
+          typeof d.to === 'string' ? (lookups.departments.get(d.to)?.title ?? t('events.deletedDepartment')) : t('events.noDepartment'),
+        );
+        break;
+      case 'assignee_changed':
+        parts.set('assignee', typeof d.to === 'string' ? (lookups.members.get(d.to)?.name ?? t('events.formerMember')) : t('events.nobody'));
+        break;
+      case 'subject_changed':
+        parts.set('subject', t('events.summary.subject'));
+        break;
+      case 'field_changed': {
+        const field = lookups.fields.get(String(d.key));
+        parts.set(`field:${String(d.key)}`, `${field?.label ?? String(d.key)}: ${formatFieldValue(d.new, field?.options)}`);
+        break;
+      }
+      case 'tags_changed':
+        // A tag added and removed within the run cancels out.
+        for (const tag of d.added as string[]) (tags.get(tag) === false ? tags.delete(tag) : tags.set(tag, true));
+        for (const tag of d.removed as string[]) (tags.get(tag) === true ? tags.delete(tag) : tags.set(tag, false));
+        parts.set('tags', '');
+        break;
+      case 'identities_found':
+        parts.set('identities', t('events.summary.identities'));
+        break;
+      case 'customer_linked':
+        parts.set(`customer:${String(d.integrationId ?? d.integration)}`, String(d.displayName ?? t('events.customerFound')));
+        break;
+      case 'customer_identification':
+        parts.set(
+          `customer:${String(d.integrationId)}`,
+          d.kind === 'linked' && typeof d.displayName === 'string' ? d.displayName : t('events.summary.notIdentified'),
+        );
+        break;
+      default:
+        parts.set(event.id, eventText(event, lookups));
+    }
+  }
+  const tagText = [...tags].map(([tag, added]) => `${added ? '+' : '−'}${tag}`).join(' ');
+  if (tagText) parts.set('tags', tagText);
+  else parts.delete('tags');
+  return [...parts.values()];
+}

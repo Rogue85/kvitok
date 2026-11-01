@@ -224,6 +224,15 @@ events:
     notFound: "Nobody found by {identities}"
     ignored: "Found by {identities}: {customer} — linking by data from messages is off"
     asked: "Who is the customer: {customer} by {identities}"
+  summary:
+    created: ticket created
+    subject: new subject
+    identities: contacts found
+    notIdentified: customer not identified
+  group:
+    count:
+      one: "{count} event"
+      other: "{count} events"
 
 validation:
   currency: a three-letter currency code (ISO 4217), e.g. USD

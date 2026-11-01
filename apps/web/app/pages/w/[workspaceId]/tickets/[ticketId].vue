@@ -6,6 +6,7 @@ import {
   type MessageDto,
   type TicketAgentDto,
   type TicketDto,
+  type TicketEventDto,
   type TicketStatus,
   type TimelineItemDto,
   type UpdateTicketInput,
@@ -77,6 +78,25 @@ function isIdentificationCard(event: { type: string; data: Record<string, unknow
 }
 function linkOf(event: { data: Record<string, unknown> }): CustomerLinkDto | null {
   return links.value.find((l) => l.integrationId === event.data.integrationId) ?? null;
+}
+/** The timeline with runs of plain events between messages and cards merged; failures and status changes stay apart. */
+type TimelineEntry = TimelineItemDto | { kind: 'events'; events: TicketEventDto[] };
+const entries = computed(() => {
+  const result: TimelineEntry[] = [];
+  for (const item of timeline.value) {
+    if (item.kind === 'message' || isIdentificationCard(item.event) || AGENT_EVENTS.has(item.event.type)) {
+      result.push(item);
+      continue;
+    }
+    const last = result[result.length - 1];
+    if (last?.kind === 'events' && !isStandaloneEvent(item.event) && !isStandaloneEvent(last.events[0]!)) last.events.push(item.event);
+    else result.push({ kind: 'events', events: [item.event] });
+  }
+  return result;
+});
+function entryKey(entry: TimelineEntry): string {
+  if (entry.kind === 'message') return entry.message.id;
+  return entry.kind === 'event' ? entry.event.id : entry.events[0]!.id;
 }
 /** Id of the last agent message — it carries the suggestions and the draft button. */
 const latestAgentEventId = computed(() => {
@@ -250,8 +270,9 @@ watch(
         <div class="flex min-w-0 flex-1 flex-col">
           <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto px-4 py-6">
             <div class="mx-auto max-w-3xl space-y-4">
-              <template v-for="item in timeline" :key="item.kind === 'message' ? item.message.id : item.event.id">
-                <template v-if="item.kind === 'message'">
+              <template v-for="item in entries" :key="entryKey(item)">
+                <TicketEventGroup v-if="item.kind === 'events'" :events="item.events" :lookups="lookups" />
+                <template v-else-if="item.kind === 'message'">
                   <div v-if="isAgentChat(item.message)" class="ml-auto w-fit max-w-[80%]">
                     <div class="rounded-2xl rounded-br-md bg-(--ui-bg-elevated) px-3.5 py-2 text-sm">
                       <p v-if="item.message.answersQuestionId" class="mb-1 flex items-center gap-1 text-xs text-(--ui-text-muted)">
@@ -275,7 +296,7 @@ watch(
                   @changed="refreshAll"
                 />
                 <AgentMessage
-                  v-else-if="AGENT_EVENTS.has(item.event.type)"
+                  v-else
                   :event="item.event"
                   :ticket="ticket"
                   :agent="agent ?? null"
@@ -286,12 +307,6 @@ watch(
                   @open-run="openRun"
                   @changed="refreshAll"
                 />
-                <div v-else class="flex items-center justify-center gap-1.5 text-xs text-(--ui-text-muted)">
-                  <UIcon :name="eventIcon(item.event)" class="size-3.5 shrink-0" />
-                  <span class="truncate">{{ eventText(item.event, lookups) }}</span>
-                  <span v-if="eventActor(item.event)" class="shrink-0">· {{ eventActor(item.event) }}</span>
-                  <span class="shrink-0" :title="formatDateTime(item.at)">· {{ formatRelative(item.at) }}</span>
-                </div>
               </template>
 
               <div v-if="agentBusy" class="flex items-center gap-3 text-sm text-(--ui-text-muted)">

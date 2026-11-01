@@ -223,6 +223,17 @@ events:
     notFound: "Никто не найден по данным {identities}"
     ignored: "По данным {identities} найден {customer} — привязка по данным из сообщений выключена"
     asked: "Кто клиент: {customer} по данным {identities}"
+  summary:
+    created: тикет создан
+    subject: новая тема
+    identities: найдены контакты
+    notIdentified: клиент не определён
+  group:
+    count:
+      one: "{count} событие"
+      few: "{count} события"
+      many: "{count} событий"
+      other: "{count} события"
 
 validation:
   currency: трёхбуквенный код валюты (ISO 4217), например RUB
