@@ -15,6 +15,10 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 - Consecutive ticket events between messages, such as the department, tags and fields set by rules and the agent, collapse into one line with their results and expand on click. Delivery and action failures and status changes stay on their own lines, and failures are shown in red.
 
+### Fixed
+
+- The first reads of a new workspace's agent settings no longer fail with a unique constraint error when they run at once, for example in the MCP `describe_workspace` tool.
+
 ## [0.1.0] - 2026-11-01
 
 The first release.

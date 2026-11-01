@@ -13,12 +13,15 @@ export class AgentSettingsService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Created with defaults on first access; upsert, because parallel first reads of a new workspace raced on create. */
+  /**
+   * Created with defaults on first access. Parallel first reads of a new workspace race on create, and `upsert` does not
+   * help: with an empty `update` Prisma runs it as SELECT + INSERT. `skipDuplicates` is a single INSERT … ON CONFLICT DO NOTHING.
+   */
   async get(workspaceId: string): Promise<AgentSettings> {
-    return (
-      (await this.prisma.agentSettings.findUnique({ where: { workspaceId } })) ??
-      (await this.prisma.agentSettings.upsert({ where: { workspaceId }, create: { workspaceId }, update: {} }))
-    );
+    const existing = await this.prisma.agentSettings.findUnique({ where: { workspaceId } });
+    if (existing) return existing;
+    await this.prisma.agentSettings.createMany({ data: { workspaceId }, skipDuplicates: true });
+    return this.prisma.agentSettings.findUniqueOrThrow({ where: { workspaceId } });
   }
 
   async getDto(workspaceId: string): Promise<AgentSettingsDto> {
