@@ -9,6 +9,8 @@ import { isUniqueViolation } from '../common/prisma-errors';
 import type { Department, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { publishAssigneeChanges, settleEach } from '../tickets/assignment';
 import { applyTriageChange, type TriageChange } from '../tickets/department-change';
 import { SYSTEM_ACTOR } from '../tickets/ticket-events';
 import { triageDepartmentId } from './department-access';
@@ -19,6 +21,7 @@ export class DepartmentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(workspaceId: string): Promise<DepartmentDto[]> {
@@ -43,6 +46,7 @@ export class DepartmentsService {
             examples: input.examples ?? [],
             instructions: input.instructions ?? '',
             isTriage: input.isTriage ?? false,
+            assignmentMode: input.assignmentMode ?? 'manual',
           },
         });
         return { row, triage: await this.applyTriageChange(tx, workspaceId, before) };
@@ -86,15 +90,19 @@ export class DepartmentsService {
     return dto;
   }
 
-  /** Who sees tickets without a department follows the triage department; the change is made by the current actor. */
+  /** Who sees tickets without a department follows the triage department. */
   private applyTriageChange(tx: Prisma.TransactionClient, workspaceId: string, before: string | null): Promise<TriageChange> {
-    const actor = currentActor();
-    return applyTriageChange(tx, workspaceId, before, actor.type === 'system' ? SYSTEM_ACTOR : { type: 'user', id: actor.userId });
+    return applyTriageChange(tx, workspaceId, before);
   }
 
+  /** After the change commits: the tickets without a department are settled one by one, by the current actor. */
   private async publishTriageChange(workspaceId: string, change: TriageChange): Promise<void> {
-    for (const ticketId of change.unassigned) {
-      await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
+    const actor = currentActor();
+    const actorId = actor.type === 'system' ? null : actor.userId;
+    const changes = await settleEach(this.prisma, change.tickets, actorId ? { type: 'user', id: actorId } : SYSTEM_ACTOR, 'triage_changed');
+    await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, changes, actorId);
+    for (const ticket of changes) {
+      await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: ticket.ticketId });
     }
     for (const userId of change.members) {
       await this.realtime.publish(workspaceId, { type: 'access.changed', userId });
@@ -120,6 +128,7 @@ export function toDepartmentDto(row: Department): DepartmentDto {
     examples: row.examples,
     instructions: row.instructions,
     isTriage: row.isTriage,
+    assignmentMode: row.assignmentMode,
     archived: row.archivedAt !== null,
   };
 }

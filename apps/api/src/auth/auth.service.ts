@@ -125,6 +125,7 @@ export class AuthService {
       role: m.role,
       isMember: true,
       departments: departmentScopeOf(m, triage.get(m.workspaceId) ?? null),
+      acceptingTickets: m.acceptingTickets,
     }));
     if (user.isSuperadmin) {
       // A superadmin works as admin in every workspace, including the ones they are not a member of.
@@ -140,6 +141,7 @@ export class AuthService {
           role: 'admin',
           isMember: false,
           departments: ALL_DEPARTMENTS,
+          acceptingTickets: false,
         });
       }
       for (const workspace of workspaces) {

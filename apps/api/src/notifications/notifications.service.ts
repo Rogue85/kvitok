@@ -62,8 +62,16 @@ export class NotificationsService {
     });
   }
 
-  async assigned(workspaceId: string, ticketId: string, actorId: string): Promise<void> {
-    await this.safely(() => this.queue.add(NOTIFY_JOB, { kind: 'assigned', workspaceId, ticketId, actorId }, JOB_OPTIONS));
+  /**
+   * Members were added to the ticket's assignees. A new ticket's notification that still waits for the agent covers them:
+   * it goes to its assignees as `assigned`, so a second one would repeat it.
+   */
+  async assigned(workspaceId: string, ticketId: string, actorId: string | null, userIds: string[]): Promise<void> {
+    await this.safely(async () => {
+      const waiting = await this.queue.getJob(incomingJobId(ticketId));
+      if (waiting !== undefined && waiting.data.created === true && (await waiting.isDelayed())) return;
+      await this.queue.add(NOTIFY_JOB, { kind: 'assigned', workspaceId, ticketId, actorId, userIds }, JOB_OPTIONS);
+    });
   }
 
   async deliveryFailed(workspaceId: string, ticketId: string, messageId: string | null): Promise<void> {

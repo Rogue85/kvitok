@@ -1,8 +1,8 @@
 import { t, tp } from '@kvitok/i18n';
 import { Inject, Injectable } from '@nestjs/common';
-import { notificationSettings } from '@kvitok/shared';
+import { assignmentSettings, notificationSettings } from '@kvitok/shared';
 import { departmentScopeOf, MEMBERSHIP_DEPARTMENTS, triageDepartmentId } from '../departments/department-access';
-import type { Department, Ticket } from '../generated/prisma/client';
+import type { Department, Prisma, Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { wants, type NotificationKind, type Recipient, type TicketFacts } from './notification-rules';
 import type { NotifyJobData } from './notifications.constants';
@@ -10,7 +10,7 @@ import { NOTIFIER_CHANNELS, type Notification, type NotifierChannel } from './no
 
 const SNIPPET_LENGTH = 200;
 
-type TicketRow = Ticket & { department: Department | null; workspace: { name: string } };
+type TicketRow = Ticket & { department: Department | null; workspace: { name: string; settings: Prisma.JsonValue }; assignees: Array<{ userId: string }> };
 
 /** What happened, read once per job; each member gets their own kind and text from it. */
 interface EventContext {
@@ -33,7 +33,7 @@ export class NotificationDispatcher {
   async dispatch(data: NotifyJobData): Promise<number> {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: data.ticketId },
-      include: { department: true, workspace: { select: { name: true } } },
+      include: { department: true, workspace: { select: { name: true, settings: true } }, assignees: { select: { userId: true } } },
     });
     if (ticket === null || ticket.workspaceId !== data.workspaceId) return 0;
     const context = await this.context(data, ticket);
@@ -46,6 +46,7 @@ export class NotificationDispatcher {
       }),
       triageDepartmentId(this.prisma, data.workspaceId),
     ]);
+    const seesAssigned = assignmentSettings(ticket.workspace.settings).assigneesKeepAccess;
     const ids = members.map((m) => m.userId);
     const reachable = new Set<string>();
     for (const channel of this.channels) {
@@ -61,6 +62,7 @@ export class NotificationDispatcher {
         role: member.role,
         settings: notificationSettings(member.notificationSettings),
         departments: departmentScopeOf(member, triageId),
+        seesAssigned,
       };
       const kind = pickKind(data, recipient, context.facts);
       if (kind === null) continue;
@@ -75,7 +77,7 @@ export class NotificationDispatcher {
   }
 
   private async context(data: NotifyJobData, ticket: TicketRow): Promise<EventContext | null> {
-    const facts: TicketFacts = { departmentId: ticket.departmentId, assigneeId: ticket.assigneeId, priority: ticket.priority };
+    const facts: TicketFacts = { departmentId: ticket.departmentId, assigneeIds: ticket.assignees.map((a) => a.userId), priority: ticket.priority };
     const since = data.since ? new Date(data.since) : ticket.createdAt;
     let messages = 0;
     let lastMessage: string | null = null;
@@ -115,9 +117,13 @@ export class NotificationDispatcher {
 
 /** The kind this member gets for the job, or null. An incoming message the member does not follow may still need them as an operator. */
 export function pickKind(data: NotifyJobData, recipient: Recipient, facts: TicketFacts): NotificationKind | null {
+  // `assigned` goes to the members just added, not to every assignee again.
+  if (data.kind === 'assigned' && data.userIds !== undefined && !data.userIds.includes(recipient.userId)) return null;
   if (data.kind !== 'incoming') return wants(recipient, data.kind, facts) ? data.kind : null;
-  const kind: NotificationKind = !data.created ? 'customer_message' : facts.assigneeId === recipient.userId ? 'assigned' : 'ticket_created';
+  const kind: NotificationKind = !data.created ? 'customer_message' : facts.assigneeIds.includes(recipient.userId) ? 'assigned' : 'ticket_created';
   if (wants(recipient, kind, facts)) return kind;
+  // An assignee who turned off assignments still hears of the new ticket if they follow every one.
+  if (kind === 'assigned' && wants(recipient, 'ticket_created', facts)) return 'ticket_created';
   return data.needsOperator && wants(recipient, 'agent_needs_operator', facts) ? 'agent_needs_operator' : null;
 }
 

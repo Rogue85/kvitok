@@ -7,6 +7,8 @@ import { errors } from '../common/errors';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { markActive, publishAssigneeChanges } from '../tickets/assignment';
 import { recordEvent } from '../tickets/ticket-events';
 import { ACTION_INCLUDE, toActionDto } from './action-dto';
 import { ACTIONS_QUEUE, EXECUTE_ATTEMPTS, EXECUTE_JOB, type ExecuteJobData } from './actions.constants';
@@ -20,6 +22,7 @@ export class ActionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
     @InjectQueue(ACTIONS_QUEUE) private readonly queue: Queue<ExecuteJobData>,
   ) {}
 
@@ -78,7 +81,7 @@ export class ActionsService {
     userId: string,
     options: { bumpRevision?: boolean } = {},
   ): Promise<ActionProposalDto> {
-    await this.prisma.$transaction(async (tx) => {
+    const assignees = await this.prisma.$transaction(async (tx) => {
       // A double click or two operators: the decision is taken once.
       const [locked] = await tx.$queryRaw<Array<{ status: string; title: string; preview: string | null }>>`
         SELECT status, title, preview FROM action_proposals WHERE id = ${id} AND ticket_id = ${ticketId} AND workspace_id = ${workspaceId} FOR UPDATE`;
@@ -89,7 +92,9 @@ export class ActionsService {
         await tx.ticket.update({ where: { id: ticketId }, data: { revision: { increment: 1 } } });
       }
       await recordEvent(tx, { workspaceId, ticketId, type: event.type, actor: { type: 'user', id: userId }, data: event.data });
+      return markActive(tx, workspaceId, ticketId, userId);
     });
+    await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, [assignees], userId);
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
     const row = await this.prisma.actionProposal.findUniqueOrThrow({ where: { id }, include: ACTION_INCLUDE });
     return toActionDto(row);

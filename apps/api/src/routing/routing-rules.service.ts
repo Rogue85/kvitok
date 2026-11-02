@@ -88,7 +88,7 @@ export class RoutingRulesService {
   async test(access: TicketAccess, ticketId: string): Promise<RuleTestResultDto[]> {
     const { workspaceId } = access;
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, workspaceId, ...ticketScopeWhere(access.scope) },
+      where: { id: ticketId, workspaceId, ...ticketScopeWhere(access) },
       include: { channel: true, customer: { include: { identities: true } } },
     });
     if (ticket === null) {

@@ -6,12 +6,12 @@ import { wants, type Recipient, type TicketFacts } from './notification-rules';
 const ME = 'u1';
 
 function recipient(settings: Partial<NotificationSettingsInput> = {}, extra: Partial<Recipient> = {}): Recipient {
-  return { userId: ME, role: 'operator', settings: notificationSettings(settings), departments: ALL_DEPARTMENTS, ...extra };
+  return { userId: ME, role: 'operator', settings: notificationSettings(settings), departments: ALL_DEPARTMENTS, seesAssigned: true, ...extra };
 }
 
-const unassigned: TicketFacts = { departmentId: 'd1', assigneeId: null, priority: 'normal' };
-const mine: TicketFacts = { ...unassigned, assigneeId: ME };
-const others: TicketFacts = { ...unassigned, assigneeId: 'u2' };
+const unassigned: TicketFacts = { departmentId: 'd1', assigneeIds: [], priority: 'normal' };
+const mine: TicketFacts = { ...unassigned, assigneeIds: ['u2', ME] };
+const others: TicketFacts = { ...unassigned, assigneeIds: ['u2'] };
 
 describe('notificationSettings', () => {
   it('fills in the defaults and survives broken data', () => {
@@ -60,11 +60,15 @@ describe('wants', () => {
     expect(wants(recipient({ departmentIds: ['d1'], noDepartment: false }), 'ticket_created', none)).toBe(false);
   });
 
-  it('never notifies about a department the member cannot see', () => {
-    const restricted = recipient({ events: { customerMessage: 'all' } }, { departments: { all: false, departmentIds: ['d2'], unrouted: false } });
+  it('never notifies about a department the member cannot see, unless the ticket is theirs and the workspace keeps their access', () => {
+    const departments = { all: false as const, departmentIds: ['d2'], unrouted: false };
+    const restricted = recipient({ events: { customerMessage: 'all' } }, { departments, seesAssigned: false });
     expect(wants(restricted, 'customer_message', others)).toBe(false);
     expect(wants(restricted, 'customer_message', mine)).toBe(false);
     expect(wants(restricted, 'customer_message', { ...others, departmentId: 'd2' })).toBe(true);
+    const guest = recipient({ events: { customerMessage: 'all' } }, { departments });
+    expect(wants(guest, 'customer_message', mine)).toBe(true);
+    expect(wants(guest, 'customer_message', others)).toBe(false);
   });
 
   it('notifies about tickets without a department only those who may see them', () => {
@@ -94,6 +98,17 @@ describe('pickKind', () => {
     expect(pickKind({ ...base, kind: 'incoming', created: true }, recipient(), mine)).toBe('assigned');
     expect(pickKind({ ...base, kind: 'incoming', created: true }, recipient(), unassigned)).toBe('ticket_created');
     expect(pickKind({ ...base, kind: 'incoming', created: false }, recipient(), mine)).toBe('customer_message');
+  });
+
+  it('tells an assignee who turned assignments off about a new ticket if they follow every new one', () => {
+    const quiet = recipient({ events: { assigned: false, ticketCreated: 'all' } });
+    expect(pickKind({ ...base, kind: 'incoming', created: true }, quiet, mine)).toBe('ticket_created');
+    expect(pickKind({ ...base, kind: 'incoming', created: true }, recipient({ events: { assigned: false } }), mine)).toBeNull();
+  });
+
+  it('sends assigned only to the members just added', () => {
+    expect(pickKind({ ...base, kind: 'assigned', userIds: [ME] }, recipient(), mine)).toBe('assigned');
+    expect(pickKind({ ...base, kind: 'assigned', userIds: ['u2'] }, recipient(), mine)).toBeNull();
   });
 
   it('falls back to the agent needing an operator', () => {

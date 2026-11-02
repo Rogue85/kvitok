@@ -31,5 +31,7 @@ export interface MeResponse {
     isMember: boolean;
     /** Tickets of which departments the user may see. */
     departments: DepartmentScope;
+    /** The member takes tickets handed out in turn; false when not a member. */
+    acceptingTickets: boolean;
   }>;
 }

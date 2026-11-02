@@ -315,46 +315,58 @@ describe('department access', () => {
     expect(await prisma.ticket.findUniqueOrThrow({ where: { id: tickets.b.id } })).toMatchObject({ priority: 'normal', tags: ['tag-b'] });
   });
 
+  /** Assignees outside the ticket's department are the subject of assignment.e2e; here they lose the ticket. */
+  async function withoutGuests(http: Http, base: string) {
+    expect((await http.patch(base, { assignment: { assigneesKeepAccess: false } })).statusCode).toBe(200);
+  }
+
+  const assigneeIds = async (ticketId: string) =>
+    (await prisma.ticketAssignee.findMany({ where: { ticketId }, orderBy: { addedAt: 'asc' } })).map((a) => a.userId);
+
   it('only a member who sees the ticket can be its assignee', async () => {
     const { base, tickets, departments, members, http } = await setup();
-    const assign = (ticketId: string, user: TestUser, extra: object = {}) => http.patch(`${base}/tickets/${ticketId}`, { assigneeId: user.id, ...extra });
+    await withoutGuests(http, base);
+    const assign = (ticketId: string, user: TestUser, extra: object = {}) => http.patch(`${base}/tickets/${ticketId}`, { assigneeIds: [user.id], ...extra });
 
     const refused = await assign(tickets.b.id, members.opA.user);
     expect(refused.statusCode).toBe(422);
-    expect(refused.json().error.details[0]).toMatchObject({ path: 'assigneeId', message: expect.stringContaining("has no access to the ticket's department") });
+    expect(refused.json().error.details[0]).toMatchObject({ path: 'assigneeIds', message: expect.stringContaining("has no access to the ticket's department") });
     expect((await assign(tickets.b.id, members.opAll.user)).statusCode).toBe(200);
     // The department of the same change counts, also with the same assignee sent again.
     expect((await assign(tickets.t.id, members.opA.user, { departmentId: departments.a.id })).statusCode).toBe(200);
     expect((await assign(tickets.t.id, members.opA.user, { departmentId: departments.b.id })).statusCode).toBe(422);
-    expect(await prisma.ticket.findUniqueOrThrow({ where: { id: tickets.t.id } })).toMatchObject({ departmentId: departments.a.id, assigneeId: members.opA.user.id });
+    expect(await prisma.ticket.findUniqueOrThrow({ where: { id: tickets.t.id } })).toMatchObject({ departmentId: departments.a.id });
+    expect(await assigneeIds(tickets.t.id)).toEqual([members.opA.user.id]);
 
-    const bulk = await http.post(`${base}/tickets/bulk`, { ids: [tickets.a.id, tickets.b.id], changes: { assigneeId: members.opA.user.id } });
+    const bulk = await http.post(`${base}/tickets/bulk`, { ids: [tickets.a.id, tickets.b.id], changes: { addAssigneeIds: [members.opA.user.id] } });
     expect(bulk.json().updated).toEqual([tickets.a.id]);
     expect(bulk.json().failed).toEqual([expect.objectContaining({ id: tickets.b.id })]);
   });
 
   it('moving a ticket to a department its assignee cannot see unassigns them', async () => {
-    const { base, tickets, departments, members } = await setup();
+    const { base, http, tickets, departments, members } = await setup();
+    await withoutGuests(http, base);
     const opA = members.opA.http;
-    expect((await opA.patch(`${base}/tickets/${tickets.a.id}`, { assigneeId: members.opA.user.id })).statusCode).toBe(200);
+    expect((await opA.patch(`${base}/tickets/${tickets.a.id}`, { assigneeIds: [members.opA.user.id] })).statusCode).toBe(200);
 
     // The operator hands the ticket over to a department they cannot see: the answer still shows it, then it is gone.
     const moved = await opA.patch(`${base}/tickets/${tickets.a.id}`, { departmentId: departments.b.id });
     expect(moved.statusCode).toBe(200);
-    expect(moved.json()).toMatchObject({ departmentId: departments.b.id, assignee: null });
+    expect(moved.json()).toMatchObject({ departmentId: departments.b.id, assignees: [] });
     expect((await opA.get(`${base}/tickets/${tickets.a.id}`)).statusCode).toBe(404);
     expect(await ids(members.viewerB.http, `${base}/tickets`)).toEqual([tickets.b.id, tickets.a.id]);
 
-    const events = await prisma.ticketEvent.findMany({ where: { ticketId: tickets.a.id, type: { in: ['department_changed', 'assignee_changed'] } }, orderBy: { createdAt: 'asc' } });
+    const events = await prisma.ticketEvent.findMany({ where: { ticketId: tickets.a.id, type: { in: ['department_changed', 'assignees_changed'] } }, orderBy: { createdAt: 'asc' } });
     expect(events.map((e) => [e.type, e.data])).toEqual([
-      ['assignee_changed', { from: null, to: members.opA.user.id }],
+      ['assignees_changed', { added: [members.opA.user.id], removed: [], source: 'manual' }],
       ['department_changed', { from: departments.a.id, to: departments.b.id }],
-      ['assignee_changed', { from: members.opA.user.id, to: null, reason: 'department_access', departmentId: departments.b.id }],
+      ['assignees_changed', { added: [], removed: [members.opA.user.id], reason: 'department_changed', departmentId: departments.b.id }],
     ]);
   });
 
   it('a rule neither assigns a ticket to someone who cannot see it nor keeps such an assignee', async () => {
     const { base, http, channel, departments, members } = await setup();
+    await withoutGuests(http, base);
     const rule = await http.post(`${base}/routing-rules`, {
       name: 'To B for A',
       stage: 'on_ingest',
@@ -367,27 +379,28 @@ describe('department access', () => {
     expect(rule.statusCode).toBe(201);
 
     const created = (await ingest(app, channel, { subject: 'Please route me' })).json();
-    expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({ departmentId: departments.b.id, assigneeId: null });
+    expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({ departmentId: departments.b.id });
+    expect(await assigneeIds(created.ticket_id)).toEqual([]);
   });
 
   it('restricting a member unassigns their open tickets they can no longer see and is audited', async () => {
     const { base, http, tickets, departments, members } = await setup();
+    await withoutGuests(http, base);
     const opAll = members.opAll.user;
-    await http.patch(`${base}/tickets/${tickets.a.id}`, { assigneeId: opAll.id });
-    await http.patch(`${base}/tickets/${tickets.b.id}`, { assigneeId: opAll.id });
-    await http.patch(`${base}/tickets/${tickets.c.id}`, { assigneeId: opAll.id, status: 'resolved' });
+    await http.patch(`${base}/tickets/${tickets.a.id}`, { assigneeIds: [opAll.id] });
+    await http.patch(`${base}/tickets/${tickets.b.id}`, { assigneeIds: [opAll.id] });
+    await http.patch(`${base}/tickets/${tickets.c.id}`, { assigneeIds: [opAll.id], status: 'resolved' });
 
     const restricted = await http.patch(`${base}/members/${opAll.id}`, { departments: { allDepartments: false, departmentIds: [departments.a.id] } });
     expect(restricted.statusCode).toBe(200);
     expect(restricted.json().departments).toEqual({ allDepartments: false, departmentIds: [departments.a.id] });
 
-    const assignee = async (ticketId: string) => (await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } })).assigneeId;
-    expect(await assignee(tickets.a.id)).toBe(opAll.id);
-    expect(await assignee(tickets.b.id)).toBeNull();
+    expect(await assigneeIds(tickets.a.id)).toEqual([opAll.id]);
+    expect(await assigneeIds(tickets.b.id)).toEqual([]);
     // Closed tickets keep their assignee.
-    expect(await assignee(tickets.c.id)).toBe(opAll.id);
-    expect(await prisma.ticketEvent.findFirst({ where: { ticketId: tickets.b.id, type: 'assignee_changed', actorType: 'user' }, orderBy: { createdAt: 'desc' } })).toMatchObject({
-      data: { from: opAll.id, to: null, reason: 'access_removed', departmentId: departments.b.id },
+    expect(await assigneeIds(tickets.c.id)).toEqual([opAll.id]);
+    expect(await prisma.ticketEvent.findFirst({ where: { ticketId: tickets.b.id, type: 'assignees_changed', actorType: 'user' }, orderBy: { createdAt: 'desc' } })).toMatchObject({
+      data: { added: [], removed: [opAll.id], reason: 'access_removed', departmentId: departments.b.id },
     });
 
     const audit = (await http.get(`${base}/audit?entity=member`)).json().find((e: { entity: string; action: string }) => e.entity === 'member' && e.action === 'update');
@@ -397,17 +410,18 @@ describe('department access', () => {
 
   it('moving the triage flag unassigns tickets without a department from those who no longer see them', async () => {
     const { base, http, admin, tickets, departments, members } = await setup();
+    await withoutGuests(http, base);
     // A member of the triage department T sees tickets without a department.
-    expect((await http.patch(`${base}/tickets/${tickets.none.id}`, { assigneeId: members.opAT.user.id })).statusCode).toBe(200);
+    expect((await http.patch(`${base}/tickets/${tickets.none.id}`, { assigneeIds: [members.opAT.user.id] })).statusCode).toBe(200);
     const publish = vi.spyOn(app.get(RealtimeService), 'publish');
 
     expect((await http.patch(`${base}/departments/${departments.b.id}`, { isTriage: true })).statusCode).toBe(200);
 
-    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: tickets.none.id } })).assigneeId).toBeNull();
-    expect(await prisma.ticketEvent.findFirst({ where: { ticketId: tickets.none.id, type: 'assignee_changed' }, orderBy: { createdAt: 'desc' } })).toMatchObject({
+    expect(await assigneeIds(tickets.none.id)).toEqual([]);
+    expect(await prisma.ticketEvent.findFirst({ where: { ticketId: tickets.none.id, type: 'assignees_changed' }, orderBy: { createdAt: 'desc' } })).toMatchObject({
       actorType: 'user',
       actorId: admin.id,
-      data: { from: members.opAT.user.id, to: null, reason: 'triage_changed' },
+      data: { added: [], removed: [members.opAT.user.id], reason: 'triage_changed' },
     });
     expect((await members.opAT.http.get(`${base}/tickets/${tickets.none.id}`)).statusCode).toBe(404);
     expect((await members.viewerB.http.get(`${base}/tickets/${tickets.none.id}`)).statusCode).toBe(200);
@@ -415,6 +429,7 @@ describe('department access', () => {
     // The members of the old and the new triage department reload their access.
     const published = publish.mock.calls.map(([, event]) => event);
     expect(published).toContainEqual({ type: 'ticket.updated', ticketId: tickets.none.id });
+    expect(published).toContainEqual({ type: 'ticket.access', ticketId: tickets.none.id, userIds: [members.opAT.user.id] });
     expect(published.filter((event) => event.type === 'access.changed').map((event) => 'userId' in event && event.userId).sort()).toEqual(
       [members.opAT.user.id, members.viewerB.user.id].sort(),
     );

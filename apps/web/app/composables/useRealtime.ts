@@ -9,7 +9,7 @@ export function useRealtime(handler: (event: RealtimeEvent) => void): void {
   const { workspaceId } = useWorkspace();
   const { fetchMe } = useAuth();
   let source: EventSource | null = null;
-  const types: RealtimeEvent['type'][] = ['ticket.created', 'ticket.updated', 'ticket.moved', 'message.created', 'delivery.updated', 'access.changed'];
+  const types: RealtimeEvent['type'][] = ['ticket.created', 'ticket.updated', 'ticket.moved', 'ticket.access', 'message.created', 'delivery.updated', 'access.changed'];
 
   const connect = () => {
     source?.close();

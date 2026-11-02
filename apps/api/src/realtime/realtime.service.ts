@@ -8,12 +8,13 @@ import { REDIS } from '../redis/redis.module';
 const PREFIX = 'rt:';
 
 /**
- * An event with the department its ticket is in when the event fans out, for filtering by the departments a
- * connection may see. undefined — not a ticket event, or the ticket is gone.
+ * An event with the department and the assignees of its ticket when the event fans out, for filtering by what a
+ * connection may see. `departmentId` undefined — not a ticket event, or the ticket is gone.
  */
 export interface RoutedEvent {
   event: RealtimeEvent;
   departmentId: string | null | undefined;
+  assigneeIds: string[];
 }
 
 /**
@@ -82,22 +83,32 @@ export class RealtimeService implements OnModuleDestroy {
       }
       const workspaceId = channel.slice(PREFIX.length);
       this.routing = this.routing.then(async () => {
-        this.events.next({ workspaceId, event, departmentId: await this.departmentOf(event) });
+        this.events.next({ workspaceId, event, ...(await this.ticketOf(event)) });
       });
     });
   }
 
-  /** The ticket's current department; undefined when there is none to look up or the lookup failed. */
-  private async departmentOf(event: RealtimeEvent): Promise<string | null | undefined> {
-    if (!('ticketId' in event) || event.type === 'ticket.moved') {
-      return undefined;
+  /**
+   * The ticket's current department and assignees; the department is undefined when there is none to look up or the lookup
+   * failed. A move carries its departments itself.
+   */
+  private async ticketOf(event: RealtimeEvent): Promise<Omit<RoutedEvent, 'event'>> {
+    if (!('ticketId' in event) || event.type === 'ticket.access') {
+      return { departmentId: undefined, assigneeIds: [] };
     }
     try {
-      const ticket = await this.prisma.ticket.findUnique({ where: { id: event.ticketId }, select: { departmentId: true } });
-      return ticket === null ? undefined : ticket.departmentId;
+      const ticket = await this.prisma.ticket.findUnique({
+        where: { id: event.ticketId },
+        select: { departmentId: true, assignees: { select: { userId: true } } },
+      });
+      if (ticket === null) return { departmentId: undefined, assigneeIds: [] };
+      return {
+        departmentId: event.type === 'ticket.moved' ? undefined : ticket.departmentId,
+        assigneeIds: ticket.assignees.map((a) => a.userId),
+      };
     } catch (error) {
-      this.logger.warn(`Realtime department lookup failed: ${error instanceof Error ? error.message : String(error)}`);
-      return undefined;
+      this.logger.warn(`Realtime ticket lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+      return { departmentId: undefined, assigneeIds: [] };
     }
   }
 }

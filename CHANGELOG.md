@@ -4,6 +4,21 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+### Added
+
+- Tickets can have several assignees. Pick them in the ticket's properties: members of the ticket's department come first, the rest are listed with their departments and whether they accept tickets. Bulk actions add an assignee to every selected ticket or remove all of them. The queue's assignee filter finds tickets where any of the chosen people is an assignee.
+- Departments can hand tickets out in turn. In Settings → Departments set "Assignment" to "In turn": a ticket that lands in the department, by a routing rule, the agent or an operator, goes to the next member of the department who accepts tickets, unless one of its assignees already works there; so does a reopened ticket none of whose assignees works there. Each operator switches "Accepting tickets" at the bottom of the sidebar; admins can switch it for anyone in Settings → Members. Pausing keeps the tickets a person has, and tickets that arrive while nobody accepts them stay unassigned. Existing departments keep assigning by hand.
+- Two settings in Settings → General, both on by default. "Assign the operator who works on a ticket": whoever replies to the customer, writes to the agent or decides on an action becomes an assignee. "Assignees keep their tickets in other departments": an assignee keeps a ticket moved to a department they cannot see, and operators can call in members of other departments to work on a ticket together; such an assignee sees only that ticket. Turning it off removes assignees outside their departments from open tickets and hands those tickets out again.
+- MCP: `create_department` and `update_department` take `assignmentMode`, `update_workspace` takes the assignment settings, the new `list_members` and `set_accepting_tickets` tools manage who accepts tickets, `describe_workspace` shows all of it, and `search_tickets` and `get_ticket` filter by and show the assignees.
+- For the API: `PUT /api/workspaces/:id/members/:userId/accepting-tickets` (a member for themself, an admin for anyone); `acceptingTickets` in members and in `/api/auth/me`, `assignment` in the workspace, `assignmentMode` in departments.
+
+### Changed
+
+- **Breaking:** the tickets API has `assignees` (each with `source`: `manual`, `rule`, `auto` or `action`) instead of `assignee`. `PATCH /api/workspaces/:id/tickets/:ticketId` and the bulk change take `assigneeIds` (the whole list; `[]` removes everyone), or `addAssigneeIds` and `removeAssigneeIds`, instead of `assigneeId`, which is now refused. Replace `assigneeId: id` with `assigneeIds: [id]` and `assigneeId: null` with `assigneeIds: []`. Ticket events record `assignees_changed` with the added and removed people instead of `assignee_changed`. On upgrade a ticket keeps its assignee if that person still sees the ticket's department through their own departments; an assignee who no longer does (a closed ticket of a member restricted later, a member who left) is dropped, since an assignee can now see the ticket.
+- A ticket moved to a department its assignee cannot see no longer loses that assignee, unless "Assignees keep their tickets in other departments" is off. The `ticket.access` event of `/api/workspaces/:id/events` tells the people added to or removed from a ticket's assignees that their access to it may have changed.
+- The agent stops moving a ticket between departments once a person of the ticket's department has taken it: assigned by hand or by a rule, or worked on it. An assignee the department gave the ticket to in turn who has not worked on it yet, a member of another department called in, and anyone while the ticket is in the triage department do not count, so telling the agent in triage where a ticket belongs still lets it move the ticket.
+- Removing a member from a workspace removes them from its tickets' assignees, and their open tickets are handed out again where the department does so.
+
 ## [0.4.0] - 2026-11-01
 
 ### Changed

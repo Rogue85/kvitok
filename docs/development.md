@@ -194,8 +194,12 @@ A fresh installation without `db:seed` opens the first-run page `/setup`: it cre
 Users belong to the installation, access is granted per workspace with a role: administrator, operator or viewer.
 
 - **Administration → Users** (superadministrators): invite a user and choose their workspaces, change access, give or take the superadministrator flag, disable and enable, issue a password reset link, see the history. A disabled user cannot sign in or be assigned tickets; their sessions and tokens stop working.
-- **Settings → Members** (workspace administrators): give access to an existing user of the installation or invite a new person, and limit an operator or a viewer to chosen departments. Such a member sees only tickets of those departments, and tickets without a department when the triage department is among them; administrators always see every ticket.
+- **Settings → Members** (workspace administrators): give access to an existing user of the installation or invite a new person, and limit an operator or a viewer to chosen departments. Such a member sees only tickets of those departments, and tickets without a department when the triage department is among them; administrators always see every ticket. An assignee also sees their own tickets in other departments while "Assignees keep their tickets in other departments" is on in Settings → General.
 - **Profile**: the name, the password and the sessions.
+
+### Assignment
+
+A ticket can have several assignees. A department with "Assignment: In turn" (Settings → Departments) gives a ticket that lands in it to the next member of the department who accepts tickets; each operator switches "Accepting tickets" at the bottom of the sidebar, and it is off for new members. Settings → General decides whether an operator who replies, writes to the agent or decides on an action becomes an assignee, and whether assignees keep tickets moved to other departments. To try it with the simulator data, set a department to "In turn", turn on "Accepting tickets" and send a scenario: the ticket gets an assignee once the agent picks the department.
 
 There is no system mail, so an invitation or a reset is a one-time link (valid for 7 days) that the administrator copies and passes on. The person sets their own password with it.
 

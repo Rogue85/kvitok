@@ -1,6 +1,6 @@
 import { canSeeDepartment, type DepartmentScope } from '@kvitok/shared';
 import { describe, expect, it } from 'vitest';
-import { departmentScopeOf, ticketScopeWhere } from './department-access';
+import { canSeeTicket, departmentScopeOf, ticketScopeWhere } from './department-access';
 
 const member = (role: 'admin' | 'operator' | 'viewer', allDepartments: boolean, ids: string[] = []) => ({
   role,
@@ -47,13 +47,30 @@ describe('canSeeDepartment', () => {
 
 describe('ticketScopeWhere', () => {
   it('adds nothing for every department', () => {
-    expect(ticketScopeWhere({ all: true })).toEqual({});
+    expect(ticketScopeWhere({ workspaceId: 'w', scope: { all: true }, assignedTo: 'u' })).toEqual({});
   });
 
   it('matches the departments and, when allowed, tickets without one', () => {
-    expect(ticketScopeWhere({ all: false, departmentIds: ['a'], unrouted: false })).toEqual({ OR: [{ departmentId: { in: ['a'] } }] });
-    expect(ticketScopeWhere({ all: false, departmentIds: [], unrouted: true })).toEqual({
+    expect(ticketScopeWhere({ workspaceId: 'w', scope: { all: false, departmentIds: ['a'], unrouted: false }, assignedTo: null })).toEqual({ OR: [{ departmentId: { in: ['a'] } }] });
+    expect(ticketScopeWhere({ workspaceId: 'w', scope: { all: false, departmentIds: [], unrouted: true }, assignedTo: null })).toEqual({
       OR: [{ departmentId: { in: [] } }, { departmentId: null }],
     });
+  });
+
+  it('adds the tickets assigned to the caller when the workspace keeps their access', () => {
+    expect(ticketScopeWhere({ workspaceId: 'w', scope: { all: false, departmentIds: ['a'], unrouted: false }, assignedTo: 'u' })).toEqual({
+      OR: [{ departmentId: { in: ['a'] } }, { assignees: { some: { workspaceId: 'w', userId: 'u' } } }],
+    });
+  });
+});
+
+describe('canSeeTicket', () => {
+  const scope: DepartmentScope = { all: false, departmentIds: ['a'], unrouted: false };
+
+  it('sees the departments, and assigned tickets only through assignedTo', () => {
+    expect(canSeeTicket({ scope, assignedTo: null }, { departmentId: 'a', assigneeIds: [] })).toBe(true);
+    expect(canSeeTicket({ scope, assignedTo: null }, { departmentId: 'b', assigneeIds: ['u'] })).toBe(false);
+    expect(canSeeTicket({ scope, assignedTo: 'u' }, { departmentId: 'b', assigneeIds: ['u'] })).toBe(true);
+    expect(canSeeTicket({ scope, assignedTo: 'u' }, { departmentId: 'b', assigneeIds: ['v'] })).toBe(false);
   });
 });

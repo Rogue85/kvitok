@@ -1,6 +1,6 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import type { DepartmentScope, SandboxEmailDto, SandboxEmailListDto, SandboxEmailListItemDto, SandboxEmailListQuery } from '@kvitok/shared';
+import type { SandboxEmailDto, SandboxEmailListDto, SandboxEmailListItemDto, SandboxEmailListQuery } from '@kvitok/shared';
 import { simpleParser, type HeaderValue } from 'mailparser';
 import { createTransport, type SendMailOptions } from 'nodemailer';
 import type { ResolvedMailbox } from '../channels/channel-config';
@@ -90,7 +90,7 @@ export class SandboxOutbox {
     const where: Prisma.SandboxEmailWhereInput = {
       workspaceId,
       channelId,
-      ...outboxScope(access.scope),
+      ...outboxScope(access),
       ...(query.ticketId ? { ticketId: query.ticketId } : {}),
       ...(query.address ? { id: { in: await this.idsByAddressPart(workspaceId, channelId, query.address) } } : {}),
     };
@@ -109,7 +109,7 @@ export class SandboxOutbox {
 
   async get(access: TicketAccess, channelId: string, id: string): Promise<SandboxEmailDto> {
     const row = await this.prisma.sandboxEmail.findFirst({
-      where: { id, workspaceId: access.workspaceId, channelId, ...outboxScope(access.scope) },
+      where: { id, workspaceId: access.workspaceId, channelId, ...outboxScope(access) },
       select: { ...LIST_SELECT, rfcMessageId: true, inReplyTo: true, references: true, html: true, text: true, headers: true },
     });
     if (row === null) {
@@ -129,7 +129,7 @@ export class SandboxOutbox {
 
   async raw(access: TicketAccess, channelId: string, id: string): Promise<Pick<SandboxEmail, 'raw' | 'subject'>> {
     const row = await this.prisma.sandboxEmail.findFirst({
-      where: { id, workspaceId: access.workspaceId, channelId, ...outboxScope(access.scope) },
+      where: { id, workspaceId: access.workspaceId, channelId, ...outboxScope(access) },
       select: { raw: true, subject: true },
     });
     if (row === null) {
@@ -170,8 +170,8 @@ function headerText(value: HeaderValue | undefined): string | null {
 }
 
 /** Emails of tickets the caller may see; an email without a ticket only for those who see every department. */
-function outboxScope(scope: DepartmentScope): Prisma.SandboxEmailWhereInput {
-  return scope.all ? {} : { ticket: { is: ticketScopeWhere(scope) } };
+function outboxScope(access: TicketAccess): Prisma.SandboxEmailWhereInput {
+  return access.scope.all ? {} : { ticket: { is: ticketScopeWhere(access) } };
 }
 
 function toListItem(row: ListRow): SandboxEmailListItemDto {

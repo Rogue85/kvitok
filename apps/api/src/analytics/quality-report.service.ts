@@ -75,7 +75,7 @@ export class QualityReportService {
         workspaceId,
         dryRun: false,
         createdAt: { gte: from },
-        ticket: { AND: [ticketScopeWhere(access.scope), options.departmentId ? { departmentId: options.departmentId } : {}] },
+        ticket: { AND: [ticketScopeWhere(access), options.departmentId ? { departmentId: options.departmentId } : {}] },
       },
       select: {
         id: true,

@@ -17,6 +17,9 @@ import { LlmProvidersService } from './llm-providers.service';
 import { PlaybooksService } from './playbooks.service';
 
 /** Everything that affects the agent's behavior. Shows which instructions the agent followed in every run. */
+/** A department as the agent sees it: without how it hands tickets to operators, so the version does not change with that. */
+export type AgentDepartment = Omit<DepartmentDto, 'assignmentMode'>;
+
 export interface AgentConfigSnapshot {
   corePromptVersion: number;
   /** The installation language: the agent writes operator-facing texts in it. */
@@ -26,7 +29,7 @@ export interface AgentConfigSnapshot {
   /** Enabled integrations with a manifest: domain knowledge for the prompt; the manifest hash changes the version. */
   integrations: AgentIntegration[];
   playbooks: PlaybookDto[];
-  departments: DepartmentDto[];
+  departments: AgentDepartment[];
   fields: FieldDefinitionDto[];
 }
 
@@ -70,7 +73,7 @@ export class ConfigSnapshotService {
       integrations,
       // The agent does not need the playbooks of a disabled integration.
       playbooks: playbooks.filter((p) => p.enabled && (p.integrationId === null || activeIntegrations.has(p.integrationId))),
-      departments: departments.filter((d) => !d.archived),
+      departments: departments.filter((d) => !d.archived).map(({ assignmentMode: _assignmentMode, ...department }) => department),
       fields: fields.filter((f) => !f.archived),
     };
   }

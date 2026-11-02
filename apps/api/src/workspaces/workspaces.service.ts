@@ -1,18 +1,26 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import { slugify, type CreateWorkspaceInput, type UpdateWorkspaceInput, type WorkspaceDto } from '@kvitok/shared';
+import { assignmentSettings, slugify, type CreateWorkspaceInput, type UpdateWorkspaceInput, type WorkspaceDto } from '@kvitok/shared';
+import { currentActor } from '../audit/audit-context';
 import { AuditService } from '../audit/audit.service';
 import { errors } from '../common/errors';
 import { newId } from '../common/ids';
+import { json } from '../common/json';
 import type { AuthUser } from '@kvitok/shared';
 import type { Prisma, Workspace } from '../generated/prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { OPEN_TICKET_STATUSES, publishAssigneeChanges, settleEach } from '../tickets/assignment';
+import { SYSTEM_ACTOR } from '../tickets/ticket-events';
 
 @Injectable()
 export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async listFor(user: AuthUser): Promise<WorkspaceDto[]> {
@@ -64,11 +72,51 @@ export class WorkspacesService {
     return toWorkspaceDto(workspace);
   }
 
+  /**
+   * Changes the workspace. Turning off assignees' access then settles, one by one, every open ticket that has a restricted
+   * member among its assignees: those outside the ticket's department leave it, and its department may hand it out again.
+   * Their access is already gone with the setting, so the cleanup need not be in the same transaction. Restricted members
+   * reload their access either way.
+   */
   async update(workspaceId: string, input: UpdateWorkspaceInput): Promise<WorkspaceDto> {
-    const before = await this.get(workspaceId);
-    const workspace = await this.prisma.workspace.update({ where: { id: workspaceId }, data: input });
+    const { assignment, ...rest } = input;
+    const { before, workspace } = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.workspace.findUnique({ where: { id: workspaceId } });
+      if (current === null) {
+        throw errors.notFound(t('api.workspaceNotFound'));
+      }
+      // Merged with what is stored now, so a concurrent change of the other switch is kept.
+      const settings = assignment
+        ? { ...(current.settings as Record<string, unknown>), assignment: { ...assignmentSettings(current.settings), ...assignment } }
+        : undefined;
+      const workspace = await tx.workspace.update({ where: { id: workspaceId }, data: { ...rest, ...(settings ? { settings: json(settings) } : {}) } });
+      return { before: toWorkspaceDto(current), workspace };
+    });
     const dto = toWorkspaceDto(workspace);
     await this.audit.record({ workspaceId, entity: 'workspace', entityId: workspaceId, action: 'update', before, after: dto });
+    const actor = currentActor();
+    const actorId = actor.type === 'system' ? null : actor.userId;
+    if (before.assignment.assigneesKeepAccess && !dto.assignment.assigneesKeepAccess) {
+      const tickets = await this.prisma.ticket.findMany({
+        where: {
+          workspaceId,
+          status: { in: [...OPEN_TICKET_STATUSES] },
+          assignees: { some: { user: { memberships: { some: { workspaceId, allDepartments: false } } } } },
+        },
+        select: { id: true },
+      });
+      const changes = await settleEach(this.prisma, tickets.map((ticket) => ticket.id), actorId ? { type: 'user', id: actorId } : SYSTEM_ACTOR, 'access_removed');
+      await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, changes, actorId);
+      for (const change of changes) {
+        await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: change.ticketId });
+      }
+    }
+    if (dto.assignment.assigneesKeepAccess !== before.assignment.assigneesKeepAccess) {
+      const restricted = await this.prisma.membership.findMany({ where: { workspaceId, allDepartments: false }, select: { userId: true } });
+      for (const { userId } of restricted) {
+        await this.realtime.publish(workspaceId, { type: 'access.changed', userId });
+      }
+    }
     return dto;
   }
 }
@@ -80,6 +128,7 @@ export function toWorkspaceDto(workspace: Workspace): WorkspaceDto {
     slug: workspace.slug,
     locale: workspace.locale,
     currency: workspace.currency,
+    assignment: assignmentSettings(workspace.settings),
     createdAt: workspace.createdAt.toISOString(),
   };
 }

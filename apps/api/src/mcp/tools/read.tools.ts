@@ -1,6 +1,15 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import { AUDIT_ENTITIES, TicketListQuerySchema, TicketStatusSchema, type DepartmentDto, type MessageDto, type TimelineItemDto } from '@kvitok/shared';
+import {
+  AUDIT_ENTITIES,
+  canSeeDepartment,
+  TicketListQuerySchema,
+  TicketStatusSchema,
+  type DepartmentDto,
+  type MemberDto,
+  type MessageDto,
+  type TimelineItemDto,
+} from '@kvitok/shared';
 import { z } from 'zod';
 import { escapeUntrusted } from '../../agent/context-assembler';
 import { AgentService } from '../../agent/agent.service';
@@ -19,8 +28,10 @@ import { IntegrationsService } from '../../integrations/integrations.service';
 import { htmlToPlainText } from '../../mail/html';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RoutingRulesService } from '../../routing/routing-rules.service';
+import { departmentScopes } from '../../tickets/assignment';
 import { TicketsService } from '../../tickets/tickets.service';
 import { workspaceRole } from '../../workspaces/workspace.guard';
+import { MembersService } from '../../workspaces/members.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { tool, type ToolSpec } from '../mcp-tool';
 import { QualityReportService } from '../../analytics/quality-report.service';
@@ -52,6 +63,7 @@ export class ReadTools {
     private readonly agent: AgentService,
     private readonly audit: AuditService,
     private readonly quality: QualityReportService,
+    private readonly members: MembersService,
   ) {}
 
   specs(): ToolSpec[] {
@@ -77,13 +89,14 @@ export class ReadTools {
         description:
           'The whole configuration in one call: the agent settings and support policy, LLM providers, departments, ticket and customer fields, ' +
           'playbooks (bodies via get_playbook), routing rules, customer identification rules and settings, channels, integrations with a manifest summary (details via get_integration) ' +
+          'assignment settings and, per department, the assignment mode and how many members accept tickets, ' +
           'and the current agent configuration version. Start here.',
         input: z.object({}),
         scope: 'read',
         role: 'viewer',
         readOnly: true,
         run: async (_args, { workspaceId }) => {
-          const [workspace, settings, providers, departments, fields, playbooks, rules, identificationRules, identificationSettings, channels, integrations, config] = await Promise.all([
+          const [workspace, settings, providers, departments, fields, playbooks, rules, identificationRules, identificationSettings, channels, integrations, config, members] = await Promise.all([
             this.workspaces.get(workspaceId),
             this.settings.getDto(workspaceId),
             this.providers.list(workspaceId),
@@ -96,13 +109,17 @@ export class ReadTools {
             this.channels.list(workspaceId),
             this.integrations.list(workspaceId),
             this.snapshots.resolve(workspaceId),
+            this.members.list(workspaceId),
           ]);
+          // Whom the distributor may pick: operators and admins who are not disabled and see the department through their own access.
+          const candidate = (m: MemberDto, departmentId: string) =>
+            m.role !== 'viewer' && m.status !== 'disabled' && (m.role === 'admin' || m.departments.allDepartments || m.departments.departmentIds.includes(departmentId));
           return {
             workspace,
             configVersion: config.version.number,
             agent: settings,
             llmProviders: providers.map((p) => ({ ...p, models: p.models.map((m) => m.id) })),
-            departments,
+            departments: departments.map((d) => ({ ...d, membersAcceptingTickets: members.filter((m) => m.acceptingTickets && candidate(m, d.id)).length })),
             fields,
             playbooks: playbooks.map(({ body, ...p }) => ({ ...p, bodyChars: body.length })),
             routingRules: rules,
@@ -157,6 +174,10 @@ export class ReadTools {
         input: z.object({
           status: z.array(TicketStatusSchema).optional(),
           department: z.string().optional().describe('Department key, or "none" for tickets without a department.'),
+          assignee: z
+            .array(z.string())
+            .optional()
+            .describe('Tickets where any of them is an assignee: a member\'s email, "me", or "none" for tickets without assignees.'),
           q: z.string().max(200).optional().describe('Text search in the subject and messages.'),
           fields: z.record(z.string(), z.string()).optional().describe('Field filters: {fieldKey: value}.'),
           page: z.number().int().min(1).default(1),
@@ -168,11 +189,13 @@ export class ReadTools {
         run: async (args, { workspaceId, access, call }) => {
           const departments = await this.departments.list(workspaceId);
           const departmentId = args.department === undefined || args.department === 'none' ? args.department : departmentByKey(departments, args.department).id;
+          const assignee = args.assignee === undefined ? undefined : await this.assigneeIds(workspaceId, args.assignee);
           const list = await this.tickets.list(
             access,
             TicketListQuerySchema.parse({
               status: args.status,
               departmentId: departmentId === undefined ? undefined : [departmentId],
+              assignee,
               q: args.q,
               fields: args.fields,
               page: args.page,
@@ -192,7 +215,7 @@ export class ReadTools {
               status: item.status,
               priority: item.priority,
               department: item.departmentId ? (keys.get(item.departmentId) ?? null) : null,
-              assignee: item.assignee?.name ?? null,
+              assignees: item.assignees.map((a) => a.name),
               customer: item.customer?.name ?? null,
               channel: item.channel?.type ?? null,
               tags: item.tags,
@@ -215,13 +238,15 @@ export class ReadTools {
         readOnly: true,
         run: async (args, { workspaceId, access }) => {
           const ticketId = await this.ticketId(access, args);
-          const [ticket, timeline, agent, departments] = await Promise.all([
+          const [ticket, timeline, agent, departments, workspace] = await Promise.all([
             this.tickets.getDetail(access, ticketId),
             this.tickets.timeline(access, ticketId),
             this.agent.ticketAgent(access, ticketId),
             this.departments.list(workspaceId),
+            this.workspaces.get(workspaceId),
           ]);
           const keys = new Map(departments.map((d) => [d.id, d.key]));
+          const scopes = await departmentScopes(this.prisma, workspaceId, ticket.assignees.map((a) => a.id));
           return {
             id: ticket.id,
             number: ticket.number,
@@ -230,7 +255,12 @@ export class ReadTools {
             priority: ticket.priority,
             department: ticket.departmentId ? (keys.get(ticket.departmentId) ?? null) : null,
             departmentLocked: ticket.departmentLocked,
-            assignee: ticket.assignee?.name ?? null,
+            // guest: sees the ticket only as its assignee, not through their departments.
+            assignees: ticket.assignees.map((a) => {
+              const scope = scopes.get(a.id) ?? null;
+              return { name: a.name, email: a.email, source: a.source, guest: scope === null || !canSeeDepartment(scope, ticket.departmentId) };
+            }),
+            assigneesKeepAccess: workspace.assignment.assigneesKeepAccess,
             tags: ticket.tags,
             fields: ticket.fields,
             fieldMeta: ticket.fieldMeta,
@@ -334,6 +364,29 @@ export class ReadTools {
         },
       }),
       tool({
+        name: 'list_members',
+        title: 'List workspace members',
+        description:
+          'Members with their role, departments (keys; "all" — every department), status and whether they accept tickets ' +
+          'that departments with assignmentMode round_robin hand out in turn.',
+        input: z.object({}),
+        scope: 'read',
+        role: 'viewer',
+        readOnly: true,
+        run: async (_args, { workspaceId }) => {
+          const [members, departments] = await Promise.all([this.members.list(workspaceId), this.departments.list(workspaceId)]);
+          const keys = new Map(departments.map((d) => [d.id, d.key]));
+          return members.map((m) => ({
+            name: m.name,
+            email: m.email,
+            role: m.role,
+            status: m.status,
+            departments: m.role === 'admin' || m.departments.allDepartments ? 'all' : m.departments.departmentIds.map((id) => keys.get(id) ?? id),
+            acceptingTickets: m.acceptingTickets,
+          }));
+        },
+      }),
+      tool({
         name: 'list_audit_log',
         title: 'Read the change log',
         description: 'Recent configuration changes, newest first: who (a user, a token or the system), what and the values before and after.',
@@ -351,18 +404,34 @@ export class ReadTools {
     ];
   }
 
+  /** `me` and `none` as the list filter takes them, emails as member ids. */
+  private async assigneeIds(workspaceId: string, values: string[]): Promise<string[]> {
+    const ids: string[] = [];
+    for (const value of values) {
+      ids.push(value === 'me' || value === 'none' ? value : (await memberByEmail(this.members, workspaceId, value)).userId);
+    }
+    return ids;
+  }
+
   /** A ticket the user may see, by id or number; any other is not found. */
   async ticketId(access: TicketAccess, args: { ticketId?: string; number?: number }): Promise<string> {
     if (!args.ticketId && args.number === undefined) {
       throw errors.validation([{ path: 'ticketId', message: 'Pass ticketId or number', code: 'custom' }]);
     }
     const ticket = await this.prisma.ticket.findFirst({
-      where: { workspaceId: access.workspaceId, ...(args.ticketId ? { id: args.ticketId } : { number: args.number }), ...ticketScopeWhere(access.scope) },
+      where: { workspaceId: access.workspaceId, ...(args.ticketId ? { id: args.ticketId } : { number: args.number }), ...ticketScopeWhere(access) },
       select: { id: true },
     });
     if (ticket === null) throw errors.notFound(t('api.ticketNotFound'));
     return ticket.id;
   }
+}
+
+/** A member of the workspace by email, as tools refer to people. */
+export async function memberByEmail(members: MembersService, workspaceId: string, email: string): Promise<MemberDto> {
+  const member = (await members.list(workspaceId)).find((m) => m.email.toLowerCase() === email.trim().toLowerCase());
+  if (!member) throw errors.notFound(t('api.memberNotFound'));
+  return member;
 }
 
 export function departmentByKey(departments: DepartmentDto[], key: string): DepartmentDto {

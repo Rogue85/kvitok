@@ -250,11 +250,44 @@ describe('MCP server', () => {
     // Read tickets: scoped by the user's departments, checked above.
     const scoped = ['search_tickets', 'get_ticket', 'get_agent_run', 'quality_report'];
     // Configuration and protocol checks: no ticket data.
-    const unscoped = ['list_workspaces', 'describe_workspace', 'get_playbook', 'get_integration', 'validate_manifest', 'create_workspace'];
+    const unscoped = ['list_workspaces', 'describe_workspace', 'get_playbook', 'get_integration', 'validate_manifest', 'create_workspace', 'list_members'];
     const open = [...app.get(ReadTools).specs(), ...app.get(ConfigTools).specs(), ...app.get(CheckTools).specs()]
       .filter((spec) => spec.role !== 'admin')
       .map((spec) => spec.name);
     expect(open.filter((name) => !scoped.includes(name) && !unscoped.includes(name))).toEqual([]);
+  });
+
+  it('configures assignment: department modes, workspace settings, who accepts tickets; reads assignees', async () => {
+    const { http, workspaceId, user } = await setupWorkspace(app);
+    const secret = await token(http, ALL, workspaceId);
+    await ok(secret, 'create_department', { key: 'a', title: 'A', assignmentMode: 'round_robin' });
+    await ok(secret, 'create_department', { key: 'm', title: 'M' });
+    await ok(secret, 'update_workspace', { assignment: { assigneesKeepAccess: false } });
+
+    const before = await ok(secret, 'describe_workspace');
+    expect(before.workspace.assignment).toEqual({ assignActiveOperator: true, assigneesKeepAccess: false });
+    expect(before.departments.map((d: { key: string; assignmentMode: string; membersAcceptingTickets: number }) => [d.key, d.assignmentMode, d.membersAcceptingTickets])).toEqual([
+      ['a', 'round_robin', 0],
+      ['m', 'manual', 0],
+    ]);
+
+    expect(await ok(secret, 'set_accepting_tickets', { member: user.email, accepting: true })).toEqual({ member: user.email, acceptingTickets: true });
+    expect(await ok(secret, 'list_members')).toEqual([expect.objectContaining({ email: user.email, role: 'admin', departments: 'all', acceptingTickets: true })]);
+    expect((await ok(secret, 'describe_workspace')).departments[0].membersAcceptingTickets).toBe(1);
+    expect((await call(secret, 'set_accepting_tickets', { member: 'nobody@example.com', accepting: true })).isError).toBe(true);
+
+    await ok(secret, 'update_department', { department: 'm', assignmentMode: 'round_robin' });
+    const channel = await createApiChannel(http, workspaceId);
+    const created = (await ingest(app, channel, { subject: 'Баллы' })).json();
+    const departmentA = (await ok(secret, 'describe_workspace')).departments.find((d: { key: string }) => d.key === 'a');
+    await http.patch(`/workspaces/${workspaceId}/tickets/${created.ticket_id}`, { departmentId: departmentA.id });
+
+    const found = await ok(secret, 'search_tickets', { assignee: [user.email] });
+    expect(found.items.map((i: { id: string }) => i.id)).toEqual([created.ticket_id]);
+    expect((await ok(secret, 'search_tickets', { assignee: ['none'] })).items).toEqual([]);
+    expect((await ok(secret, 'get_ticket', { number: created.ticket_number })).assignees).toEqual([
+      { name: expect.any(String), email: user.email, source: 'auto', guest: false },
+    ]);
   });
 
   it('validates a manifest and gives hints', async () => {

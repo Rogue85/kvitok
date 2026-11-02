@@ -30,7 +30,7 @@ model User {
   passwordTokens    PasswordToken[]
   apiTokens         ApiToken[]
   memberships       Membership[]
-  assigned          Ticket[]           @relation("TicketAssignee")
+  assigned          TicketAssignee[]
   messages          Message[]
   decidedActions    ActionProposal[]
   ticketViews       TicketView[]
@@ -172,6 +172,8 @@ model Membership {
   departments          MembershipDepartment[]
   /// What the member gets notified about in this workspace (NotificationSettingsSchema); null — the defaults.
   notificationSettings Json?                  @map("notification_settings")
+  /// The member takes new tickets from departments that hand them out in turn. Turning it off removes nothing.
+  acceptingTickets     Boolean                @default(false) @map("accepting_tickets")
   createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -284,21 +286,27 @@ enum FieldFillMode {
 }
 
 model Department {
-  id           String                 @id
-  workspaceId  String                 @map("workspace_id")
-  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  key          String
-  title        String
+  id                 String                 @id
+  workspaceId        String                 @map("workspace_id")
+  workspace          Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key                String
+  title              String
   /// Description for routing by the agent.
-  description  String                 @default("")
-  examples     String[]               @default([])
-  instructions String                 @default("")
-  isTriage     Boolean                @default(false) @map("is_triage")
-  archivedAt   DateTime?              @map("archived_at") @db.Timestamptz
-  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime               @updatedAt @map("updated_at") @db.Timestamptz
-  tickets      Ticket[]
-  members      MembershipDepartment[]
+  description        String                 @default("")
+  examples           String[]               @default([])
+  instructions       String                 @default("")
+  isTriage           Boolean                @default(false) @map("is_triage")
+  /// How new tickets of the department get an assignee.
+  assignmentMode     AssignmentMode         @default(manual) @map("assignment_mode")
+  /// Settings of the assignment mode; reserved for later strategies.
+  assignmentSettings Json                   @default("{}") @map("assignment_settings")
+  /// The round-robin cursor: the member who got the last ticket.
+  lastAssignedUserId String?                @map("last_assigned_user_id")
+  archivedAt         DateTime?              @map("archived_at") @db.Timestamptz
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz
+  tickets            Ticket[]
+  members            MembershipDepartment[]
 
   @@unique([workspaceId, key])
   /// The target of the composite foreign key from membership_departments.
@@ -402,8 +410,7 @@ model Ticket {
   departmentId           String?          @map("department_id")
   department             Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   departmentLocked       Boolean          @default(false) @map("department_locked")
-  assigneeId             String?          @map("assignee_id")
-  assignee               User?            @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignees              TicketAssignee[]
   tags                   String[]         @default([])
   fields                 Json             @default("{}")
   fieldMeta              Json             @default("{}") @map("field_meta")
@@ -440,9 +447,40 @@ model Ticket {
   @@unique([channelId, conversationExternalId])
   @@index([workspaceId, status, lastMessageAt])
   @@index([workspaceId, departmentId])
-  @@index([workspaceId, assigneeId])
   @@index([workspaceId, createdAt])
   @@map("tickets")
+}
+
+enum AssignmentMode {
+  manual
+  round_robin
+}
+
+/// How an assignee got the ticket: by hand, by a routing rule, from the distributor, by working on it.
+enum AssigneeSource {
+  manual
+  rule
+  auto
+  action
+}
+
+/// An assignee of a ticket. A ticket may have several; while the workspace keeps assignees' access, an assignee sees the ticket whatever its department.
+model TicketAssignee {
+  ticketId    String         @map("ticket_id")
+  ticket      Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId      String         @map("user_id")
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String         @map("workspace_id")
+  source      AssigneeSource
+  /// Who added them; null for rules, the distributor and the system.
+  addedById   String?        @map("added_by_id")
+  addedAt     DateTime       @default(now()) @map("added_at") @db.Timestamptz
+  /// The last active work on the ticket: a reply, a message to the agent, a decision on an action.
+  actedAt     DateTime?      @map("acted_at") @db.Timestamptz
+
+  @@id([ticketId, userId])
+  @@index([workspaceId, userId])
+  @@map("ticket_assignees")
 }
 
 model Participant {

@@ -45,7 +45,7 @@ describe('tickets', () => {
     await http.post(`/workspaces/${workspaceId}/fields`, { entity: 'ticket', key: 'dept_number', label: 'Отдел', type: 'number' });
     const a = (await ingest(app, channel, { subject: 'Принтер', fields: { dept_number: 214 } })).json();
     const b = (await ingest(app, channel, { subject: 'Ноутбук', customer: { identities: { email: 'petr@corp.ru' } } })).json();
-    await http.patch(`${url}/${a.ticket_id}`, { assigneeId: user.id, status: 'pending' });
+    await http.patch(`${url}/${a.ticket_id}`, { assigneeIds: [user.id], status: 'pending' });
 
     const ids = async (query: string) => (await http.get(`${url}?${query}`)).json().items.map((t: { id: string }) => t.id);
 
@@ -68,7 +68,7 @@ describe('tickets', () => {
     const a = (await ingest(app, channel, { subject: 'A' })).json().ticket_id as string;
     const b = (await ingest(app, other, { subject: 'B' })).json().ticket_id as string;
     const c = (await ingest(app, channel, { subject: 'C' })).json().ticket_id as string;
-    await http.patch(`${url}/${a}`, { assigneeId: user.id, departmentId: dept.id, priority: 'urgent', tags: ['vip', 'bonus'] });
+    await http.patch(`${url}/${a}`, { assigneeIds: [user.id], departmentId: dept.id, priority: 'urgent', tags: ['vip', 'bonus'] });
     await http.patch(`${url}/${b}`, { priority: 'high', tags: ['bonus'] });
     await prisma.ticket.update({ where: { id: a }, data: { lastMessageAt: new Date('2026-01-10T10:00:00Z'), createdAt: new Date('2026-01-01T10:00:00Z') } });
     await prisma.ticket.update({ where: { id: b }, data: { agentState: 'failed' } });
@@ -117,20 +117,20 @@ describe('tickets', () => {
 
     const tagged = await http.post(`${url}/bulk`, {
       ids: [a.ticket_id, b.ticket_id],
-      changes: { assigneeId: user.id, priority: 'high', addTags: ['bonus'], removeTags: ['old'] },
+      changes: { addAssigneeIds: [user.id], priority: 'high', addTags: ['bonus'], removeTags: ['old'] },
     });
     const resolved = (await http.post(`${url}/bulk`, { ids: [a.ticket_id, b.ticket_id], changes: { status: 'resolved' } })).json();
 
     expect(tagged.statusCode).toBe(200);
     expect(tagged.json()).toEqual({ updated: [a.ticket_id, b.ticket_id], failed: [] });
     const [ta, tb] = await Promise.all([a, b].map(async (x) => (await http.get(`${url}/${x.ticket_id}`)).json()));
-    expect(ta).toMatchObject({ assignee: { id: user.id }, priority: 'high', tags: ['vip', 'bonus'], status: 'resolved' });
-    expect(tb).toMatchObject({ assignee: { id: user.id }, priority: 'high', tags: ['bonus'], status: 'new' });
+    expect(ta).toMatchObject({ assignees: [{ id: user.id, source: 'manual' }], priority: 'high', tags: ['vip', 'bonus'], status: 'resolved' });
+    expect(tb).toMatchObject({ assignees: [{ id: user.id, source: 'manual' }], priority: 'high', tags: ['bonus'], status: 'new' });
     expect(resolved).toEqual({
       updated: [a.ticket_id],
       failed: [{ id: b.ticket_id, number: b.ticket_number, message: expect.stringContaining('Решение') }],
     });
-    expect(await prisma.ticketEvent.count({ where: { ticketId: b.ticket_id, type: 'assignee_changed', actorId: user.id } })).toBe(1);
+    expect(await prisma.ticketEvent.count({ where: { ticketId: b.ticket_id, type: 'assignees_changed', actorId: user.id } })).toBe(1);
     expect(await prisma.delivery.count({ where: { event: 'ticket.status_changed' } })).toBe(1);
   });
 
@@ -148,7 +148,7 @@ describe('tickets', () => {
     expect(byFilter).toEqual({ updated: [b], failed: [] });
     expect((await http.post(`${url}/bulk`, { ids: [a], changes: {} })).statusCode).toBe(422);
     expect((await http.post(`${url}/bulk`, { ids: [a], filter: {}, changes: { priority: 'low' } })).statusCode).toBe(422);
-    expect((await http.post(`${url}/bulk`, { ids: [a], changes: { assigneeId: viewer.id } })).statusCode).toBe(422);
+    expect((await http.post(`${url}/bulk`, { ids: [a], changes: { addAssigneeIds: [viewer.id] } })).json()).toMatchObject({ updated: [], failed: [{ id: a }] });
     expect((await viewerHttp.post(`${url}/bulk`, { ids: [a], changes: { priority: 'low' } })).statusCode).toBe(403);
   });
 
@@ -208,8 +208,8 @@ describe('tickets', () => {
     const outsider = await createUser(app);
     const ticket = (await ingest(app, channel)).json();
 
-    expect((await http.patch(`${url}/${ticket.ticket_id}`, { assigneeId: viewer.id })).statusCode).toBe(422);
-    expect((await http.patch(`${url}/${ticket.ticket_id}`, { assigneeId: outsider.id })).statusCode).toBe(422);
+    expect((await http.patch(`${url}/${ticket.ticket_id}`, { assigneeIds: [viewer.id] })).statusCode).toBe(422);
+    expect((await http.patch(`${url}/${ticket.ticket_id}`, { assigneeIds: [outsider.id] })).statusCode).toBe(422);
 
     const viewerHttp = client(app, await login(app, viewer));
     expect((await viewerHttp.get(`${url}/${ticket.ticket_id}`)).statusCode).toBe(200);

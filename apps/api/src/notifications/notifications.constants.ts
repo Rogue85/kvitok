@@ -21,6 +21,8 @@ export interface NotifyJobData {
   needsOperator?: boolean;
   /** `delivery_failed`: the undelivered reply. */
   messageId?: string | null;
+  /** `assigned`: the members who were added. */
+  userIds?: string[];
 }
 
 /** One pending `incoming` job per ticket: messages arriving during the wait join it. BullMQ rejects ids with a single colon. */

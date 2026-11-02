@@ -3,7 +3,6 @@ import {
   fieldValueSchema,
   type AgentAnalyzedEventData,
   isEmptyFieldValue,
-  type DepartmentDto,
   type FieldMeta,
   type FieldSuggestion,
   type FieldValues,
@@ -19,10 +18,13 @@ import { buildRuleContext } from '../routing/rule-context';
 import { RuleApplier } from '../routing/rule-applier';
 import { RoutingRulesService } from '../routing/routing-rules.service';
 import { evaluateRules } from '../routing/rules-engine';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { publishAssigneeChanges, settleAssignees, takenByHuman, type AssigneeChange } from '../tickets/assignment';
 import { recordDepartmentChange } from '../tickets/department-change';
 import { recordEvent } from '../tickets/ticket-events';
 import type { PendingProposal } from './integration-runtime';
-import type { AgentConfigSnapshot } from './config-snapshot.service';
+import type { AgentConfigSnapshot, AgentDepartment } from './config-snapshot.service';
 import { DraftsService } from './drafts.service';
 import { lockTicket } from './agent-trigger.service';
 import type { AgentResult } from './submit-schema';
@@ -50,10 +52,13 @@ export class ResultApplier {
     private readonly drafts: DraftsService,
     private readonly rules: RoutingRulesService,
     private readonly ruleApplier: RuleApplier,
+    private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async apply(run: AgentRun, result: AgentResult, snapshot: AgentConfigSnapshot, options: ApplyOptions = {}): Promise<ApplyOutcome> {
-    return this.prisma.$transaction(async (tx) => {
+    const assigneeChanges: AssigneeChange[] = [];
+    const outcome = await this.prisma.$transaction(async (tx): Promise<ApplyOutcome> => {
       const locked = await lockTicket(tx, run.ticketId);
       if (locked.revision !== run.inputRevision) {
         return 'stale';
@@ -74,7 +79,8 @@ export class ResultApplier {
       const triage = snapshot.departments.find((d) => d.isTriage) ?? null;
       // needs_human means "a human decides", not "unclear where": highlight it, but do not reset routing.
       const uncertain = agentDepartment === null || confidence < snapshot.settings.confidenceThreshold;
-      const operatorOwnsRouting = ticket.departmentLocked || ticket.assigneeId !== null;
+      // Pinned, or taken by a person of its department; a ticket in triage stays the agent's to route.
+      const operatorOwnsRouting = ticket.departmentLocked || (await takenByHuman(tx, ticket));
 
       // Department: automatically only while nobody has taken the ticket; otherwise a suggestion.
       let departmentSuggestion: TicketAnalysis['departmentSuggestion'] = previous?.departmentSuggestion ?? null;
@@ -90,11 +96,10 @@ export class ResultApplier {
         }
       } else {
         departmentSuggestion = null;
-        const target: DepartmentDto | null = uncertain ? triage : agentDepartment;
+        const target: AgentDepartment | null = uncertain ? triage : agentDepartment;
         sentToTriage = uncertain && target !== null;
         if (target && target.id !== ticket.departmentId) {
           data.department = { connect: { id: target.id } };
-          // The agent moves only unassigned tickets, so nobody is unassigned here.
           await recordDepartmentChange(tx, ticket, target.id, actor, { confidence, reason: routingReason, triage: sentToTriage });
         }
       }
@@ -185,7 +190,13 @@ export class ResultApplier {
           departments: new Map(snapshot.departments.map((d) => [d.id, d])),
           agent: { department: analysis.department, confidence: analysis.confidence, needs_human: analysis.needsHuman },
         });
-        await this.ruleApplier.apply(tx, ticket.id, evaluateRules(afterRules, ctx), ctx, 'after_agent');
+        const rules = await this.ruleApplier.apply(tx, ticket.id, evaluateRules(afterRules, ctx), ctx, 'after_agent');
+        assigneeChanges.push(...rules.assigneeChanges);
+      }
+      // The agent chose the department: its assignees are settled and it may hand the ticket out. Idempotent after the rules did it.
+      const { departmentId } = await tx.ticket.findUniqueOrThrow({ where: { id: ticket.id }, select: { departmentId: true } });
+      if (departmentId !== ticket.departmentId) {
+        assigneeChanges.push(await settleAssignees(tx, ticket.id, actor, 'department_changed'));
       }
 
       const replyUpdated = Boolean(result.reply?.needed && result.reply.body.trim());
@@ -269,6 +280,10 @@ export class ResultApplier {
       } satisfies AgentAnalyzedEventData);
       return 'applied';
     });
+    if (outcome === 'applied') {
+      await publishAssigneeChanges(this.realtime, this.notifications, run.workspaceId, assigneeChanges, null);
+    }
+    return outcome;
   }
 }
 

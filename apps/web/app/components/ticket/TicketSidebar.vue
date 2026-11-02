@@ -14,7 +14,7 @@ const props = defineProps<{ ticket: TicketDto; links: CustomerLinkDto[]; cost: T
 const emit = defineEmits<{ update: [patch: UpdateTicketInput]; changed: []; openRuns: [] }>();
 
 const { can, canSee } = useWorkspace();
-const { departments, members, ticketFields, customerFields } = useWorkspaceData();
+const { departments, memberById, ticketFields, customerFields } = useWorkspaceData();
 const editable = computed(() => can('operator'));
 
 const priorityItems = TICKET_PRIORITIES.map((value) => ({ label: priorityLabel(value), value }));
@@ -26,17 +26,20 @@ const departmentItems = computed(() => [
     .filter((d) => !d.archived || d.id === props.ticket.departmentId)
     .map((d) => ({ label: departmentLabel(d.title, d.id), value: d.id })),
 ]);
-// The assignee always sees the ticket: only members of its department.
-const assigneeItems = computed(() => [
-  { label: t('ticket.sidebar.unassigned'), value: 'none' },
-  ...members.data.value
-    .filter(
-      (m) =>
-        m.userId === props.ticket.assignee?.id ||
-        (m.role !== 'viewer' && m.status !== 'disabled' && canSeeDepartment(memberScope(m, departments.data.value), props.ticket.departmentId)),
-    )
-    .map((m) => ({ label: m.name, value: m.userId })),
-]);
+const { data: workspace } = useWorkspaceSettings();
+const keepAccess = computed(() => workspace.value?.assignment.assigneesKeepAccess ?? false);
+/** Assignees who see the ticket only as its assignees, not through their departments. */
+const guests = computed(
+  () =>
+    new Set(
+      props.ticket.assignees
+        .filter((a) => {
+          const member = memberById.value.get(a.id);
+          return member === undefined || !canSeeDepartment(memberScope(member, departments.data.value), props.ticket.departmentId);
+        })
+        .map((a) => a.id),
+    ),
+);
 
 const visibleFields = computed(() =>
   ticketFields.value.filter(
@@ -94,14 +97,24 @@ function requiredMark(field: FieldDefinitionDto): string {
           @update:model-value="emit('update', { departmentId: $event === 'none' ? null : String($event) })"
         />
       </UFormField>
-      <UFormField :label="t('ticket.sidebar.assignee')" size="sm">
-        <USelect
-          :model-value="ticket.assignee?.id ?? 'none'"
-          :items="assigneeItems"
+      <UFormField :label="t('ticket.sidebar.assignees')" size="sm">
+        <TicketAssigneePicker
+          :department-id="ticket.departmentId"
+          :assignee-ids="ticket.assignees.map((a) => a.id)"
+          :keep-access="keepAccess"
           :disabled="!editable"
-          class="w-full"
-          @update:model-value="emit('update', { assigneeId: $event === 'none' ? null : String($event) })"
+          @update="emit('update', $event)"
         />
+        <ul v-if="ticket.assignees.length" class="mt-2 space-y-1 text-sm">
+          <li v-for="assignee in ticket.assignees" :key="assignee.id" class="flex items-center gap-2">
+            <UAvatar :alt="assignee.name" size="2xs" />
+            <span class="truncate">{{ assignee.name }}</span>
+            <UTooltip v-if="guests.has(assignee.id)" :text="t('ticket.assignees.guestHint')">
+              <UBadge color="neutral" variant="subtle" size="sm">{{ t('ticket.assignees.guest') }}</UBadge>
+            </UTooltip>
+            <span v-if="assignee.source === 'auto'" class="text-xs text-(--ui-text-muted)">{{ t('ticket.assignees.inTurn') }}</span>
+          </li>
+        </ul>
       </UFormField>
       <UFormField :label="t('ticket.sidebar.tags')" size="sm">
         <UInputTags v-model="tags" :disabled="!editable" class="w-full" @blur="saveTags" @update:model-value="saveTags" />

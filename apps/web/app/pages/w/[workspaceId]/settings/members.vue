@@ -30,6 +30,7 @@ const columns: TableColumn<MemberDto>[] = [
   { accessorKey: 'email', header: 'Email' },
   { accessorKey: 'role', header: t('members.roleColumn') },
   { id: 'departments', header: t('members.departments') },
+  { id: 'accepting', header: t('members.accepting') },
   { id: 'actions', header: '' },
 ];
 
@@ -69,6 +70,16 @@ async function changeRole(member: MemberDto, role: WorkspaceRole): Promise<void>
   try {
     await api(`/workspaces/${workspaceId.value}/members/${member.userId}`, { method: 'PATCH', body: { role } });
     toast.add({ color: 'success', title: `${member.name}: ${roleLabel(role)}` });
+  } catch (error) {
+    notifyError(error);
+  }
+  await refresh();
+}
+
+/** Admins switch it for anyone, for example for someone who left without pausing. */
+async function setAccepting(member: MemberDto, accepting: boolean): Promise<void> {
+  try {
+    await api(`/workspaces/${workspaceId.value}/members/${member.userId}/accepting-tickets`, { method: 'PUT', body: { accepting } });
   } catch (error) {
     notifyError(error);
   }
@@ -200,6 +211,15 @@ async function onAdd(): Promise<void> {
             @click="editDepartments(row.original)"
           />
           <span v-else class="text-sm" :class="{ 'text-(--ui-text-muted)': row.original.role === 'admin' }">{{ departmentsLabel(row.original) }}</span>
+        </template>
+        <template #accepting-cell="{ row }">
+          <USwitch
+            v-if="row.original.role !== 'viewer'"
+            :model-value="row.original.acceptingTickets"
+            :disabled="!isAdmin || row.original.status === 'disabled'"
+            :aria-label="t('members.accepting')"
+            @update:model-value="setAccepting(row.original, $event)"
+          />
         </template>
         <template #actions-cell="{ row }">
           <div v-if="isAdmin && row.original.userId !== me?.user.id" class="flex justify-end gap-1">

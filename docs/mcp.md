@@ -73,9 +73,10 @@ Configuration tools also need the admin role in the workspace. A client only see
 | Group | Tools |
 | --- | --- |
 | Overview | `list_workspaces`, `describe_workspace` (the whole configuration in one call), `get_playbook`, `get_integration`, `get_prompt_preview` |
-| Tickets and runs | `search_tickets`, `get_ticket` (timeline, analysis, proposed actions and decisions, fields, draft), `get_agent_run` (steps, tool calls, cost) |
+| Tickets and runs | `search_tickets` (also by assignee), `get_ticket` (timeline, analysis, proposed actions and decisions, fields, draft, assignees), `get_agent_run` (steps, tool calls, cost) |
 | Quality | `quality_report`: departments changed by operators after the agent, rejected actions with comments, sent replies compared with the agent's draft, questions, `needs_human`, failed runs, cost; by department and playbook, with example tickets. `list_audit_log` |
-| Configuration | `create_workspace`, `update_workspace`, `update_agent_settings`, `create/update/delete_llm_provider`, `create/update_department`, `create/update_field`, `create/update/delete_playbook`, `create/update/delete_routing_rule`, `create_api_channel`, `create_mailbox`, `update_channel` |
+| Members | `list_members` (role, departments, whether they accept tickets), `set_accepting_tickets` |
+| Configuration | `create_workspace`, `update_workspace` (also the assignment settings), `update_agent_settings`, `create/update/delete_llm_provider`, `create/update_department` (also `assignmentMode`), `create/update_field`, `create/update/delete_playbook`, `create/update/delete_routing_rule`, `create_api_channel`, `create_mailbox`, `update_channel` |
 | Integrations | `connect_integration`, `update_integration`, `sync_integration`, `import_departments`, `remove_integration` |
 | Checks | `test_rule`, `test_llm_provider`, `dry_run`, `replay`, `ingest_ticket`, `validate_manifest`, `run_conformance` |
 

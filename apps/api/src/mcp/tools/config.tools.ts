@@ -37,9 +37,10 @@ import { FieldsService } from '../../fields/fields.service';
 import { IdentificationService } from '../../identification/identification.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { RoutingRulesService } from '../../routing/routing-rules.service';
+import { MembersService } from '../../workspaces/members.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { tool, withoutWorkspace, type ToolSpec } from '../mcp-tool';
-import { departmentByKey } from './read.tools';
+import { departmentByKey, memberByEmail } from './read.tools';
 
 const CHANGES_APPLY =
   'The change applies immediately: the next agent run uses it, and it is recorded in the change log.';
@@ -58,6 +59,7 @@ export class ConfigTools {
     private readonly channels: ChannelsService,
     private readonly integrations: IntegrationsService,
     private readonly identification: IdentificationService,
+    private readonly members: MembersService,
   ) {}
 
   specs(): ToolSpec[] {
@@ -73,8 +75,12 @@ export class ConfigTools {
       }),
       tool({
         name: 'update_workspace',
-        title: 'Rename the workspace',
-        description: `Change the workspace name or the language of the customer conversation. ${CHANGES_APPLY}`,
+        title: 'Change the workspace',
+        description:
+          'Change the workspace name, the language of the customer conversation or how tickets get assignees: ' +
+          'assignment.assignActiveOperator — an operator who replies, writes to the agent or decides on an action becomes an assignee; ' +
+          'assignment.assigneesKeepAccess — an assignee keeps the ticket when it moves to a department they cannot see, and members of other ' +
+          `departments can be assigned to work on it together (turning it off removes such assignees from open tickets). ${CHANGES_APPLY}`,
         input: UpdateWorkspaceSchema,
         scope: 'config:write',
         role: 'admin',
@@ -130,7 +136,9 @@ export class ConfigTools {
         title: 'Create a department',
         description:
           'A queue of operators. The agent routes by description and examples: describe the customer problems it handles and give 2–5 typical requests ' +
-          `(write them yourself, never copy real customer messages). Exactly one department should be the triage one. ${CHANGES_APPLY}`,
+          '(write them yourself, never copy real customer messages). Exactly one department should be the triage one. ' +
+          'assignmentMode: manual — operators take tickets themselves; round_robin — a ticket that lands in the department goes to the next member ' +
+          `who accepts tickets (set_accepting_tickets), in turn. ${CHANGES_APPLY}`,
         input: CreateDepartmentSchema,
         scope: 'config:write',
         role: 'admin',
@@ -139,13 +147,31 @@ export class ConfigTools {
       tool({
         name: 'update_department',
         title: 'Change a department',
-        description: `Pass the department key and only what changes; archived: true hides it from routing. ${CHANGES_APPLY}`,
+        description: `Pass the department key and only what changes; archived: true hides it from routing; assignmentMode as in create_department. ${CHANGES_APPLY}`,
         input: UpdateDepartmentSchema.safeExtend({ department: z.string().describe('Key of the department to change.') }),
         scope: 'config:write',
         role: 'admin',
         run: async ({ department, ...input }, { workspaceId }) => {
           const target = departmentByKey(await this.departments.list(workspaceId), department);
           return this.departments.update(workspaceId, target.id, withoutWorkspace(input));
+        },
+      }),
+      tool({
+        name: 'set_accepting_tickets',
+        title: 'Switch whether a member accepts tickets',
+        description:
+          'Departments with assignmentMode round_robin hand new tickets only to members who accept them. Turning it off keeps the tickets they have. ' +
+          'list_members shows the current state.',
+        input: z.object({
+          member: z.string().describe("The member's email."),
+          accepting: z.boolean(),
+        }),
+        scope: 'config:write',
+        role: 'admin',
+        run: async ({ member, accepting }, { workspaceId }) => {
+          const target = await memberByEmail(this.members, workspaceId, member);
+          const updated = await this.members.setAccepting(workspaceId, target.userId, accepting);
+          return { member: updated.email, acceptingTickets: updated.acceptingTickets };
         },
       }),
       tool({

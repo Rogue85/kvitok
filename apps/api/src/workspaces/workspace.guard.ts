@@ -1,7 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { createParamDecorator, Injectable, SetMetadata, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ALL_DEPARTMENTS, roleSatisfies, type DepartmentScope, type WorkspaceRole } from '@kvitok/shared';
+import { ALL_DEPARTMENTS, assignmentSettings, roleSatisfies, type DepartmentScope, type WorkspaceRole } from '@kvitok/shared';
 import { errors } from '../common/errors';
 import type { AppRequest, AuthContext, WorkspaceContext } from '../common/request';
 import { MEMBERSHIP_DEPARTMENTS, membershipScope, ticketScopeWhere } from '../departments/department-access';
@@ -45,20 +45,20 @@ export class WorkspaceGuard implements CanActivate {
     const required =
       this.reflector.getAllAndOverride<WorkspaceRole | undefined>(REQUIRED_ROLE, [context.getHandler(), context.getClass()]) ??
       'viewer';
-    const { role, scope } = await workspaceAccess(this.prisma, auth, workspaceId);
+    const { role, scope, assignedTo } = await workspaceAccess(this.prisma, auth, workspaceId);
     if (!roleSatisfies(role, required)) {
       throw errors.forbidden();
     }
 
     const ticketId = (request.params as Record<string, string | undefined>).ticketId;
     if (ticketId !== undefined && !scope.all) {
-      const visible = await this.prisma.ticket.count({ where: { id: ticketId, workspaceId, ...ticketScopeWhere(scope) } });
+      const visible = await this.prisma.ticket.count({ where: { id: ticketId, workspaceId, ...ticketScopeWhere({ workspaceId, scope, assignedTo }) } });
       if (visible === 0) {
         throw errors.notFound(t('api.ticketNotFound'));
       }
     }
 
-    request.workspace = { workspaceId, role, scope };
+    request.workspace = { workspaceId, role, scope, assignedTo };
     return true;
   }
 }
@@ -68,15 +68,19 @@ export async function workspaceRole(prisma: PrismaService, auth: AuthContext, wo
   return (await workspaceAccess(prisma, auth, workspaceId)).role;
 }
 
+/** The caller's role and the tickets they may see. */
+export interface MemberAccess {
+  role: WorkspaceRole;
+  scope: DepartmentScope;
+  /** See `TicketAccess.assignedTo`. */
+  assignedTo: string | null;
+}
+
 /**
  * The user's role in the workspace and the departments they may see: a superadmin works as admin everywhere.
  * A foreign workspace, or one outside the token's restriction, is 404 so as not to reveal it exists.
  */
-export async function workspaceAccess(
-  prisma: PrismaService,
-  auth: AuthContext,
-  workspaceId: string,
-): Promise<{ role: WorkspaceRole; scope: DepartmentScope }> {
+export async function workspaceAccess(prisma: PrismaService, auth: AuthContext, workspaceId: string): Promise<MemberAccess> {
   const tokenWorkspaceId = auth.token?.workspaceId ?? null;
   const access = tokenWorkspaceId !== null && tokenWorkspaceId !== workspaceId ? null : await memberAccess(prisma, auth, workspaceId);
   if (access === null) {
@@ -85,17 +89,17 @@ export async function workspaceAccess(
   return access;
 }
 
-async function memberAccess(
-  prisma: PrismaService,
-  auth: AuthContext,
-  workspaceId: string,
-): Promise<{ role: WorkspaceRole; scope: DepartmentScope } | null> {
+async function memberAccess(prisma: PrismaService, auth: AuthContext, workspaceId: string): Promise<MemberAccess | null> {
   if (auth.user.isSuperadmin) {
-    return (await prisma.workspace.count({ where: { id: workspaceId } })) > 0 ? { role: 'admin', scope: ALL_DEPARTMENTS } : null;
+    return (await prisma.workspace.count({ where: { id: workspaceId } })) > 0 ? { role: 'admin', scope: ALL_DEPARTMENTS, assignedTo: null } : null;
   }
   const membership = await prisma.membership.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: auth.user.id } },
-    include: MEMBERSHIP_DEPARTMENTS,
+    include: { ...MEMBERSHIP_DEPARTMENTS, workspace: { select: { settings: true } } },
   });
-  return membership === null ? null : { role: membership.role, scope: await membershipScope(prisma, workspaceId, membership) };
+  if (membership === null) {
+    return null;
+  }
+  const keepAccess = assignmentSettings(membership.workspace.settings).assigneesKeepAccess;
+  return { role: membership.role, scope: await membershipScope(prisma, workspaceId, membership), assignedTo: keepAccess ? auth.user.id : null };
 }

@@ -1,4 +1,4 @@
-import { ALL_DEPARTMENTS, type DepartmentScope, type WorkspaceRole } from '@kvitok/shared';
+import { ALL_DEPARTMENTS, canSeeDepartment, type DepartmentScope, type WorkspaceRole } from '@kvitok/shared';
 import type { Prisma } from '../generated/prisma/client';
 
 /**
@@ -8,11 +8,16 @@ import type { Prisma } from '../generated/prisma/client';
 export interface TicketAccess {
   workspaceId: string;
   scope: DepartmentScope;
+  /**
+   * Tickets assigned to this user are visible whatever their department: the caller, while the workspace keeps
+   * assignees' access (`AssignmentSettings.assigneesKeepAccess`). Null otherwise and for system code.
+   */
+  assignedTo: string | null;
 }
 
 /** For workers, ingest, the agent and other code that acts for the system: every ticket of the workspace. */
 export function systemAccess(workspaceId: string): TicketAccess {
-  return { workspaceId, scope: ALL_DEPARTMENTS };
+  return { workspaceId, scope: ALL_DEPARTMENTS, assignedTo: null };
 }
 
 /** What a membership query includes to compute the scope. */
@@ -55,12 +60,27 @@ export async function membershipScope(
   return departmentScopeOf(membership, await triageDepartmentId(db, workspaceId));
 }
 
-/** A ticket condition for the scope: nothing for every department; an empty list matches no ticket. */
-export function ticketScopeWhere(scope: DepartmentScope): Prisma.TicketWhereInput {
+/** A ticket condition for the access: nothing for every department; an empty list matches only the caller's assigned tickets. */
+export function ticketScopeWhere({ workspaceId, scope, assignedTo }: TicketAccess): Prisma.TicketWhereInput {
   if (scope.all) {
     return {};
   }
-  return { OR: [{ departmentId: { in: scope.departmentIds } }, ...(scope.unrouted ? [{ departmentId: null }] : [])] };
+  return {
+    OR: [
+      { departmentId: { in: scope.departmentIds } },
+      ...(scope.unrouted ? [{ departmentId: null }] : []),
+      // With the workspace, so the (workspace_id, user_id) index finds the caller's assignments.
+      ...(assignedTo !== null ? [{ assignees: { some: { workspaceId, userId: assignedTo } } }] : []),
+    ],
+  };
+}
+
+/** Whether the access sees a ticket in this department with these assignees: the in-memory twin of `ticketScopeWhere`. */
+export function canSeeTicket(
+  { scope, assignedTo }: Pick<TicketAccess, 'scope' | 'assignedTo'>,
+  ticket: { departmentId: string | null; assigneeIds: readonly string[] },
+): boolean {
+  return canSeeDepartment(scope, ticket.departmentId) || (assignedTo !== null && ticket.assigneeIds.includes(assignedTo));
 }
 
 /**

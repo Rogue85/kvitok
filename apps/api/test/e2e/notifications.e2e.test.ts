@@ -169,7 +169,7 @@ describe('notifications', () => {
       const { channel, recorder, dispatcher, http, workspaceId, operator } = await subscribed();
       const first = (await ingest(app, channel, { conversation_external_id: 'c1' })).json().ticket_id as string;
       await queue.obliterate({ force: true });
-      await http.patch(`/workspaces/${workspaceId}/tickets/${first}`, { assigneeId: operator.user.id });
+      await http.patch(`/workspaces/${workspaceId}/tickets/${first}`, { assigneeIds: [operator.user.id] });
       await queue.obliterate({ force: true });
 
       const service = app.get(NotificationsService);
@@ -192,15 +192,34 @@ describe('notifications', () => {
       ]);
     });
 
+    it('a new ticket handed out in turn while its notification waits for the agent reaches the assignee once, as assigned', async () => {
+      const { channel, recorder, dispatcher, http, workspaceId, operator } = await subscribed();
+      const department = (await http.post(`/workspaces/${workspaceId}/departments`, { key: 'loyalty', title: 'Лояльность', assignmentMode: 'round_robin' })).json();
+      await operator.http.put(`/workspaces/${workspaceId}/members/${operator.user.id}/accepting-tickets`, { accepting: true });
+      const created = (await ingest(app, channel)).json();
+      await queue.obliterate({ force: true });
+      const service = app.get(NotificationsService);
+      await service.incoming(workspaceId, created.ticket_id, { messageId: created.message_id, created: true, waitForAgent: true });
+
+      // The department gets the ticket during the wait, as when the agent routes it.
+      await http.patch(`/workspaces/${workspaceId}/tickets/${created.ticket_id}`, { departmentId: department.id });
+      const jobs = await queue.getJobs(['delayed', 'wait']);
+      expect(jobs.map((job) => job.data.kind)).toEqual(['incoming']);
+
+      await service.agentSettled(workspaceId, created.ticket_id, new Date());
+      await dispatcher.dispatch(jobs[0]!.data);
+      expect(recorder.sent).toEqual([{ userId: operator.user.id, notification: expect.objectContaining({ title: 'T-1 is assigned to you' }) }]);
+    });
+
     it('an assignment notifies the assignee, not the one who assigned', async () => {
       const { channel, recorder, dispatcher, http, workspaceId, operator, user } = await subscribed();
       const ticketId = (await ingest(app, channel)).json().ticket_id as string;
       await queue.obliterate({ force: true });
 
-      await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { assigneeId: operator.user.id });
+      await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { assigneeIds: [operator.user.id] });
       await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { priority: 'urgent' });
       const [job] = await queue.getJobs(['wait']);
-      expect(job?.data).toEqual({ kind: 'assigned', workspaceId, ticketId, actorId: user.id });
+      expect(job?.data).toEqual({ kind: 'assigned', workspaceId, ticketId, actorId: user.id, userIds: [operator.user.id] });
 
       await dispatcher.dispatch(job!.data);
       expect(recorder.sent).toEqual([{ userId: operator.user.id, notification: expect.objectContaining({ title: 'T-1 is assigned to you', urgent: true }) }]);

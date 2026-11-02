@@ -16,13 +16,14 @@ import type {
   Message,
   Prisma,
   Ticket,
+  TicketAssignee,
   TicketEvent,
   User,
 } from '../generated/prisma/client';
 import { primaryIdentity } from '../customers/customers.service';
 
 export const TICKET_LIST_INCLUDE = {
-  assignee: true,
+  assignees: { include: { user: true }, orderBy: [{ addedAt: 'asc' }, { userId: 'asc' }] },
   channel: true,
   customer: { include: { identities: true } },
 } satisfies Prisma.TicketInclude;
@@ -39,7 +40,7 @@ export const MESSAGE_INCLUDE = {
 } satisfies Prisma.MessageInclude;
 
 type ListTicket = Ticket & {
-  assignee: User | null;
+  assignees: Array<TicketAssignee & { user: User }>;
   channel: Channel | null;
   customer: (Customer & { identities: CustomerIdentity[] }) | null;
 };
@@ -56,7 +57,14 @@ export function toTicketListItem(ticket: ListTicket): TicketListItemDto {
     status: ticket.status,
     priority: ticket.priority,
     departmentId: ticket.departmentId,
-    assignee: toUserRef(ticket.assignee),
+    assignees: ticket.assignees.map((a) => ({
+      id: a.user.id,
+      name: a.user.name,
+      email: a.user.email,
+      source: a.source,
+      addedAt: a.addedAt.toISOString(),
+      actedAt: a.actedAt?.toISOString() ?? null,
+    })),
     customer: ticket.customer
       ? { id: ticket.customer.id, name: ticket.customer.name, primaryIdentity: primaryIdentity(ticket.customer.identities) }
       : null,

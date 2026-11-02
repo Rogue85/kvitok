@@ -22,6 +22,7 @@ export function eventIcon(event: TicketEventDto): string {
     priority_changed: 'i-lucide-flag',
     department_changed: 'i-lucide-users',
     assignee_changed: 'i-lucide-user-check',
+    assignees_changed: 'i-lucide-user-check',
     tags_changed: 'i-lucide-tag',
     field_changed: 'i-lucide-list',
     fields_rejected: 'i-lucide-triangle-alert',
@@ -69,6 +70,8 @@ export function eventText(event: TicketEventDto, lookups: EventLookups): string 
       if (d.reason === 'access_removed') return t('events.unassignedAccessRemoved', { name: member(d.from), department: dept(d.departmentId) });
       if (d.reason === 'triage_changed') return t('events.unassignedTriageChanged', { name: member(d.from) });
       return t('events.assigneeChanged', { from: member(d.from), to: member(d.to) });
+    case 'assignees_changed':
+      return assigneesText(d, member, dept);
     case 'tags_changed': {
       const added = (d.added as string[]).map((tag) => `+${tag}`);
       const removed = (d.removed as string[]).map((tag) => `−${tag}`);
@@ -183,6 +186,7 @@ export function isStandaloneEvent(event: TicketEventDto): boolean {
 export function eventsSummary(events: TicketEventDto[], lookups: EventLookups): string[] {
   const parts = new Map<string, string>();
   const tags = new Map<string, boolean>();
+  const assignees = new Map<string, boolean>();
   for (const event of events) {
     const d = event.data as Record<string, unknown>;
     switch (event.type) {
@@ -200,6 +204,12 @@ export function eventsSummary(events: TicketEventDto[], lookups: EventLookups): 
         break;
       case 'assignee_changed':
         parts.set('assignee', typeof d.to === 'string' ? (lookups.members.get(d.to)?.name ?? t('events.formerMember')) : t('events.nobody'));
+        break;
+      case 'assignees_changed':
+        // Someone added and removed within the run cancels out, as tags do.
+        for (const id of (d.added as string[] | undefined) ?? []) (assignees.get(id) === false ? assignees.delete(id) : assignees.set(id, true));
+        for (const id of (d.removed as string[] | undefined) ?? []) (assignees.get(id) === true ? assignees.delete(id) : assignees.set(id, false));
+        parts.set('assignees', '');
         break;
       case 'subject_changed':
         parts.set('subject', t('events.summary.subject'));
@@ -234,5 +244,28 @@ export function eventsSummary(events: TicketEventDto[], lookups: EventLookups): 
   const tagText = [...tags].map(([tag, added]) => `${added ? '+' : '−'}${tag}`).join(' ');
   if (tagText) parts.set('tags', tagText);
   else parts.delete('tags');
+  const assigneeText = [...assignees].map(([id, added]) => `${added ? '+' : '−'}${lookups.members.get(id)?.name ?? t('events.formerMember')}`).join(' ');
+  if (assigneeText) parts.set('assignees', t('events.summary.assignees', { names: assigneeText }));
+  else parts.delete('assignees');
   return [...parts.values()];
+}
+
+/**
+ * A change of the assignees: one event either adds or removes. Added — by hand, by a rule, in turn by the department,
+ * or because they worked on the ticket; removed — by hand, or because they lost access to the ticket's department.
+ */
+function assigneesText(d: Record<string, unknown>, member: (id: unknown) => string, dept: (id: unknown) => string): string {
+  const names = (ids: unknown) => ((ids as string[] | undefined) ?? []).map(member).join(', ');
+  const added = names(d.added);
+  if (added) {
+    if (d.source === 'auto') return t('events.assignedInTurn', { names: added, department: dept(d.departmentId) });
+    if (d.source === 'action') return t('events.assignedActive', { names: added });
+    if (d.source === 'rule') return t('events.assignedByRule', { names: added });
+    return t('events.assigneesAdded', { names: added });
+  }
+  const removed = names(d.removed);
+  if (d.reason === 'department_changed') return t('events.unassignedNoAccess', { name: removed, department: dept(d.departmentId) });
+  if (d.reason === 'access_removed') return t('events.unassignedAccessRemoved', { name: removed, department: dept(d.departmentId) });
+  if (d.reason === 'triage_changed') return t('events.unassignedTriageChanged', { name: removed });
+  return t('events.assigneesRemoved', { names: removed });
 }

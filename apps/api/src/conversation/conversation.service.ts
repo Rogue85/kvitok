@@ -13,6 +13,8 @@ import { outboundMessageId, replySubject, threadHeaders } from '../mail/threadin
 import { OutboundService, ticketWebhookRef } from '../outbound/outbound.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { markActive, publishAssigneeChanges, type AssigneeChange } from '../tickets/assignment';
 import { recordEvent, type Actor } from '../tickets/ticket-events';
 import { fieldState, MESSAGE_INCLUDE, toMessageDto } from '../tickets/tickets.mapper';
 import { missingRequiredFields, TicketsService } from '../tickets/tickets.service';
@@ -35,6 +37,7 @@ export class ConversationService {
     private readonly outbound: OutboundService,
     private readonly realtime: RealtimeService,
     private readonly agent: AgentTriggerService,
+    private readonly notifications: NotificationsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -47,6 +50,7 @@ export class ConversationService {
     options: { answersQuestionId?: string } = {},
   ): Promise<MessageDto> {
     await this.tickets.get(workspaceId, ticketId);
+    let assignees: AssigneeChange | null = null;
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
         data: {
@@ -65,10 +69,14 @@ export class ConversationService {
       });
       // A message to the agent is input for the agent.
       await tx.ticket.update({ where: { id: ticketId }, data: { revision: { increment: 1 } } });
+      assignees = await markActive(tx, workspaceId, ticketId, userId);
       return created;
     });
 
     await this.realtime.publish(workspaceId, { type: 'message.created', ticketId, messageId: message.id });
+    if (await this.publishActive(workspaceId, assignees, userId)) {
+      await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
+    }
     if (!options.answersQuestionId) {
       await this.agent.trigger(ticketId, { type: 'operator_message', messageId: message.id, userId }, { mode: 'refine', delay: OPERATOR_MESSAGE_DELAY_MS });
     }
@@ -118,6 +126,7 @@ export class ConversationService {
     const bodyText = input.bodyText?.trim() || htmlToPlainText(bodyHtml);
     const scheduledAt = new Date(Date.now() + this.config.replyUndoSeconds * 1000);
     const deliveries: Delivery[] = [];
+    let assignees: AssigneeChange | null = null;
 
     const message = await this.prisma.$transaction(async (tx) => {
       const id = newId();
@@ -204,14 +213,23 @@ export class ConversationService {
           ...(nextStatus === 'resolved' ? { resolvedAt: new Date() } : {}),
         },
       });
+      assignees = await markActive(tx, workspaceId, ticketId, userId);
 
       return tx.message.findUniqueOrThrow({ where: { id }, include: MESSAGE_INCLUDE });
     });
 
     await this.outbound.schedule(deliveries);
     await this.realtime.publish(workspaceId, { type: 'message.created', ticketId, messageId: message.id });
+    await this.publishActive(workspaceId, assignees, userId);
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
     return toMessageDto(message);
+  }
+
+  /** The operator who worked on the ticket became its assignee: their access to it is published. True when someone was added. */
+  private async publishActive(workspaceId: string, change: AssigneeChange | null, userId: string): Promise<boolean> {
+    if (change === null || change.added.length === 0) return false;
+    await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, [change], userId);
+    return true;
   }
 
   /** Cancel within the "undo send" window: while no delivery has started. */

@@ -37,11 +37,11 @@ export class McpCallContext {
    */
   async workspace(requested: string | undefined, required: WorkspaceRole): Promise<TicketAccess> {
     const workspaceId = requested ?? this.auth.token?.workspaceId ?? (await this.onlyWorkspace());
-    const { role, scope } = await workspaceAccess(this.prisma, this.auth, workspaceId);
+    const { role, scope, assignedTo } = await workspaceAccess(this.prisma, this.auth, workspaceId);
     if (!roleSatisfies(role, required)) {
       throw errors.forbidden();
     }
-    return { workspaceId, scope };
+    return { workspaceId, scope, assignedTo };
   }
 
   private async onlyWorkspace(): Promise<string> {
@@ -107,7 +107,7 @@ export function registerTools(server: McpServer, call: McpCallContext, specs: To
       },
       async (args: Record<string, unknown>): Promise<CallToolResult> => {
         try {
-          const access = spec.role === null ? { workspaceId: '', scope: ALL_DEPARTMENTS } : await call.workspace(args.workspaceId as string | undefined, spec.role);
+          const access = spec.role === null ? { workspaceId: '', scope: ALL_DEPARTMENTS, assignedTo: null } : await call.workspace(args.workspaceId as string | undefined, spec.role);
           return ok(await spec.run(args as never, { call, workspaceId: access.workspaceId, access }));
         } catch (error) {
           return fail(spec.name, error);

@@ -1,18 +1,21 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import { canSeeDepartment, type FieldMeta, type FieldValues, type RuleEffect, type RuleStage } from '@kvitok/shared';
+import { canSeeDepartment, MAX_TICKET_ASSIGNEES, type FieldMeta, type FieldValues, type RuleEffect, type RuleStage } from '@kvitok/shared';
 import { json } from '../common/json';
 import { memberScope } from '../departments/department-access';
 import { applyFieldValues } from '../fields/field-values';
 import { FieldsService } from '../fields/fields.service';
 import type { Prisma, Ticket } from '../generated/prisma/client';
+import { addAssignees, fitsAssigneeLimit, settleAssignees, workspaceAssignment, type AssigneeChange } from '../tickets/assignment';
 import { recordDepartmentChange } from '../tickets/department-change';
-import { recordEvent } from '../tickets/ticket-events';
+import { recordEvent, type Actor } from '../tickets/ticket-events';
 import { extractByRegex, type EvaluableRule, type RuleContextData } from './rules-engine';
 
 export interface RuleApplyOutcome {
   skipAgent: boolean;
   applied: Array<{ ruleId: string; effect: RuleEffect['type']; result: 'applied' | 'skipped'; reason?: string }>;
+  /** Assignees added by `assign` effects and by settling after a department change. */
+  assigneeChanges: AssigneeChange[];
 }
 
 /** Applies the effects of matched rules to a ticket: respects the pinned department and the operator's fields. */
@@ -27,12 +30,14 @@ export class RuleApplier {
     ctx: RuleContextData,
     stage: RuleStage,
   ): Promise<RuleApplyOutcome> {
-    const outcome: RuleApplyOutcome = { skipAgent: false, applied: [] };
+    const outcome: RuleApplyOutcome = { skipAgent: false, applied: [], assigneeChanges: [] };
     if (rules.length === 0) {
       return outcome;
     }
     let ticket = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     const definitions = await this.fields.list(ticket.workspaceId, 'ticket', tx);
+    /** The rule that moved the ticket last: assignees are settled once, after every rule. */
+    let movedBy: Actor | null = null;
 
     for (const rule of rules) {
       const actor = { type: 'rule' as const, id: rule.id };
@@ -57,11 +62,9 @@ export class RuleApplier {
             } else if (ticket.departmentLocked) {
               note(effect, 'skipped', t('api.rule.departmentPinned'));
             } else if (department.id !== ticket.departmentId) {
-              const { unassign } = await recordDepartmentChange(tx, ticket, department.id, actor, { rule: rule.name, stage });
-              ticket = await tx.ticket.update({
-                where: { id: ticketId },
-                data: { departmentId: department.id, ...(unassign ? { assigneeId: null } : {}) },
-              });
+              await recordDepartmentChange(tx, ticket, department.id, actor, { rule: rule.name, stage });
+              ticket = await tx.ticket.update({ where: { id: ticketId }, data: { departmentId: department.id } });
+              movedBy = actor;
               note(effect, 'applied');
             }
             break;
@@ -90,18 +93,27 @@ export class RuleApplier {
               where: { workspaceId_userId: { workspaceId: ticket.workspaceId, userId: effect.userId } },
               include: { user: true },
             });
+            const assignees = await tx.ticketAssignee.findMany({ where: { ticketId }, select: { userId: true } });
             if (membership === null || membership.role === 'viewer') {
               note(effect, 'skipped', t('api.rule.assigneeNotOperator'));
             } else if (membership.user.disabledAt !== null) {
               note(effect, 'skipped', t('api.rule.assigneeDisabled'));
-            } else if (!canSeeDepartment((await memberScope(tx, ticket.workspaceId, effect.userId))!, ticket.departmentId)) {
+            } else if (
+              !(await workspaceAssignment(tx, ticket.workspaceId)).assigneesKeepAccess &&
+              !canSeeDepartment((await memberScope(tx, ticket.workspaceId, effect.userId))!, ticket.departmentId)
+            ) {
               note(effect, 'skipped', t('api.rule.assigneeNoDepartmentAccess'));
-            } else if (ticket.assigneeId === null) {
-              await event('assignee_changed', { from: null, to: effect.userId });
-              ticket = await tx.ticket.update({ where: { id: ticketId }, data: { assigneeId: effect.userId } });
-              note(effect, 'applied');
+            } else if (assignees.some((a) => a.userId === effect.userId)) {
+              note(effect, 'skipped', t('api.rule.alreadyAssignee'));
+            } else if (await assignedByRuleBefore(tx, ticketId, rule.id, effect.userId)) {
+              // An operator removed them after this rule had added them: the next analysis must not bring them back.
+              note(effect, 'skipped', t('api.rule.assignedBefore'));
+            } else if (!fitsAssigneeLimit([...assignees.map((a) => a.userId), effect.userId])) {
+              note(effect, 'skipped', t('api.tooManyAssignees', { max: MAX_TICKET_ASSIGNEES }));
             } else {
-              note(effect, 'skipped', t('api.rule.assigneeAlreadySet'));
+              const added = await addAssignees(tx, ticket, [effect.userId], 'rule', actor, { reason: rule.name });
+              outcome.assigneeChanges.push({ ticketId, added, removed: [] });
+              note(effect, 'applied');
             }
             break;
           }
@@ -121,6 +133,9 @@ export class RuleApplier {
           }
         }
       }
+    }
+    if (movedBy !== null) {
+      outcome.assigneeChanges.push(await settleAssignees(tx, ticketId, movedBy, 'department_changed'));
     }
     return outcome;
   }
@@ -157,4 +172,12 @@ export class RuleApplier {
     note({ result: 'applied' });
     return tx.ticket.update({ where: { id: ticket.id }, data: { fields: json(result.values), fieldMeta: json(result.meta) } });
   }
+}
+
+/** The rule already added this member to the ticket once; whatever happened since is the operators' decision. */
+async function assignedByRuleBefore(tx: Prisma.TransactionClient, ticketId: string, ruleId: string, userId: string): Promise<boolean> {
+  const count = await tx.ticketEvent.count({
+    where: { ticketId, type: 'assignees_changed', actorType: 'rule', actorId: ruleId, data: { path: ['added'], array_contains: [userId] } },
+  });
+  return count > 0;
 }

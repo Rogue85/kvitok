@@ -4,6 +4,7 @@ import {
   TICKET_PRIORITIES,
   TICKET_SORTS,
   type BulkUpdateTicketsResultDto,
+  type TicketAssigneeDto,
   type TicketCountsDto,
   type TicketListDto,
   type TicketListRowDto,
@@ -148,6 +149,11 @@ const sortMenu = computed<DropdownMenuItem[]>(() =>
     onSelect: () => (sort.value = item.value),
   })),
 );
+
+/** Assignees by their current names, as the queue shows them. */
+function assigneeNames(assignees: TicketAssigneeDto[]): string {
+  return assignees.map((a) => memberById.value.get(a.id)?.name ?? a.name).join(', ');
+}
 
 /* Filters */
 
@@ -443,7 +449,7 @@ function open(row: TicketListRowDto): void {
               />
               <span class="truncate">
                 {{ row.departmentId ? (departmentById.get(row.departmentId)?.title ?? '—') : '—' }}
-                · {{ row.assignee ? (memberById.get(row.assignee.id)?.name ?? row.assignee.name) : t('tickets.filters.unassigned') }}
+                · {{ row.assignees.length ? assigneeNames(row.assignees) : t('tickets.filters.unassigned') }}
               </span>
             </div>
             <div v-if="listFields.length || row.tags.length" class="flex flex-wrap items-center gap-1.5 text-xs text-(--ui-text-muted)">
@@ -532,7 +538,7 @@ function open(row: TicketListRowDto): void {
           {{ row.original.departmentId ? (departmentById.get(row.original.departmentId)?.title ?? '—') : '—' }}
         </template>
         <template #assignee-cell="{ row }">
-          {{ row.original.assignee ? (memberById.get(row.original.assignee.id)?.name ?? row.original.assignee.name) : '—' }}
+          {{ row.original.assignees.length ? assigneeNames(row.original.assignees) : '—' }}
         </template>
         <template v-for="field in listFields" :key="field.key" #[`field_${field.key}-cell`]="{ row }">
           {{ formatFieldValue(row.original.fields[field.key], field.options) }}

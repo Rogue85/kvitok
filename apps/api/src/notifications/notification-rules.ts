@@ -1,4 +1,5 @@
-import { canSeeDepartment, TICKET_PRIORITIES, type DepartmentScope, type NotificationSettings, type TicketPriority, type WorkspaceRole } from '@kvitok/shared';
+import { TICKET_PRIORITIES, type DepartmentScope, type NotificationSettings, type TicketPriority, type WorkspaceRole } from '@kvitok/shared';
+import { canSeeTicket } from '../departments/department-access';
 
 export type NotificationKind = 'ticket_created' | 'assigned' | 'customer_message' | 'agent_needs_operator' | 'delivery_failed' | 'agent_failed';
 
@@ -8,11 +9,13 @@ export interface Recipient {
   settings: NotificationSettings;
   /** The departments the member may see (`departmentScopeOf`). */
   departments: DepartmentScope;
+  /** The member sees tickets assigned to them whatever their department (the workspace keeps assignees' access). */
+  seesAssigned: boolean;
 }
 
 export interface TicketFacts {
   departmentId: string | null;
-  assigneeId: string | null;
+  assigneeIds: string[];
   priority: TicketPriority;
   /** The operator who wrote the undelivered reply (`delivery_failed`). */
   authorId?: string | null;
@@ -24,19 +27,19 @@ export interface TicketFacts {
  */
 export function wants(recipient: Recipient, kind: NotificationKind, ticket: TicketFacts): boolean {
   const { settings, userId } = recipient;
-  if (!canSeeDepartment(recipient.departments, ticket.departmentId)) {
+  if (!canSeeTicket({ scope: recipient.departments, assignedTo: recipient.seesAssigned ? userId : null }, ticket)) {
     return false;
   }
-  const mine = ticket.assigneeId === userId;
-  const unassigned = ticket.assigneeId === null;
+  const mine = ticket.assigneeIds.includes(userId);
+  const unassigned = ticket.assigneeIds.length === 0;
   const filtered = passesFilters(settings, ticket);
 
   switch (kind) {
     case 'assigned':
       return settings.events.assigned && mine;
     case 'ticket_created': {
-      // A ticket assigned on arrival goes to its assignee as `assigned`.
-      if (mine) return false;
+      // A ticket assigned on arrival goes to its assignee as `assigned`, unless they turned that off and follow every new ticket.
+      if (mine) return !settings.events.assigned && settings.events.ticketCreated === 'all' && filtered;
       const scope = settings.events.ticketCreated;
       return scope === 'all' ? filtered : scope === 'mine_unassigned' && unassigned && filtered;
     }

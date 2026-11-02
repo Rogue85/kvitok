@@ -189,7 +189,7 @@ describe('users and access', () => {
       expect(disabled.json()).toMatchObject({ status: 'disabled' });
       expect((await client(app, operatorCookie).get('/auth/me')).statusCode).toBe(401);
       await expect(login(app, operator)).rejects.toThrow();
-      const assign = await http.patch(`/workspaces/${workspaceId}/tickets/${ticket.ticket_id}`, { assigneeId: operator.id });
+      const assign = await http.patch(`/workspaces/${workspaceId}/tickets/${ticket.ticket_id}`, { assigneeIds: [operator.id] });
       expect(assign.statusCode).toBe(422);
       expect(assign.json().error.details[0].message).toBe(t('api.assigneeDisabled'));
       expect((await http.post(`/admin/users/${operator.id}/password-link`)).statusCode).toBe(409);
@@ -197,7 +197,7 @@ describe('users and access', () => {
 
       await http.patch(`/admin/users/${operator.id}`, { disabled: false });
       await login(app, operator);
-      expect((await http.patch(`/workspaces/${workspaceId}/tickets/${ticket.ticket_id}`, { assigneeId: operator.id })).statusCode).toBe(200);
+      expect((await http.patch(`/workspaces/${workspaceId}/tickets/${ticket.ticket_id}`, { assigneeIds: [operator.id] })).statusCode).toBe(200);
     });
 
     it('a disabled admin does not count as the last one and does not block the others', async () => {
@@ -230,14 +230,14 @@ describe('users and access', () => {
       };
       const realtime = app.get(RealtimeController);
 
-      expect(await realtime.currentScope(auth, workspaceId)).toEqual({ all: true });
+      expect((await realtime.currentAccess(auth, workspaceId))?.scope).toEqual({ all: true });
       await http.delete(`/admin/users/${operator.id}/memberships/${workspaceId}`);
-      expect(await realtime.currentScope(auth, workspaceId)).toBeNull();
+      expect(await realtime.currentAccess(auth, workspaceId)).toBeNull();
 
       await http.put(`/admin/users/${operator.id}/memberships/${workspaceId}`, { role: 'operator' });
-      expect(await realtime.currentScope(auth, workspaceId)).toEqual({ all: true });
+      expect((await realtime.currentAccess(auth, workspaceId))?.scope).toEqual({ all: true });
       await http.patch(`/admin/users/${operator.id}`, { disabled: true });
-      expect(await realtime.currentScope(auth, workspaceId)).toBeNull();
+      expect(await realtime.currentAccess(auth, workspaceId)).toBeNull();
     });
 
     it('keeps an active superadmin and does not let one disable oneself', async () => {

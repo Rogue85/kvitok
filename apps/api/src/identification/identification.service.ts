@@ -259,7 +259,7 @@ export class IdentificationService {
    */
   async check(access: TicketAccess, ticketId: string): Promise<IdentificationCheckDto> {
     const { workspaceId } = access;
-    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, workspaceId, ...ticketScopeWhere(access.scope) }, include: { channel: true } });
+    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, workspaceId, ...ticketScopeWhere(access) }, include: { channel: true } });
     if (ticket === null) {
       throw errors.notFound(t('api.ticketNotFound'));
     }

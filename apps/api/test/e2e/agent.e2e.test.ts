@@ -8,7 +8,7 @@ import type { LlmClient } from '../../src/llm/llm.types';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { RealtimeService } from '../../src/realtime/realtime.service';
 import { createAgentHarness, type AgentHarness } from '../agent-harness';
-import { createApiChannel, createTestApp, createUser, ingest, resetDb, setupWorkspace, type TestApiChannel } from '../helpers';
+import { client, createApiChannel, createTestApp, createUser, ingest, login, resetDb, setupWorkspace, type TestApiChannel } from '../helpers';
 import { result, ScriptedLlm, toolCall } from '../support/scripted-llm';
 
 describe('agent', () => {
@@ -508,6 +508,8 @@ describe('agent', () => {
 
     it('a move by the agent or a rule reaches both departments, and an assignee who cannot see the new one is unassigned', async () => {
       const { channel, http, base, workspaceId, departments } = await setup();
+      // Without it the assignee would keep the ticket as a guest.
+      await http.patch(base, { assignment: { assigneesKeepAccess: false } });
       await http.post(`${base}/routing-rules`, {
         name: 'Склад по номеру отдела',
         stage: 'after_agent',
@@ -519,19 +521,100 @@ describe('agent', () => {
       const created = await newTicket(channel);
       // Routed but not pinned by an operator, so the rule may move it.
       await prisma.ticket.update({ where: { id: created.ticket_id }, data: { departmentId: departments.loyalty.id } });
-      await http.patch(`${base}/tickets/${created.ticket_id}`, { assigneeId: operator.id });
+      await http.patch(`${base}/tickets/${created.ticket_id}`, { assigneeIds: [operator.id] });
       await http.post(`${base}/tickets/${created.ticket_id}/agent/run`, { mode: 'refine' });
       agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty', fields: { dept_number: { value: 214, confidence: 0.99, evidence: 'отдел 214' } } }))]));
       const publish = vi.spyOn(agent.context.get(RealtimeService), 'publish');
 
       await processQueued(created.ticket_id);
 
-      expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({ departmentId: departments.it.id, assigneeId: null });
+      expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({ departmentId: departments.it.id });
+      expect(await prisma.ticketAssignee.count({ where: { ticketId: created.ticket_id } })).toBe(0);
       expect(publish).toHaveBeenCalledWith(workspaceId, { type: 'ticket.moved', ticketId: created.ticket_id, from: departments.loyalty.id, to: departments.it.id });
-      expect(await prisma.ticketEvent.findFirst({ where: { ticketId: created.ticket_id, type: 'assignee_changed', actorType: 'rule' } })).toMatchObject({
-        data: { from: operator.id, to: null, reason: 'department_access', departmentId: departments.it.id, rule: 'Склад по номеру отдела', stage: 'after_agent' },
+      expect(publish).toHaveBeenCalledWith(workspaceId, { type: 'ticket.access', ticketId: created.ticket_id, userIds: [operator.id] });
+      expect(await prisma.ticketEvent.findFirst({ where: { ticketId: created.ticket_id, type: 'assignees_changed', actorType: 'rule' } })).toMatchObject({
+        data: { added: [], removed: [operator.id], reason: 'department_changed', departmentId: departments.it.id },
       });
       publish.mockRestore();
+    });
+
+    it('the department the agent picks hands the ticket out; the agent still moves it while that pick has not worked on it', async () => {
+      const { channel, http, base, departments, user } = await setup();
+      await http.patch(`${base}/departments/${departments.loyalty.id}`, { assignmentMode: 'round_robin' });
+      const operator = await createUser(app);
+      await http.post(`${base}/members`, { userId: operator.id, role: 'operator', departments: { allDepartments: false, departmentIds: [departments.loyalty.id] } });
+      await http.put(`${base}/members/${operator.id}/accepting-tickets`, { accepting: true });
+      const created = await newTicket(channel);
+      const assignees = async () => (await prisma.ticketAssignee.findMany({ where: { ticketId: created.ticket_id } })).map((a) => [a.userId, a.source]);
+
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty' }))]));
+      await processQueued(created.ticket_id);
+      expect(await assignees()).toEqual([[operator.id, 'auto']]);
+
+      await http.post(`${base}/tickets/${created.ticket_id}/agent/run`, { mode: 'refine' });
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'it' }))]));
+      await processQueued(created.ticket_id);
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).departmentId).toBe(departments.it.id);
+      expect(await assignees()).toEqual([]);
+
+      // Taken by a person: the agent only suggests.
+      await http.patch(`${base}/tickets/${created.ticket_id}`, { assigneeIds: [user.id] });
+      await http.post(`${base}/tickets/${created.ticket_id}/agent/run`, { mode: 'refine' });
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty' }))]));
+      await processQueued(created.ticket_id);
+      expect(await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).toMatchObject({
+        departmentId: departments.it.id,
+        analysis: { departmentSuggestion: { departmentId: departments.loyalty.id } },
+      });
+    });
+
+    it('an after_agent rule assigns a member once: removed by an operator, they are not brought back', async () => {
+      const { channel, http, base, departments } = await setup();
+      const alice = await createUser(app);
+      await http.post(`${base}/members`, { userId: alice.id, role: 'operator' });
+      await http.post(`${base}/routing-rules`, {
+        name: 'Лояльность — Алисе',
+        stage: 'after_agent',
+        conditions: { field: 'agent.department', op: 'eq', value: 'loyalty' },
+        effects: [{ type: 'assign', userId: alice.id }],
+      });
+      const created = await newTicket(channel);
+      const assigned = async () => (await prisma.ticketAssignee.findMany({ where: { ticketId: created.ticket_id } })).map((a) => a.userId);
+
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty' }))]));
+      await processQueued(created.ticket_id);
+      expect(await assigned()).toEqual([alice.id]);
+
+      await http.patch(`${base}/tickets/${created.ticket_id}`, { removeAssigneeIds: [alice.id] });
+      await http.post(`${base}/tickets/${created.ticket_id}/agent/run`, { mode: 'triage' });
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty' }))]));
+      await processQueued(created.ticket_id);
+      expect(await assigned()).toEqual([]);
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).departmentId).toBe(departments.loyalty.id);
+    });
+
+    it('telling the agent in triage where a ticket belongs lets it move the ticket; a guest of another department does not stop it', async () => {
+      const { channel, http, base, departments } = await setup();
+      const triageOperator = await createUser(app);
+      await http.post(`${base}/members`, { userId: triageOperator.id, role: 'operator', departments: { allDepartments: false, departmentIds: [departments.general.id] } });
+      const triageHttp = client(app, await login(app, triageOperator));
+      const created = await newTicket(channel);
+      await prisma.ticket.update({ where: { id: created.ticket_id }, data: { departmentId: departments.general.id } });
+
+      // Writing to the agent makes the operator an assignee, but the ticket is in triage.
+      expect((await triageHttp.post(`${base}/tickets/${created.ticket_id}/agent/messages`, { body: 'Это про баллы, в лояльность' })).statusCode).toBe(201);
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'loyalty' }))]));
+      await processQueued(created.ticket_id);
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).departmentId).toBe(departments.loyalty.id);
+      expect(await prisma.ticketAssignee.findUnique({ where: { ticketId_userId: { ticketId: created.ticket_id, userId: triageOperator.id } } })).toMatchObject({
+        source: 'action',
+      });
+
+      // The triage operator is a guest in loyalty now: the agent may still move it.
+      await http.post(`${base}/tickets/${created.ticket_id}/agent/run`, { mode: 'refine' });
+      agent.setLlm(new ScriptedLlm([toolCall('submit_result', result({ department: 'it' }))]));
+      await processQueued(created.ticket_id);
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } })).departmentId).toBe(departments.it.id);
     });
 
     it('checking rules on a ticket shows matches without applying them', async () => {

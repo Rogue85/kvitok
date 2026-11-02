@@ -2,7 +2,8 @@
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui';
 
 const route = useRoute();
-const { me, logout } = useAuth();
+const { me, logout, fetchMe } = useAuth();
+const toast = useToast();
 
 /* Pages outside a workspace (profile, administration) keep the workspace the user came from. */
 const lastWorkspaceId = useState<string | null>('workspace:last', () => null);
@@ -17,6 +18,24 @@ const current = computed(() => {
   const list = me.value?.workspaces ?? [];
   return list.find((w) => w.workspaceId === lastWorkspaceId.value) ?? list[0] ?? null;
 });
+
+/** Departments that hand tickets out in turn give them only to members who accept tickets; viewers take none. */
+const canAccept = computed(() => current.value !== null && current.value.isMember && current.value.role !== 'viewer');
+/** The switch moves at once and waits for the server, so a second click does not undo the first. */
+const acceptingPending = ref<boolean | null>(null);
+const accepting = computed(() => canAccept.value && (acceptingPending.value ?? current.value?.acceptingTickets ?? false));
+async function setAccepting(value: boolean): Promise<void> {
+  if (!current.value || !me.value) return;
+  acceptingPending.value = value;
+  try {
+    await api(`/workspaces/${current.value.workspaceId}/members/${me.value.user.id}/accepting-tickets`, { method: 'PUT', body: { accepting: value } });
+    await fetchMe();
+  } catch (error) {
+    toast.add({ color: 'error', title: toApiError(error).message });
+  } finally {
+    acceptingPending.value = null;
+  }
+}
 
 const workspaceItems = computed<DropdownMenuItem[]>(() =>
   (me.value?.workspaces ?? []).map((w) => ({
@@ -126,21 +145,35 @@ const adminItems = computed<NavigationMenuItem[]>(() =>
       </template>
 
       <template #footer="{ collapsed }">
-        <div class="flex w-full items-center gap-2">
-          <NuxtLink to="/profile" class="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 hover:bg-(--ui-bg-elevated)" :title="t('nav.profile')">
-            <UAvatar :alt="me?.user.name" size="sm" />
-            <span v-if="!collapsed" class="flex-1 truncate text-sm">{{ me?.user.name }}</span>
-          </NuxtLink>
-          <UButton
-            v-if="!collapsed"
-            to="/notifications"
-            icon="i-lucide-bell"
-            color="neutral"
-            variant="ghost"
-            :aria-label="t('nav.notifications')"
-            :title="t('nav.notifications')"
-          />
-          <UButton icon="i-lucide-log-out" color="neutral" variant="ghost" :aria-label="t('common.logout')" @click="logout" />
+        <div class="flex w-full flex-col gap-2">
+          <UTooltip v-if="canAccept && !collapsed" :text="t('nav.acceptingTicketsHelp')">
+            <USwitch
+              :model-value="accepting"
+              :disabled="acceptingPending !== null"
+              size="sm"
+              :label="t(accepting ? 'nav.acceptingTickets' : 'nav.notAcceptingTickets')"
+              class="px-1"
+              @update:model-value="setAccepting"
+            />
+          </UTooltip>
+          <div class="flex w-full items-center gap-2">
+            <NuxtLink to="/profile" class="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 hover:bg-(--ui-bg-elevated)" :title="t('nav.profile')">
+              <UChip :show="canAccept" :color="accepting ? 'success' : 'neutral'" inset position="bottom-right">
+                <UAvatar :alt="me?.user.name" size="sm" />
+              </UChip>
+              <span v-if="!collapsed" class="flex-1 truncate text-sm">{{ me?.user.name }}</span>
+            </NuxtLink>
+            <UButton
+              v-if="!collapsed"
+              to="/notifications"
+              icon="i-lucide-bell"
+              color="neutral"
+              variant="ghost"
+              :aria-label="t('nav.notifications')"
+              :title="t('nav.notifications')"
+            />
+            <UButton icon="i-lucide-log-out" color="neutral" variant="ghost" :aria-label="t('common.logout')" @click="logout" />
+          </div>
         </div>
       </template>
     </UDashboardSidebar>

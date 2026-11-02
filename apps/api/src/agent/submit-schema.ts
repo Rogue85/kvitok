@@ -187,7 +187,7 @@ function valueJsonSchema(field: FieldDefinitionDto): Record<string, unknown> {
   return byType[field.type];
 }
 
-export function buildSubmitResultTool(departments: DepartmentDto[], fields: FieldDefinitionDto[], { partial = false }: { partial?: boolean } = {}): LlmTool {
+export function buildSubmitResultTool(departments: Array<Pick<DepartmentDto, 'key' | 'title' | 'isTriage'>>, fields: FieldDefinitionDto[], { partial = false }: { partial?: boolean } = {}): LlmTool {
   const keys = departments.map((d) => d.key);
   const departmentSchema = { type: ['string', 'null'], enum: [...keys, null] };
   return {

@@ -1,19 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import {
   AddMemberSchema,
+  SetAcceptingTicketsSchema,
   UpdateMemberSchema,
   type AddMemberInput,
   type AddMemberResult,
   type MemberCandidateDto,
   type MemberDto,
   type PasswordLinkDto,
+  type SetAcceptingTicketsInput,
   type UpdateMemberInput,
 } from '@kvitok/shared';
 import { CurrentAuth } from '../auth/decorators';
-import type { AuthContext } from '../common/request';
+import { errors } from '../common/errors';
+import type { AuthContext, WorkspaceContext } from '../common/request';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { MembersService } from './members.service';
-import { RequireRole, WorkspaceGuard } from './workspace.guard';
+import { CurrentWorkspace, RequireRole, WorkspaceGuard } from './workspace.guard';
 
 @Controller('workspaces/:workspaceId/members')
 @UseGuards(WorkspaceGuard)
@@ -63,10 +66,25 @@ export class MembersController {
     return this.members.update(workspaceId, userId, body, auth.user.id);
   }
 
+  /** Members switch their own; admins switch anyone's (someone left without pausing). */
+  @Put(':userId/accepting-tickets')
+  @RequireRole('operator')
+  async setAccepting(
+    @CurrentWorkspace() workspace: WorkspaceContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('userId') userId: string,
+    @Body(new ZodValidationPipe(SetAcceptingTicketsSchema)) body: SetAcceptingTicketsInput,
+  ): Promise<MemberDto> {
+    if (workspace.role !== 'admin' && userId !== auth.user.id) {
+      throw errors.forbidden();
+    }
+    return this.members.setAccepting(workspace.workspaceId, userId, body.accepting);
+  }
+
   @Delete(':userId')
   @RequireRole('admin')
   @HttpCode(204)
-  remove(@Param('workspaceId') workspaceId: string, @Param('userId') userId: string): Promise<void> {
-    return this.members.remove(workspaceId, userId);
+  remove(@CurrentAuth() auth: AuthContext, @Param('workspaceId') workspaceId: string, @Param('userId') userId: string): Promise<void> {
+    return this.members.remove(workspaceId, userId, auth.user.id);
   }
 }

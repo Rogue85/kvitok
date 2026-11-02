@@ -18,6 +18,8 @@ const route = useRoute();
 const toast = useToast();
 const { workspaceId, can, canSee } = useWorkspace();
 const { departmentById, memberById, fields } = useWorkspaceData();
+const { me } = useAuth();
+const { data: workspace } = await useWorkspaceSettings();
 const ticketId = computed(() => String(route.params.ticketId));
 const base = computed(() => `/workspaces/${workspaceId.value}/tickets/${ticketId.value}`);
 
@@ -56,20 +58,35 @@ const refreshAll = debounce(() => {
   void refreshAgent();
   void refreshLinks();
 }, 300);
-/** The ticket moved to a department the user cannot see: its title, shown instead of the ticket. */
+/** The ticket left the user's sight: why, shown instead of the ticket. */
 const movedAway = ref<string | null>(null);
 watch(ticketId, () => (movedAway.value = null));
 function departmentTitle(departmentId: string | null): string {
   return departmentId ? (departmentById.value.get(departmentId)?.title ?? t('events.deletedDepartment')) : t('events.noDepartment');
 }
+/**
+ * Access may have changed: a move, a change of assignees or of the user's departments. An assignee may still see a ticket
+ * outside their departments, so the API decides: a ticket it hides is gone from this page.
+ */
+async function recheck(movedTo?: string | null): Promise<void> {
+  try {
+    await api<TicketDto>(base.value);
+  } catch (error) {
+    if (toApiError(error).status !== 404) return;
+    const department = movedTo !== undefined ? movedTo : (ticket.value?.departmentId ?? null);
+    movedAway.value = canSee(department) ? t('ticket.accessLost') : t('ticket.movedAway', { department: departmentTitle(department) });
+    return;
+  }
+  refreshAll();
+}
 useRealtime((event) => {
   if (event.type === 'access.changed') {
-    if (!canSee(ticket.value?.departmentId ?? null)) movedAway.value = departmentTitle(ticket.value?.departmentId ?? null);
+    void recheck();
     return;
   }
   if (event.ticketId !== ticketId.value) return;
-  if (event.type === 'ticket.moved' && !canSee(event.to)) {
-    movedAway.value = departmentTitle(event.to);
+  if (event.type === 'ticket.moved' || event.type === 'ticket.access') {
+    void recheck(event.type === 'ticket.moved' ? event.to : undefined);
     return;
   }
   refreshAll();
@@ -148,14 +165,25 @@ function confirmMove(): void {
   void update(patch, true);
 }
 
+/**
+ * The user keeps the ticket after a move to a department they cannot see: they are its assignee, not a distributor's
+ * untouched pick (that one leaves with the move), and the workspace lets assignees keep tickets of other departments.
+ */
+const keepsAsAssignee = computed(
+  () =>
+    (workspace.value?.assignment.assigneesKeepAccess ?? false) &&
+    (ticket.value?.assignees.some((a) => a.id === me.value?.user.id && (a.source !== 'auto' || a.actedAt !== null)) ?? false),
+);
+
 async function update(patch: UpdateTicketInput, confirmed = false): Promise<void> {
-  if (patch.departmentId !== undefined && !canSee(patch.departmentId) && !confirmed) {
+  if (patch.departmentId !== undefined && !canSee(patch.departmentId) && !keepsAsAssignee.value && !confirmed) {
     pendingMove.value = patch;
     return;
   }
   try {
     ticket.value = await api<TicketDto>(base.value, { method: 'PATCH', body: patch });
-    if (!canSee(ticket.value.departmentId)) {
+    // An assignee keeps a ticket of another department while the workspace allows it; the answer already says whether they stayed.
+    if (!canSee(ticket.value.departmentId) && !ticket.value.assignees.some((a) => a.id === me.value?.user.id)) {
       toast.add({ color: 'success', title: t('ticket.movedAway', { department: departmentTitle(ticket.value.departmentId) }) });
       await navigateTo(`/w/${workspaceId.value}/tickets`);
       return;
@@ -307,7 +335,7 @@ watch(
     </template>
 
     <template #body>
-      <UAlert v-if="movedAway !== null" color="warning" variant="subtle" :title="t('ticket.movedAway', { department: movedAway })" class="m-4 w-auto" />
+      <UAlert v-if="movedAway !== null" color="warning" variant="subtle" :title="movedAway" class="m-4 w-auto" />
       <UAlert v-else-if="error" color="error" variant="subtle" :title="t('ticket.notFound')" class="m-4 w-auto" />
       <div v-else-if="ticket" class="flex h-full min-h-0">
         <div class="flex min-w-0 flex-1 flex-col">

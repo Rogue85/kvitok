@@ -139,7 +139,7 @@ export class AgentService {
   /** A run of a ticket the caller may see: its input and steps hold the whole ticket and the customer's data. */
   async runDetail(access: TicketAccess, runId: string): Promise<AgentRunDetailDto> {
     const run = await this.prisma.agentRun.findFirst({
-      where: { id: runId, workspaceId: access.workspaceId, ticket: ticketScopeWhere(access.scope) },
+      where: { id: runId, workspaceId: access.workspaceId, ticket: ticketScopeWhere(access) },
       include: { configVersion: true, steps: { orderBy: { index: 'asc' } } },
     });
     if (run === null) throw errors.notFound(t('api.runNotFound'));

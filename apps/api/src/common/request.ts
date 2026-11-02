@@ -22,6 +22,8 @@ export interface WorkspaceContext {
   role: WorkspaceRole;
   /** The departments whose tickets the caller may see. */
   scope: DepartmentScope;
+  /** The caller, when tickets assigned to them are visible whatever their department; see `TicketAccess`. */
+  assignedTo: string | null;
 }
 
 export type AppRequest = FastifyRequest & {

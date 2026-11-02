@@ -1,18 +1,28 @@
 <script setup lang="ts">
-import type { DepartmentDto } from '@kvitok/shared';
+import { ASSIGNMENT_MODES, canSeeDepartment, type AssignmentMode, type DepartmentDto } from '@kvitok/shared';
 import type { TableColumn } from '@nuxt/ui';
 
 const toast = useToast();
 const { workspaceId, can } = useWorkspace();
-const { departments } = useWorkspaceData();
+const { departments, members } = useWorkspaceData();
 const isAdmin = computed(() => can('admin'));
 
 const columns: TableColumn<DepartmentDto>[] = [
   { accessorKey: 'title', header: t('departments.department') },
   { accessorKey: 'key', header: t('common.key') },
   { accessorKey: 'description', header: t('departments.descriptionForAgent') },
+  { id: 'assignment', header: t('departments.assignment') },
   { id: 'flags', header: '' },
 ];
+
+const modeItems = ASSIGNMENT_MODES.map((value) => ({ label: t(`departments.assignmentMode.${value}`), value }));
+
+/** Who the department hands tickets to now: operators and admins of the department who accept tickets. */
+function accepting(department: DepartmentDto): number {
+  return members.data.value.filter(
+    (m) => m.role !== 'viewer' && m.status !== 'disabled' && m.acceptingTickets && canSeeDepartment(memberScope(m, departments.data.value), department.id),
+  ).length;
+}
 
 interface DepartmentForm {
   id: string | null;
@@ -22,9 +32,20 @@ interface DepartmentForm {
   examples: string;
   instructions: string;
   isTriage: boolean;
+  assignmentMode: AssignmentMode;
   archived: boolean;
 }
-const empty = (): DepartmentForm => ({ id: null, key: '', title: '', description: '', examples: '', instructions: '', isTriage: false, archived: false });
+const empty = (): DepartmentForm => ({
+  id: null,
+  key: '',
+  title: '',
+  description: '',
+  examples: '',
+  instructions: '',
+  isTriage: false,
+  assignmentMode: 'manual',
+  archived: false,
+});
 const open = ref(false);
 const form = reactive<DepartmentForm>(empty());
 const error = ref<string | null>(null);
@@ -48,6 +69,7 @@ async function save(): Promise<void> {
     examples: form.examples.split('\n').map((s) => s.trim()).filter(Boolean),
     instructions: form.instructions,
     isTriage: form.isTriage,
+    assignmentMode: form.assignmentMode,
   };
   try {
     if (form.id) {
@@ -82,6 +104,13 @@ async function save(): Promise<void> {
         <template #description-cell="{ row }">
           <p class="max-w-md truncate text-(--ui-text-muted)">{{ row.original.description || '—' }}</p>
         </template>
+        <template #assignment-cell="{ row }">
+          <span v-if="row.original.assignmentMode === 'manual'" class="text-(--ui-text-muted)">{{ t('departments.assignmentMode.manual') }}</span>
+          <span v-else>
+            {{ t('departments.assignmentMode.round_robin') }}
+            <span class="text-(--ui-text-muted)">· {{ tp('departments.acceptingCount', accepting(row.original)) }}</span>
+          </span>
+        </template>
         <template #flags-cell="{ row }">
           <div class="flex gap-1">
             <UBadge v-if="row.original.isTriage" color="info" variant="subtle">{{ t('departments.triage') }}</UBadge>
@@ -108,6 +137,9 @@ async function save(): Promise<void> {
             </UFormField>
             <UFormField :label="t('departments.instructions')" :help="t('departments.instructionsHelp')">
               <UTextarea v-model="form.instructions" autoresize :rows="3" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('departments.assignment')" :help="t(`departments.assignmentModeHelp.${form.assignmentMode}`)">
+              <USelect v-model="form.assignmentMode" :items="modeItems" class="w-full" />
             </UFormField>
             <div class="flex gap-6">
               <UCheckbox v-model="form.isTriage" :label="t('departments.isTriage')" />

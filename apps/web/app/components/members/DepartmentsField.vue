@@ -3,7 +3,8 @@ import type { DepartmentDto, MemberDepartmentsInput, TicketListDto } from '@kvit
 
 /**
  * Which departments a member sees: every one, or a chosen list. For an existing member it also tells how many of their
- * open tickets would be unassigned because they fall outside the new list.
+ * open tickets fall outside the new list: they keep them as an assignee while the workspace keeps assignees' access,
+ * otherwise they are unassigned.
  */
 const model = defineModel<MemberDepartmentsInput>({ required: true });
 const props = defineProps<{
@@ -41,6 +42,9 @@ const items = computed(() =>
 );
 const triage = computed(() => props.departments.find((d) => d.isTriage) ?? null);
 
+const { data: workspace } = useWorkspaceSettings();
+const keepAccess = computed(() => workspace.value?.assignment.assigneesKeepAccess ?? false);
+
 const OPEN = 'status=new,open,pending';
 const unassigned = ref(0);
 
@@ -52,8 +56,10 @@ async function countUnassigned(): Promise<void> {
     return;
   }
   const ids = [...model.value.departmentIds, ...(triage.value && model.value.departmentIds.includes(triage.value.id) ? ['none'] : [])];
+  // Kept as an assignee, closed tickets stay visible too, so they count; unassigned, only open tickets are touched.
+  const status = keepAccess.value ? '' : `&${OPEN}`;
   const total = async (query: string) =>
-    (await api<TicketListDto>(`/workspaces/${props.workspaceId}/tickets?assignee=${member.userId}&${OPEN}&pageSize=1${query}`)).total;
+    (await api<TicketListDto>(`/workspaces/${props.workspaceId}/tickets?assignee=${member.userId}${status}&pageSize=1${query}`)).total;
   try {
     const [all, kept] = await Promise.all([total(''), ids.length > 0 ? total(`&departmentId=${ids.join(',')}`) : Promise.resolve(0)]);
     unassigned.value = all - kept;
@@ -61,7 +67,7 @@ async function countUnassigned(): Promise<void> {
     unassigned.value = 0;
   }
 }
-watch(model, countUnassigned, { immediate: true, deep: true });
+watch([model, keepAccess], countUnassigned, { immediate: true, deep: true });
 </script>
 
 <template>
@@ -73,9 +79,9 @@ watch(model, countUnassigned, { immediate: true, deep: true });
     </template>
     <UAlert
       v-if="member && unassigned > 0"
-      color="warning"
       variant="subtle"
-      :title="tp('members.unassignWarning', unassigned, { name: member.name })"
+      :color="keepAccess ? 'info' : 'warning'"
+      :title="tp(keepAccess ? 'members.keepAssignedInfo' : 'members.unassignWarning', unassigned, { name: member.name })"
     />
     <p class="text-sm text-(--ui-text-muted)">
       {{ t('members.departmentsHint') }}

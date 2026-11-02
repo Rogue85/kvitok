@@ -27,11 +27,28 @@ export const CreateWorkspaceSchema = z.object({
 });
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
 
+/** How tickets get assignees in the workspace. Stored in `workspaces.settings.assignment`; missing keys take the defaults. */
+export const AssignmentSettingsSchema = z.object({
+  /** An operator who replies, writes to the agent or decides on an action becomes an assignee. */
+  assignActiveOperator: z.boolean().default(true),
+  /** An assignee keeps seeing the ticket when it moves to a department they cannot see, and members of other departments can be assigned. */
+  assigneesKeepAccess: z.boolean().default(true),
+});
+export type AssignmentSettings = z.output<typeof AssignmentSettingsSchema>;
+
+/** Stored assignment settings with the defaults filled in; broken ones fall back to the defaults. */
+export function assignmentSettings(stored: unknown): AssignmentSettings {
+  const value = typeof stored === 'object' && stored !== null ? (stored as { assignment?: unknown }).assignment : undefined;
+  const parsed = AssignmentSettingsSchema.safeParse(typeof value === 'object' && value !== null ? value : {});
+  return parsed.success ? parsed.data : AssignmentSettingsSchema.parse({});
+}
+
 export const UpdateWorkspaceSchema = z
   .object({
     name: z.string().trim().min(1).max(120),
     locale: z.string().trim().min(2).max(16),
     currency: CurrencySchema,
+    assignment: z.object({ assignActiveOperator: z.boolean(), assigneesKeepAccess: z.boolean() }).partial(),
   })
   .partial();
 export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceSchema>;
@@ -52,12 +69,17 @@ export const UpdateMemberSchema = z.object({
 });
 export type UpdateMemberInput = z.infer<typeof UpdateMemberSchema>;
 
+/** The member's "accepting tickets" switch: members switch their own, admins anyone's. */
+export const SetAcceptingTicketsSchema = z.object({ accepting: z.boolean() });
+export type SetAcceptingTicketsInput = z.infer<typeof SetAcceptingTicketsSchema>;
+
 export interface WorkspaceDto {
   id: string;
   name: string;
   slug: string;
   locale: string;
   currency: string;
+  assignment: AssignmentSettings;
   createdAt: string;
 }
 
@@ -71,6 +93,8 @@ export interface MemberDto {
   role: WorkspaceRole;
   departments: MemberDepartmentsInput;
   status: UserStatus;
+  /** Takes tickets that departments hand out in turn. */
+  acceptingTickets: boolean;
   createdAt: string;
 }
 

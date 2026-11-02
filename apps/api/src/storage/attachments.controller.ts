@@ -27,7 +27,7 @@ export class AttachmentsController {
       where: {
         id: attachmentId,
         workspaceId: workspace.workspaceId,
-        ...(workspace.scope.all ? {} : { message: { is: { ticket: ticketScopeWhere(workspace.scope) } } }),
+        ...(workspace.scope.all ? {} : { message: { is: { ticket: ticketScopeWhere(workspace) } } }),
       },
     });
     if (attachment === null) {

@@ -51,12 +51,16 @@ A playbook has: key, title, when (one line: when it applies; the agent sees only
 
 ## Writing good department descriptions
 
-The agent routes by description and examples. Describe the department by the customer's problem, not by the team's internal name. Give 2–5 real-looking examples (synthetic, never copied from production). Mark exactly one department as triage for low-confidence tickets.`;
+The agent routes by description and examples. Describe the department by the customer's problem, not by the team's internal name. Give 2–5 real-looking examples (synthetic, never copied from production). Mark exactly one department as triage for low-confidence tickets.
+
+## Assignment
+
+A ticket may have several assignees. A department with assignmentMode round_robin gives a ticket that lands in it (by a rule, the agent or an operator) to the next member who accepts tickets (set_accepting_tickets, list_members), in turn, unless an assignee already sees that department. Workspace settings (update_workspace, assignment): assignActiveOperator adds an operator who replies, writes to the agent or decides on an action; assigneesKeepAccess lets an assignee keep a ticket moved to another department and lets operators call in members of other departments.`;
 
 const RULES_GUIDE = `# Routing rules
 
 Rules run in two stages:
-- on_ingest — before the agent, on new tickets only. They can set the department, priority, tags, fields, the assignee, or skip the agent (skip_agent).
+- on_ingest — before the agent, on new tickets only. They can set the department, priority, tags, fields, add an assignee (assign), or skip the agent (skip_agent).
 - after_agent — after every analysis. They also see agent.department, agent.confidence, agent.needs_human.
 
 Rules apply by position; stop: true ends processing of the stage. A department set by a rule or an operator is pinned: the agent does not change it.

@@ -126,8 +126,8 @@ export class UsersAdminService {
     return this.get(userId);
   }
 
-  async removeMembership(userId: string, workspaceId: string): Promise<AdminUserDto> {
-    await this.members.remove(workspaceId, userId);
+  async removeMembership(userId: string, workspaceId: string, actorUserId: string): Promise<AdminUserDto> {
+    await this.members.remove(workspaceId, userId, actorUserId);
     return this.get(userId);
   }
 

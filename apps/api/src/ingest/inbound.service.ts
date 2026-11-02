@@ -18,6 +18,7 @@ import type { Channel, Prisma, Ticket } from '../generated/prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { publishAssigneeChanges, reopens, settleEach } from '../tickets/assignment';
 import { recordEvent, type Actor } from '../tickets/ticket-events';
 import { TicketsService } from '../tickets/tickets.service';
 import type { FieldMeta, FieldValues, IngestMessageInput } from '@kvitok/shared';
@@ -78,6 +79,8 @@ export interface InboundResult {
   ticketCreated: boolean;
   duplicate: boolean;
   rejectedFields: Array<{ key: string; reason: string }>;
+  /** The message brought a resolved or closed ticket back: its department may hand it out again. */
+  reopened?: boolean;
 }
 
 const REOPEN_STATUSES = new Set(['pending', 'resolved', 'closed']);
@@ -135,6 +138,10 @@ export class InboundService {
         ticketId: result.ticketId,
         ...(result.ticketCreated ? {} : { messageId: result.messageId }),
       } as never);
+      if (result.reopened) {
+        const changes = await settleEach(this.prisma, [result.ticketId], { type: 'channel', id: input.channel.id }, 'reopened');
+        await publishAssigneeChanges(this.realtime, this.notifications, input.channel.workspaceId, changes, null);
+      }
       if (!input.isAutomated) {
         const triggered = await this.agent.trigger(
           result.ticketId,
@@ -223,6 +230,7 @@ export class InboundService {
     }
 
     const ticketData: Prisma.TicketUpdateInput = {};
+    let reopened = false;
     if (ticket.lastMessageAt < sentAt) {
       ticketData.lastMessageAt = sentAt;
     }
@@ -314,6 +322,7 @@ export class InboundService {
     if (!input.isAutomated) {
       ticketData.revision = { increment: 1 };
       if (!ticketCreated && REOPEN_STATUSES.has(ticket.status)) {
+        reopened = reopens(ticket.status, 'open');
         ticketData.status = 'open';
         ticketData.resolvedAt = null;
         await recordEvent(tx, { workspaceId, ticketId: ticket.id, type: 'status_changed', actor, data: { from: ticket.status, to: 'open' } });
@@ -335,6 +344,8 @@ export class InboundService {
           departments: new Map(departments.map((d) => [d.id, d])),
           timezone: (workspace.settings as { timezone?: string }).timezone,
         });
+        // Assignees the rules add or the department hands the new ticket to need no separate news: `ticket.created`
+        // reaches assignees, and the ticket's notification, sent after the agent, goes to them as `assigned`.
         const outcome = await this.ruleApplier.apply(tx, ticket.id, evaluateRules(rules, ctx), ctx, 'on_ingest');
         if (outcome.skipAgent) {
           await tx.ticket.update({ where: { id: ticket.id }, data: { agentSkipped: true } });
@@ -349,6 +360,7 @@ export class InboundService {
       ticketCreated,
       duplicate: false,
       rejectedFields,
+      reopened,
     };
   }
 

@@ -1,8 +1,11 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
 import {
+  ALL_DEPARTMENTS,
+  assignmentSettings,
   BULK_TICKETS_LIMIT,
   canSeeDepartment,
+  MAX_TICKET_ASSIGNEES,
   TICKET_STATUSES,
   isEmptyFieldValue,
   fieldValueSchema,
@@ -17,6 +20,7 @@ import {
   type TicketListQuery,
   type TimelineItemDto,
   type UpdateTicketInput,
+  type WorkspaceRole,
 } from '@kvitok/shared';
 import type { z } from 'zod';
 import { emailConfig } from '../channels/channel-config';
@@ -32,6 +36,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OutboundService, ticketWebhookRef } from '../outbound/outbound.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { addAssignees, fitsAssigneeLimit, lockTicketForAssignees, publishAssigneeChanges, removeAssignees, reopens, settleAssignees, type AssigneeChange } from './assignment';
 import { recordDepartmentChange } from './department-change';
 import { recordEvent, type Actor } from './ticket-events';
 import {
@@ -94,10 +99,14 @@ export class TicketsService {
 
   /** Distinct tags of the tickets the caller may see, the most used first. */
   async tags(access: TicketAccess): Promise<string[]> {
-    const { scope } = access;
+    const { scope, assignedTo } = access;
     const departments = scope.all
       ? Prisma.empty
-      : Prisma.sql`AND (department_id = ANY(${scope.departmentIds}::text[])${scope.unrouted ? Prisma.sql` OR department_id IS NULL` : Prisma.empty})`;
+      : Prisma.sql`AND (department_id = ANY(${scope.departmentIds}::text[])${scope.unrouted ? Prisma.sql` OR department_id IS NULL` : Prisma.empty}${
+          assignedTo !== null
+            ? Prisma.sql` OR id IN (SELECT ticket_id FROM ticket_assignees WHERE workspace_id = ${access.workspaceId} AND user_id = ${assignedTo})`
+            : Prisma.empty
+        })`;
     const rows = await this.prisma.$queryRaw<Array<{ tag: string }>>`
       SELECT tag FROM tickets, unnest(tags) AS tag WHERE workspace_id = ${access.workspaceId} ${departments}
       GROUP BY tag ORDER BY count(*) DESC, tag LIMIT 500`;
@@ -107,9 +116,9 @@ export class TicketsService {
   /** The list's filters within the caller's departments: a filter by another department finds nothing. */
   private async listWhere(access: TicketAccess, query: TicketListQuery, currentUserId: string): Promise<Prisma.TicketWhereInput> {
     const { workspaceId } = access;
-    const and: Prisma.TicketWhereInput[] = [{ workspaceId }, ticketScopeWhere(access.scope)];
+    const and: Prisma.TicketWhereInput[] = [{ workspaceId }, ticketScopeWhere(access)];
     /** A list with `none` matches an empty value too. */
-    const anyOf = <K extends 'departmentId' | 'assigneeId'>(key: K, values: string[]): Prisma.TicketWhereInput => {
+    const anyOf = <K extends 'departmentId'>(key: K, values: string[]): Prisma.TicketWhereInput => {
       const ids = values.filter((v) => v !== 'none');
       return {
         OR: [...(ids.length > 0 ? [{ [key]: { in: ids } }] : []), ...(values.includes('none') ? [{ [key]: null }] : [])],
@@ -126,7 +135,14 @@ export class TicketsService {
       and.push(anyOf('departmentId', query.departmentId));
     }
     if (query.assignee?.length) {
-      and.push(anyOf('assigneeId', query.assignee.map((a) => (a === 'me' ? currentUserId : a))));
+      // Any of them is an assignee; `none` — the ticket has none.
+      const ids = query.assignee.filter((a) => a !== 'none').map((a) => (a === 'me' ? currentUserId : a));
+      and.push({
+        OR: [
+          ...(ids.length > 0 ? [{ assignees: { some: { userId: { in: ids } } } }] : []),
+          ...(query.assignee.includes('none') ? [{ assignees: { none: {} } }] : []),
+        ],
+      });
     }
     if (query.channelId?.length) {
       and.push({ channelId: { in: query.channelId } });
@@ -185,7 +201,7 @@ export class TicketsService {
   /** A ticket the caller may see, or 404 as if it did not exist. */
   async visible(access: TicketAccess, id: string): Promise<Ticket & { channel: Channel | null }> {
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id, workspaceId: access.workspaceId, ...ticketScopeWhere(access.scope) },
+      where: { id, workspaceId: access.workspaceId, ...ticketScopeWhere(access) },
       include: { channel: true },
     });
     if (ticket === null) {
@@ -197,7 +213,7 @@ export class TicketsService {
   async getDetail(access: TicketAccess, id: string): Promise<TicketDto> {
     const { workspaceId } = access;
     const [ticket, workspace] = await Promise.all([
-      this.prisma.ticket.findFirst({ where: { id, workspaceId, ...ticketScopeWhere(access.scope) }, include: TICKET_DETAIL_INCLUDE }),
+      this.prisma.ticket.findFirst({ where: { id, workspaceId, ...ticketScopeWhere(access) }, include: TICKET_DETAIL_INCLUDE }),
       this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
     ]);
     if (ticket === null) {
@@ -257,7 +273,7 @@ export class TicketsService {
     // Ids outside the caller's departments are skipped like missing ones, without a number in `failed`.
     const where =
       'ids' in target
-        ? { workspaceId, id: { in: target.ids }, ...ticketScopeWhere(access.scope) }
+        ? { workspaceId, id: { in: target.ids }, ...ticketScopeWhere(access) }
         : await this.listWhere(access, target.filter, userId);
     const tickets = await this.prisma.ticket.findMany({
       where,
@@ -290,48 +306,80 @@ export class TicketsService {
   }
 
   /**
-   * The department and the assignee a change sets exist and can take tickets. Returns the assignee's departments:
-   * whether they may take a particular ticket is checked per ticket in `apply`.
+   * The department a change sets exists and takes tickets, and the members it assigns can be assigned at all:
+   * operators or admins, not disabled. Whether they may take a particular ticket is checked per ticket in `apply`.
    */
-  private async assertTargets(workspaceId: string, input: Pick<UpdateTicketInput, 'departmentId' | 'assigneeId'>): Promise<Targets> {
+  private async assertTargets(workspaceId: string, input: AssigneeChanges & Pick<UpdateTicketInput, 'departmentId'>): Promise<Targets> {
     if (input.departmentId) {
       await this.departments.assertAssignable(workspaceId, input.departmentId);
     }
-    if (!input.assigneeId) {
-      return { assignee: null };
-    }
-    const membership = await this.prisma.membership.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId: input.assigneeId } },
+    const workspace = await this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { settings: true } });
+    const ids = [...new Set([...(input.assigneeIds ?? []), ...(input.addAssigneeIds ?? [])])];
+    const memberships = await this.prisma.membership.findMany({
+      where: { workspaceId, userId: { in: ids } },
       include: { user: true, ...MEMBERSHIP_DEPARTMENTS },
     });
-    if (membership === null || membership.role === 'viewer') {
-      throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeMustBeOperator'), code: 'custom' }]);
+    const members = new Map<string, TargetMember>();
+    for (const membership of memberships) {
+      const scope = membership.user.isSuperadmin ? ALL_DEPARTMENTS : await membershipScope(this.prisma, workspaceId, membership);
+      members.set(membership.userId, { name: membership.user.name, role: membership.role, disabled: membership.user.disabledAt !== null, scope });
     }
-    if (membership.user.disabledAt !== null) {
-      throw errors.validation([{ path: 'assigneeId', message: t('api.assigneeDisabled'), code: 'custom' }]);
+    return { members, keepAccess: assignmentSettings(workspace.settings).assigneesKeepAccess };
+  }
+
+  /**
+   * The assignees after the change, or null when it does not touch them. A member who is added must be assignable and,
+   * unless the workspace keeps assignees' access, see the ticket's department after the change.
+   */
+  private assigneesAfter(
+    current: readonly string[],
+    input: AssigneeChanges,
+    department: string | null,
+    targets: Targets,
+  ): string[] | null {
+    if (input.assigneeIds === undefined && input.addAssigneeIds === undefined && input.removeAssigneeIds === undefined) {
+      return null;
     }
-    const scope = membership.user.isSuperadmin ? { all: true as const } : await membershipScope(this.prisma, workspaceId, membership);
-    return { assignee: { name: membership.user.name, scope } };
+    const after =
+      input.assigneeIds !== undefined
+        ? [...new Set(input.assigneeIds)]
+        : [...new Set([...current, ...(input.addAssigneeIds ?? [])])].filter((id) => !input.removeAssigneeIds?.includes(id));
+    const path = input.assigneeIds !== undefined ? 'assigneeIds' : input.addAssigneeIds !== undefined ? 'addAssigneeIds' : 'removeAssigneeIds';
+    for (const userId of after.filter((id) => !current.includes(id))) {
+      const member = targets.members.get(userId);
+      if (member === undefined || member.role === 'viewer') {
+        throw errors.validation([{ path, message: t('api.assigneeMustBeOperator'), code: 'custom' }]);
+      }
+      if (member.disabled) {
+        throw errors.validation([{ path, message: t('api.assigneeDisabled'), code: 'custom' }]);
+      }
+    }
+    // Everyone the change names, new or kept, must see the department after it, unless assignees keep their access.
+    const named = input.assigneeIds ?? input.addAssigneeIds ?? [];
+    for (const userId of targets.keepAccess ? [] : named) {
+      const member = targets.members.get(userId);
+      if (member !== undefined && !canSeeDepartment(member.scope, department)) {
+        throw errors.validation([{ path, message: t('api.assigneeNoDepartmentAccess', { name: member.name }), code: 'custom' }]);
+      }
+    }
+    if (!fitsAssigneeLimit(after)) {
+      throw errors.validation([{ path, message: t('api.tooManyAssignees', { max: MAX_TICKET_ASSIGNEES }), code: 'custom' }]);
+    }
+    return after;
   }
 
   private async apply(
     ticket: Ticket & { channel: Channel | null },
-    input: UpdateTicketInput,
+    input: UpdateTicketInput & AssigneeChanges,
     userId: string,
     definitions: FieldDefinitionDto[],
     targets: Targets,
   ): Promise<void> {
     const { workspaceId, id } = ticket;
-    // The assignee always sees the ticket: in its department after this change.
     const department = input.departmentId !== undefined ? input.departmentId : ticket.departmentId;
-    if (targets.assignee && !canSeeDepartment(targets.assignee.scope, department)) {
-      throw errors.validation([
-        { path: 'assigneeId', message: t('api.assigneeNoDepartmentAccess', { name: targets.assignee.name }), code: 'custom' },
-      ]);
-    }
     const actor: Actor = { type: 'user', id: userId };
     let fieldResult: ReturnType<typeof applyFieldValues> | null = null;
-    let assignedTo = null as string | null;
+    const changes: AssigneeChange[] = [];
     if (input.fields) {
       const state = fieldState(ticket);
       fieldResult = applyFieldValues({
@@ -364,6 +412,10 @@ export class TicketsService {
       let agentInputChanged = false;
       const event = (type: string, eventData: Record<string, unknown>) =>
         recordEvent(tx, { workspaceId, ticketId: id, type, actor, data: eventData });
+      // The assignees as they are now, under the ticket's lock: additions and removals apply to them, not to what the page saw.
+      await lockTicketForAssignees(tx, id);
+      const current = (await tx.ticketAssignee.findMany({ where: { ticketId: id }, select: { userId: true } })).map((a) => a.userId);
+      const assignees = this.assigneesAfter(current, input, department, targets);
 
       if (input.subject !== undefined && input.subject !== ticket.subject) {
         data.subject = input.subject;
@@ -390,17 +442,18 @@ export class TicketsService {
         data.departmentLocked = true;
         agentInputChanged = true;
         moved = { from: ticket.departmentId, to: input.departmentId };
-        // An assignee set by this change was checked above; the current one may lose the ticket.
-        const current = input.assigneeId !== undefined ? null : ticket.assigneeId;
-        const { unassign } = await recordDepartmentChange(tx, { ...ticket, assigneeId: current }, input.departmentId, actor);
-        if (unassign) {
-          data.assignee = { disconnect: true };
-        }
+        await recordDepartmentChange(tx, ticket, input.departmentId, actor);
       }
-      if (input.assigneeId !== undefined && input.assigneeId !== ticket.assigneeId) {
-        assignedTo = input.assigneeId;
-        data.assignee = input.assigneeId ? { connect: { id: input.assigneeId } } : { disconnect: true };
-        await event('assignee_changed', { from: ticket.assigneeId, to: input.assigneeId });
+      if (assignees !== null) {
+        const change: AssigneeChange = { ticketId: id, added: [], removed: [] };
+        change.removed = await removeAssignees(tx, ticket, current.filter((a) => !assignees.includes(a)), actor);
+        change.added = await addAssignees(tx, ticket, assignees.filter((a) => !current.includes(a)), 'manual', actor);
+        // A distributor's pick the operator names is now theirs: a move in the same change must not take it away.
+        const named = (input.assigneeIds ?? input.addAssigneeIds ?? []).filter((a) => current.includes(a));
+        if (named.length > 0) {
+          await tx.ticketAssignee.updateMany({ where: { ticketId: id, userId: { in: named }, source: 'auto' }, data: { source: 'manual' } });
+        }
+        changes.push(change);
       }
       if (input.tags !== undefined) {
         const tags = [...new Set(input.tags)];
@@ -426,14 +479,21 @@ export class TicketsService {
       if (Object.keys(data).length > 0) {
         await tx.ticket.update({ where: { id }, data });
       }
+      // After the department is written: assignees who lost the ticket go, and the new department may hand it out.
+      // A reopened ticket without an assignee of its department is handed out too.
+      if (moved !== null) {
+        changes.push(await settleAssignees(tx, id, actor, 'department_changed'));
+      } else if (reopens(ticket.status, input.status)) {
+        changes.push(await settleAssignees(tx, id, actor, 'reopened'));
+      }
     });
 
     await this.outbound.schedule(deliveries);
     if (moved !== null) {
       await this.realtime.publish(workspaceId, { type: 'ticket.moved', ticketId: id, ...moved });
     }
+    await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, changes, userId);
     await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: id });
-    if (assignedTo !== null && assignedTo !== userId) await this.notifications.assigned(workspaceId, id, userId);
   }
 
   async replyOptions(
@@ -470,9 +530,21 @@ export class TicketsService {
   }
 }
 
-/** The assignee a change sets, with the departments they may see. */
+/** The assignee fields of a change: `assigneeIds` replaces the list, the bulk change also adds and removes. */
+type AssigneeChanges = Pick<z.infer<typeof BulkTicketChangesSchema>, 'assigneeIds' | 'addAssigneeIds' | 'removeAssigneeIds'>;
+
+interface TargetMember {
+  name: string;
+  role: WorkspaceRole;
+  disabled: boolean;
+  /** The departments they see through their own access. */
+  scope: DepartmentScope;
+}
+
+/** The members a change may assign, and whether the workspace lets assignees see tickets outside their departments. */
 interface Targets {
-  assignee: { name: string; scope: DepartmentScope } | null;
+  members: Map<string, TargetMember>;
+  keepAccess: boolean;
 }
 
 const LIST_ORDER: Record<TicketListQuery['sort'], Prisma.TicketOrderByWithRelationInput[]> = {

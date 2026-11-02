@@ -30,7 +30,7 @@ export class AnalyticsService {
   /** Over tickets the caller may see: a member restricted to departments gets the numbers of those departments. */
   async report(access: TicketAccess, query: AnalyticsQuery): Promise<AnalyticsDto> {
     const { workspaceId } = access;
-    const scope = ticketScopeWhere(access.scope);
+    const scope = ticketScopeWhere(access);
     const zone = new ZonedDays(resolveTimeZone(query.tz));
     const to = new Date();
     const dayKeys = zone.lastDays(query.days, to);

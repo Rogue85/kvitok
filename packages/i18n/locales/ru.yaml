@@ -59,6 +59,9 @@ nav:
   users: Пользователи
   workspaces: Workspace
   more: Ещё
+  acceptingTickets: Принимаю тикеты
+  notAcceptingTickets: Не принимаю тикеты
+  acceptingTicketsHelp: Отделы, которые раздают тикеты по очереди, будут давать вам новые
 
 auth:
   subtitle: Вход для операторов
@@ -194,6 +197,11 @@ events:
   unassignedNoAccess: "Назначение {name} снято: нет доступа к отделу «{department}»"
   unassignedAccessRemoved: "Назначение {name} снято: доступ к отделу «{department}» отозван"
   unassignedTriageChanged: "Назначение {name} снято: после смены отдела сортировки нет доступа к тикетам без отдела"
+  assigneesAdded: "Исполнители: +{names}"
+  assigneesRemoved: "Исполнители: −{names}"
+  assignedInTurn: "{names} получает тикет по очереди ({department})"
+  assignedActive: "{names} становится исполнителем, начав работу с тикетом"
+  assignedByRule: "{names} становится исполнителем по правилу"
   tagsChanged: "Теги: {tags}"
   subjectChanged: "Тема: «{subject}»"
   fieldChanged: "{label}: {from} → {to}"
@@ -235,6 +243,7 @@ events:
     subject: новая тема
     identities: найдены контакты
     notIdentified: клиент не определён
+    assignees: "исполнители: {names}"
   group:
     count:
       one: "{count} событие"
@@ -243,6 +252,8 @@ events:
       other: "{count} события"
 
 validation:
+  assigneeIdRemoved: "Используйте assigneeIds: теперь у тикета список исполнителей"
+  assigneesReplaceOrChange: Замените исполнителей через assigneeIds или измените через addAssigneeIds и removeAssigneeIds, но не всё сразу
   currency: трёхбуквенный код валюты (ISO 4217), например RUB
   minLength: "Не короче {min} символов"
   slug: латиница, цифры и дефисы
@@ -341,8 +352,8 @@ tickets:
       few: "Выбрано {count}"
       many: "Выбрано {count}"
       other: "Выбрано {count}"
-    assignToMe: Назначить на меня
-    unassign: Снять исполнителя
+    assignToMe: Добавить меня в исполнители
+    unassign: Снять исполнителей
     addTags: Добавить теги
     removeTags: Убрать теги
     clear: Снять выделение
@@ -379,6 +390,15 @@ ticket:
   notFound: Тикет не найден или у вас нет к нему доступа
   movedAway: "Тикет перемещён в отдел «{department}». У вас больше нет к нему доступа."
   departmentNoAccess: нет доступа
+  accessLost: Вы больше не исполнитель этого тикета, и доступа к нему у вас нет.
+  assignees:
+    otherDepartments: Другие отделы
+    noDepartments: нет отделов
+    getsAccess: получит доступ к этому тикету
+    noAccess: нет доступа к отделу
+    guest: гость
+    guestHint: Видит тикет только как исполнитель, а не через свои отделы
+    inTurn: по очереди
   moveOut:
     title: Переместить в отдел, к которому у вас нет доступа?
     body: "После перемещения в отдел «{department}» вы перестанете видеть этот тикет."
@@ -406,7 +426,7 @@ ticket:
     priority: Приоритет
     department: Отдел
     pinned: закреплён
-    assignee: Исполнитель
+    assignees: Исполнители
     tags: Теги
     fields: Поля
     saveFields: Сохранить поля
@@ -597,12 +617,18 @@ agentMessage:
   draftReady: Черновик ответа готов
 
 generalSettings:
-  intro: Название пространства и валюта, в которой считаются расходы на агента.
+  intro: Название пространства, валюта, в которой считаются расходы на агента, и то, как у тикетов появляются исполнители.
   currency: Валюта
   currencyHelp: В ней вводятся цены моделей в настройках агента и показываются стоимость прогонов, тикетов и аналитика.
   currencyChanged: Уже записанные расходы не пересчитываются. Введите цены моделей в новой валюте в настройках агента.
   saved: Настройки сохранены
   saveFailed: Не удалось сохранить настройки
+  assignment: Исполнители
+  assignActiveOperator: Назначать оператора, который работает с тикетом
+  assignActiveOperatorHelp: Оператор, который отвечает клиенту, пишет агенту или принимает решение по действию, становится одним из исполнителей тикета.
+  assigneesKeepAccess: Исполнители сохраняют тикеты в других отделах
+  assigneesKeepAccessHelp: Исполнитель не теряет тикет, переданный в отдел, к которому у него нет доступа, а операторы могут позвать в тикет коллег из других отделов и работать над ним вместе.
+  assigneesKeepAccessOff: Исполнители открытых тикетов вне своих отделов будут сняты, а эти тикеты заново распределятся в своих отделах.
 
 members:
   role:
@@ -620,6 +646,7 @@ members:
   chooseUser: Выберите пользователя
   noCandidates: У всех пользователей установки уже есть доступ. Пригласите нового человека.
   inviteHint: Вы получите ссылку, которую нужно передать человеку. По ней он задаст пароль и получит доступ к этому workspace.
+  accepting: Принимает тикеты
   departments: Отделы
   allDepartments: Все отделы
   selectedDepartments: Выбранные отделы
@@ -640,6 +667,11 @@ members:
     few: "Назначение будет снято с {count} открытых тикетов: они в отделах, к которым у {name} не будет доступа."
     many: "Назначение будет снято с {count} открытых тикетов: они в отделах, к которым у {name} не будет доступа."
     other: "Назначение будет снято с {count} открытого тикета: они в отделах, к которым у {name} не будет доступа."
+  keepAssignedInfo:
+    one: "{name}: {count} тикет в отделе, к которому больше не будет доступа. Он останется за этим исполнителем и будет ему виден."
+    few: "{name}: {count} тикета, открытые и закрытые, в отделах, к которым больше не будет доступа. Они останутся за этим исполнителем и будут ему видны."
+    many: "{name}: {count} тикетов, открытые и закрытые, в отделах, к которым больше не будет доступа. Они останутся за этим исполнителем и будут ему видны."
+    other: "{name}: {count} тикета, открытые и закрытые, в отделах, к которым больше не будет доступа. Они останутся за этим исполнителем и будут ему видны."
 
 tokens:
   intro: Персональный токен доступа позволяет внешнему агенту, например Claude Code через MCP, работать с Kvitok от вашего имени. У токена ваши права, сужённые до его скоупов и workspace.
@@ -729,6 +761,18 @@ departments:
   instructionsHelp: Добавятся к промпту, когда тикет в этом отделе
   isTriage: Отдел разбора (общая очередь)
   inArchive: В архиве
+  assignment: Распределение
+  assignmentMode:
+    manual: Вручную
+    round_robin: По очереди
+  assignmentModeHelp:
+    manual: Операторы назначают тикеты сами.
+    round_robin: Тикет, попавший в отдел, получает следующий участник отдела, который принимает тикеты, если среди исполнителей ещё нет никого из этого отдела.
+  acceptingCount:
+    one: "{count} принимает тикеты"
+    few: "{count} принимают тикеты"
+    many: "{count} принимают тикеты"
+    other: "{count} принимают тикеты"
 
 playbooks:
   playbook: Сценарий
@@ -1259,6 +1303,7 @@ api:
   assigneeMustBeOperator: Исполнитель должен быть оператором workspace
   assigneeDisabled: Пользователь отключён, его нельзя назначить
   assigneeNoDepartmentAccess: "У {name} нет доступа к отделу тикета"
+  tooManyAssignees: "У тикета не больше {max} исполнителей"
   adminSeesAllDepartments: Администраторы всегда имеют доступ ко всем отделам
   unknownDepartments: Неизвестный отдел
   fillField: "Заполните «{label}»"
@@ -1302,7 +1347,8 @@ api:
     assigneeNotOperator: исполнитель не оператор workspace
     assigneeDisabled: исполнитель отключён
     assigneeNoDepartmentAccess: у исполнителя нет доступа к отделу тикета
-    assigneeAlreadySet: исполнитель уже назначен
+    alreadyAssignee: уже среди исполнителей
+    assignedBefore: это правило уже назначало этого исполнителя
     valueNotFound: значение не найдено
     fieldPinned: поле закреплено оператором
   ticketHasNoCustomer: У тикета нет клиента — сначала укажите контакт клиента

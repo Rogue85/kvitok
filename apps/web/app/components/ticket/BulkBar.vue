@@ -4,6 +4,7 @@ import {
   TICKET_STATUSES,
   type BulkUpdateTicketsInput,
   type BulkUpdateTicketsResultDto,
+  type MemberDto,
 } from '@kvitok/shared';
 import type { DropdownMenuItem } from '@nuxt/ui';
 
@@ -77,16 +78,21 @@ const priorityItems = computed<DropdownMenuItem[]>(() =>
 );
 
 const assigneeOpen = ref(false);
+/** A member joins the assignees of every ticket; "remove assignees" empties the lists. */
 const assigneeItems = computed(() => [
   ...(me.value ? [{ label: t('tickets.bulk.assignToMe'), id: me.value.user.id, icon: 'i-lucide-user-check' }] : []),
   { label: t('tickets.bulk.unassign'), id: null, icon: 'i-lucide-user-x' },
   ...members.data.value
     .filter((m) => m.role !== 'viewer' && m.status !== 'disabled')
-    .map((m) => ({ label: m.name, suffix: m.email, id: m.userId })),
+    .map((m) => ({ label: m.name, suffix: memberDepartments(m), id: m.userId })),
 ].map(({ id, ...item }) => ({ ...item, onSelect: () => assign(id) })));
+function memberDepartments(member: MemberDto): string {
+  if (member.role === 'admin' || member.departments.allDepartments) return t('members.allDepartments');
+  return member.departments.departmentIds.map((id) => departments.data.value.find((d) => d.id === id)?.title).filter(Boolean).join(', ');
+}
 function assign(assigneeId: string | null): void {
   assigneeOpen.value = false;
-  request({ assigneeId });
+  request(assigneeId === null ? { assigneeIds: [] } : { addAssigneeIds: [assigneeId] });
 }
 
 const departmentOpen = ref(false);

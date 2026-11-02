@@ -63,17 +63,45 @@ export type TicketListQuery = z.infer<typeof TicketListQuerySchema>;
 /** The most tickets one bulk update changes. */
 export const BULK_TICKETS_LIMIT = 500;
 
+/** The most assignees one ticket has. */
+export const MAX_TICKET_ASSIGNEES = 20;
+
+/** How an assignee got the ticket: by hand, by a routing rule, from the distributor, by working on it. */
+export const ASSIGNEE_SOURCES = ['manual', 'rule', 'auto', 'action'] as const;
+export type AssigneeSource = (typeof ASSIGNEE_SOURCES)[number];
+
+const AssigneeIdsSchema = z.array(z.string().min(1)).max(MAX_TICKET_ASSIGNEES);
+
+/**
+ * How a change sets the assignees: `assigneeIds` replaces the list (an empty one removes everyone); `addAssigneeIds` and
+ * `removeAssigneeIds` change it relative to what it is when the change applies, so concurrent changes do not undo each other.
+ * The single `assigneeId` of earlier versions is refused with a hint instead of being ignored.
+ */
+const AssigneeChangeFields = {
+  assigneeIds: AssigneeIdsSchema,
+  addAssigneeIds: AssigneeIdsSchema.min(1),
+  removeAssigneeIds: AssigneeIdsSchema.min(1),
+  assigneeId: z.never({ error: () => t('validation.assigneeIdRemoved') }),
+};
+
+/** A list to replace with, or additions and removals, not both. */
+function oneWayToChangeAssignees(change: { assigneeIds?: unknown; addAssigneeIds?: unknown; removeAssigneeIds?: unknown }): boolean {
+  return change.assigneeIds === undefined || (change.addAssigneeIds === undefined && change.removeAssigneeIds === undefined);
+}
+const ASSIGNEES_REFINE = { error: () => t('validation.assigneesReplaceOrChange'), path: ['assigneeIds'] };
+
 export const BulkTicketChangesSchema = z
   .object({
     status: TicketStatusSchema,
     priority: TicketPrioritySchema,
     departmentId: z.string().nullable(),
-    assigneeId: z.string().nullable(),
+    ...AssigneeChangeFields,
     addTags: z.array(TagSchema).min(1).max(50),
     removeTags: z.array(TagSchema).min(1).max(50),
   })
   .partial()
-  .refine((c) => Object.keys(c).length > 0, { error: () => t('validation.nothingToChange') });
+  .refine((c) => Object.keys(c).length > 0, { error: () => t('validation.nothingToChange') })
+  .refine(oneWayToChangeAssignees, ASSIGNEES_REFINE);
 
 export const BulkUpdateTicketsSchema = z
   .object({
@@ -99,12 +127,13 @@ export const UpdateTicketSchema = z
     status: TicketStatusSchema,
     priority: TicketPrioritySchema,
     departmentId: z.string().nullable(),
-    assigneeId: z.string().nullable(),
+    ...AssigneeChangeFields,
     tags: z.array(TagSchema).max(50),
     /** null clears the value. */
     fields: z.record(z.string(), z.unknown()),
   })
-  .partial();
+  .partial()
+  .refine(oneWayToChangeAssignees, ASSIGNEES_REFINE);
 export type UpdateTicketInput = z.infer<typeof UpdateTicketSchema>;
 
 /** An operator's message to the agent (visible to the team only). Always wakes the agent. */
@@ -134,6 +163,13 @@ export interface UserRefDto {
   email: string;
 }
 
+export interface TicketAssigneeDto extends UserRefDto {
+  source: AssigneeSource;
+  addedAt: string;
+  /** The last active work on the ticket: a reply, a message to the agent, a decision on an action. */
+  actedAt: string | null;
+}
+
 export interface CustomerIdentityDto {
   type: string;
   value: string;
@@ -154,7 +190,8 @@ export interface TicketListItemDto {
   status: TicketStatus;
   priority: TicketPriority;
   departmentId: string | null;
-  assignee: UserRefDto | null;
+  /** In the order they were added. */
+  assignees: TicketAssigneeDto[];
   customer: { id: string; name: string | null; primaryIdentity: CustomerIdentityDto | null } | null;
   channel: { id: string; type: 'api' | 'email'; name: string } | null;
   tags: string[];

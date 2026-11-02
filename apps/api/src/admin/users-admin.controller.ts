@@ -66,7 +66,7 @@ export class UsersAdminController {
   }
 
   @Delete(':userId/memberships/:workspaceId')
-  removeMembership(@Param('userId') userId: string, @Param('workspaceId') workspaceId: string): Promise<AdminUserDto> {
-    return this.users.removeMembership(userId, workspaceId);
+  removeMembership(@CurrentAuth() auth: AuthContext, @Param('userId') userId: string, @Param('workspaceId') workspaceId: string): Promise<AdminUserDto> {
+    return this.users.removeMembership(userId, workspaceId, auth.user.id);
   }
 }

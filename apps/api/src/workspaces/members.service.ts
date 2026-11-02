@@ -4,7 +4,6 @@ import {
   canSeeDepartment,
   type AddMemberInput,
   type AddMemberResult,
-  type DepartmentScope,
   type MemberCandidateDto,
   type MemberDepartmentsInput,
   type MemberDto,
@@ -19,7 +18,9 @@ import { MEMBERSHIP_DEPARTMENTS, membershipScope } from '../departments/departme
 import type { Membership, Prisma, User } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
-import { recordEvent } from '../tickets/ticket-events';
+import { NotificationsService } from '../notifications/notifications.service';
+import { OPEN_TICKET_STATUSES, publishAssigneeChanges, removeAssignees, settleEach } from '../tickets/assignment';
+import { SYSTEM_ACTOR, type Actor } from '../tickets/ticket-events';
 import { PasswordLinksService } from '../users/password-links.service';
 import { UsersService, userStatus } from '../users/users.service';
 
@@ -31,6 +32,7 @@ export class MembersService {
     private readonly passwordLinks: PasswordLinksService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(workspaceId: string): Promise<MemberDto[]> {
@@ -120,11 +122,13 @@ export class MembersService {
   }
 
   /**
-   * Changes the role and the departments. An admin always has every department. Open tickets assigned to the member in
-   * departments they can no longer see are unassigned: a ticket's assignee always sees it.
+   * Changes the role and the departments. An admin always has every department. The member's open tickets that the change
+   * affects are settled afterwards, as after a department change: tickets in departments they lose (unless the workspace
+   * keeps assignees' access they leave them), and every one when they become a viewer, who no longer counts as the
+   * department's assignee. A ticket left without an assignee of its department may be handed out again.
    */
   async update(workspaceId: string, userId: string, input: UpdateMemberInput, actorUserId: string | null): Promise<MemberDto> {
-    const { dto, unassigned } = await this.prisma.$transaction(async (tx) => {
+    const { dto, affected } = await this.prisma.$transaction(async (tx) => {
       const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } }, include: MEMBER_INCLUDE });
       if (membership === null) {
         throw errors.notFound(t('api.memberNotFound'));
@@ -146,21 +150,52 @@ export class MembersService {
         await tx.membershipDepartment.createMany({ data: access.departmentIds.map((departmentId) => ({ workspaceId, userId, departmentId })) });
       }
       const updated = await tx.membership.findUniqueOrThrow({ where: { workspaceId_userId: { workspaceId, userId } }, include: MEMBER_INCLUDE });
-      const scope = updated.user.isSuperadmin ? null : await membershipScope(tx, workspaceId, updated);
-      const unassigned = scope === null ? [] : await this.unassignOutOfScope(tx, workspaceId, userId, scope, actorUserId);
+      const affected = updated.user.isSuperadmin ? [] : await this.affectedTickets(tx, workspaceId, userId, membership, updated);
       const dto = toMemberDto(updated);
       await this.audit.record({ workspaceId, entity: 'member', entityId: userId, action: 'update', before: toMemberDto(membership), after: dto }, tx);
-      return { dto, unassigned };
+      return { dto, affected };
     });
-    for (const ticketId of unassigned) {
-      await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
+    const changes = await settleEach(this.prisma, affected, actorUserId ? { type: 'user', id: actorUserId } : SYSTEM_ACTOR, 'access_removed');
+    await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, changes, actorUserId);
+    for (const change of changes) {
+      await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId: change.ticketId });
     }
     await this.realtime.publish(workspaceId, { type: 'access.changed', userId });
     return dto;
   }
 
-  async remove(workspaceId: string, userId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+  /** The member's switch for tickets handed out in turn. Turning it off keeps their tickets. */
+  async setAccepting(workspaceId: string, userId: string, accepting: boolean): Promise<MemberDto> {
+    const dto = await this.prisma.$transaction(async (tx) => {
+      const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } }, include: MEMBER_INCLUDE });
+      if (membership === null) {
+        throw errors.notFound(t('api.memberNotFound'));
+      }
+      if (membership.acceptingTickets === accepting) {
+        return toMemberDto(membership);
+      }
+      const updated = await tx.membership.update({
+        where: { workspaceId_userId: { workspaceId, userId } },
+        data: { acceptingTickets: accepting },
+        include: MEMBER_INCLUDE,
+      });
+      const after = toMemberDto(updated);
+      await this.audit.record({ workspaceId, entity: 'member', entityId: userId, action: 'update', before: toMemberDto(membership), after }, tx);
+      return after;
+    });
+    // Their header and members lists show the switch.
+    await this.realtime.publish(workspaceId, { type: 'access.changed', userId });
+    return dto;
+  }
+
+  /**
+   * Removes the member and clears their assignments in the workspace, closed tickets too: inviting them again must not
+   * bring back tickets nobody gave them. The timeline keeps who worked on what. Their open tickets are then settled, so
+   * a department may hand them out again.
+   */
+  async remove(workspaceId: string, userId: string, actorUserId: string | null = null): Promise<void> {
+    const actor: Actor = actorUserId ? { type: 'user', id: actorUserId } : SYSTEM_ACTOR;
+    const open = await this.prisma.$transaction(async (tx) => {
       const membership = await tx.membership.findUnique({ where: { workspaceId_userId: { workspaceId, userId } }, include: MEMBER_INCLUDE });
       if (membership === null) {
         throw errors.notFound(t('api.memberNotFound'));
@@ -168,9 +203,27 @@ export class MembersService {
       if (membership.role === 'admin') {
         await this.assertAnotherAdmin(tx, membership);
       }
+      const assigned = await tx.ticket.findMany({
+        where: { workspaceId, assignees: { some: { userId } } },
+        select: { id: true, workspaceId: true, departmentId: true, status: true },
+      });
+      const open: string[] = [];
+      for (const ticket of assigned) {
+        if ((OPEN_TICKET_STATUSES as readonly string[]).includes(ticket.status)) {
+          await removeAssignees(tx, ticket, [userId], actor, { reason: 'access_removed', departmentId: ticket.departmentId });
+          open.push(ticket.id);
+        }
+      }
+      await tx.ticketAssignee.deleteMany({ where: { workspaceId, userId } });
       await tx.membership.delete({ where: { workspaceId_userId: { workspaceId, userId } } });
       await this.audit.record({ workspaceId, entity: 'member', entityId: userId, action: 'delete', before: toMemberDto(membership) }, tx);
+      return open;
     });
+    const changes = await settleEach(this.prisma, open, actor, 'access_removed');
+    await publishAssigneeChanges(this.realtime, this.notifications, workspaceId, changes, actorUserId);
+    for (const ticketId of open) {
+      await this.realtime.publish(workspaceId, { type: 'ticket.updated', ticketId });
+    }
     await this.realtime.publish(workspaceId, { type: 'access.changed', userId });
   }
 
@@ -195,33 +248,26 @@ export class MembersService {
     return { allDepartments: false, departmentIds };
   }
 
-  /** Unassigns the member's open tickets they can no longer see; returns their ids. */
-  private async unassignOutOfScope(
+  /**
+   * The member's open tickets a change of their membership affects: those in departments they no longer see, and all of
+   * them when they become a viewer. Tickets where they already were a guest are not touched: nothing changed for them.
+   */
+  private async affectedTickets(
     tx: Prisma.TransactionClient,
     workspaceId: string,
     userId: string,
-    scope: DepartmentScope,
-    actorUserId: string | null,
+    before: Membership & { departments: Array<{ departmentId: string }> },
+    after: Membership & { departments: Array<{ departmentId: string }> },
   ): Promise<string[]> {
-    if (scope.all) {
-      return [];
-    }
-    const assigned = await tx.ticket.findMany({
-      where: { workspaceId, assigneeId: userId, status: { notIn: ['resolved', 'closed'] } },
+    const tickets = await tx.ticket.findMany({
+      where: { workspaceId, assignees: { some: { userId } }, status: { in: [...OPEN_TICKET_STATUSES] } },
       select: { id: true, departmentId: true },
     });
-    const lost = assigned.filter((ticket) => !canSeeDepartment(scope, ticket.departmentId));
-    for (const ticket of lost) {
-      await tx.ticket.update({ where: { id: ticket.id }, data: { assigneeId: null } });
-      await recordEvent(tx, {
-        workspaceId,
-        ticketId: ticket.id,
-        type: 'assignee_changed',
-        actor: actorUserId ? { type: 'user', id: actorUserId } : { type: 'system' },
-        data: { from: userId, to: null, reason: 'access_removed', departmentId: ticket.departmentId },
-      });
+    if (after.role === 'viewer' && before.role !== 'viewer') {
+      return tickets.map((ticket) => ticket.id);
     }
-    return lost.map((ticket) => ticket.id);
+    const [was, is] = await Promise.all([membershipScope(tx, workspaceId, before), membershipScope(tx, workspaceId, after)]);
+    return tickets.filter((ticket) => canSeeDepartment(was, ticket.departmentId) && !canSeeDepartment(is, ticket.departmentId)).map((ticket) => ticket.id);
   }
 
   /** An active admin may lose the role only while another active admin remains. A disabled one does not count. */
@@ -251,6 +297,7 @@ export function toMemberDto(membership: Membership & { user: User; departments: 
     role: membership.role,
     departments: { allDepartments: membership.allDepartments, departmentIds: membership.departments.map((d) => d.departmentId) },
     status: userStatus(membership.user),
+    acceptingTickets: membership.acceptingTickets,
     createdAt: membership.createdAt.toISOString(),
   };
 }
