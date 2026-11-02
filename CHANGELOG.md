@@ -4,6 +4,8 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-02
+
 ### Added
 
 - Tickets can have several assignees. Pick them in the ticket's properties: members of the ticket's department come first, the rest are listed with their departments and whether they accept tickets. Bulk actions add an assignee to every selected ticket or remove all of them. The queue's assignee filter finds tickets where any of the chosen people is an assignee.

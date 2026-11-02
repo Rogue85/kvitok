@@ -1,6 +1,6 @@
 {
   "name": "@kvitok/i18n",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Translation catalogs shared by the API and the web UI",
