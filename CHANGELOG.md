@@ -4,6 +4,8 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-04
+
 ### Fixed
 
 - An agent's proposal of an action that operators cannot start by hand (one whose `audience` is only `agent`) no longer shows "Edit": the button opened a form that said the action was unavailable. The proposal can still be approved or rejected.
