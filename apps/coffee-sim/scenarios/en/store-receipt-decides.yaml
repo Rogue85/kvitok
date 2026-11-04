@@ -1,0 +1,24 @@
+id: store-receipt-decides
+title: A complaint about the coffee shop "on Arbat" — the receipt decides which
+tags: [stores, no-action, places]
+guests:
+  - { id: oleg, name: Oleg, phone: '79000000044', cashback_percent: 5, balance: 120 }
+transactions:
+  - id: oleg-t1
+    guest: oleg
+    at: 2026-10-15 09:20
+    place: novy_arbat
+    total: 290
+    items:
+      - { name: Cappuccino L, group: Coffee, price: 290 }
+ticket:
+  customer: oleg
+  subject: A complaint about a coffee shop
+  body: This morning on Arbat I got a cappuccino — cold and almost without foam, and the barista did not even apologize.
+  sent_at: 2026-10-15 10:05
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: novy_arbat }
+  note: '"On Arbat" fits both "24 Arbat St" and "15 Novy Arbat Ave"; the guest''s morning receipt is from Novy Arbat.'

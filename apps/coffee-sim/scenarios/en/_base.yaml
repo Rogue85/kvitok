@@ -5,10 +5,13 @@ timezone: '+03:00'
 now: 2026-10-15 12:00
 
 places:
-  - { id: okeania, name: Okeania Mall, city: Moscow }
-  - { id: kristall, name: Kristall Mall, city: Moscow }
-  - { id: tiara, name: Tiara Mall, city: Kazan }
-  - { id: arbat, name: '24 Arbat St', city: Moscow }
+  - { id: okeania, name: Okeania Mall, city: Moscow, description: 'Kutuzovsky Ave; Slavyansky Bulvar metro' }
+  - { id: kristall, name: Kristall Mall, city: Moscow, description: 'Kashirskoye Hwy; Kashirskaya metro' }
+  - { id: tiara, name: Tiara Mall, city: Kazan, description: 'Pushkin St' }
+  - { id: arbat, name: '24 Arbat St', city: Moscow, description: 'Old Arbat, the pedestrian street; Smolenskaya metro' }
+  - { id: novy_arbat, name: '15 Novy Arbat Ave', city: Moscow, description: 'Novy Arbat avenue; Arbatskaya metro' }
+  - { id: kazan_park, name: Park House Mall, city: Kazan, description: 'Khusain Yamashev Ave' }
+  - { id: leninsky, name: '30 Leninsky Ave', city: Moscow, description: 'Leninsky Prospekt metro; closed in September 2026', active: false }
 guest_city: Moscow
 
 coupon_types:

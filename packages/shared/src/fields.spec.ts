@@ -35,6 +35,12 @@ describe('fieldValueSchema', () => {
       { value: 'printer', label: 'Printer' },
     ];
     expect(fieldValueSchema(def({ type: 'select', options })).safeParse('phone').success).toBe(false);
+    // An archived option cannot be chosen anew, but the stored value keeps it.
+    const retired = [...options, { value: 'fax', label: 'Fax', archived: true }];
+    expect(fieldValueSchema(def({ type: 'select', options: retired })).safeParse('fax').success).toBe(false);
+    expect(fieldValueSchema(def({ type: 'select', options: retired }), 'fax').safeParse('fax').success).toBe(true);
+    expect(fieldValueSchema(def({ type: 'multiselect', options: retired }), ['fax']).parse(['fax', 'laptop'])).toEqual(['fax', 'laptop']);
+    expect(fieldValueSchema(def({ type: 'multiselect', options: retired }), ['laptop']).safeParse(['fax']).success).toBe(false);
     expect(fieldValueSchema(def({ type: 'multiselect', options })).parse(['laptop', 'laptop', 'printer'])).toEqual([
       'laptop',
       'printer',
@@ -65,6 +71,19 @@ describe('CreateFieldDefinitionSchema', () => {
       ],
     });
     expect(duplicate.success).toBe(false);
+  });
+
+  it('a select bound to an option set needs no options; only lists can be bound', () => {
+    expect(CreateFieldDefinitionSchema.safeParse({ entity: 'ticket', key: 'shop', label: 'Shop', type: 'select', optionSetId: 'set1' }).success).toBe(true);
+    expect(CreateFieldDefinitionSchema.safeParse({ entity: 'ticket', key: 'shop', label: 'Shop', type: 'text', optionSetId: 'set1' }).success).toBe(false);
+  });
+
+  it('takes a whole directory as its own options: up to 1,000 that can be chosen, archived ones on top', () => {
+    const options = (count: number, archived = false) =>
+      Array.from({ length: count }, (_, i) => ({ value: `${archived ? 'a' : 'v'}${i}`, label: `Shop ${i}`, ...(archived ? { archived: true } : {}) }));
+    const field = (list: unknown[]) => CreateFieldDefinitionSchema.safeParse({ entity: 'ticket', key: 'shop', label: 'Shop', type: 'select', options: list });
+    expect(field([...options(1000), ...options(300, true)]).success).toBe(true);
+    expect(field(options(1001)).success).toBe(false);
   });
 
   it('checks the key format and the regular expression', () => {

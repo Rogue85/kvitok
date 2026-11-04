@@ -1,0 +1,16 @@
+id: store-not-in-list
+title: Жалоба на кофейню, которой нет в сети
+tags: [stores, no-action, places]
+guests:
+  - { id: timur, name: Тимур, phone: '79000000046', cashback_percent: 5, balance: 60 }
+ticket:
+  customer: timur
+  subject: Жалоба на кофейню
+  body: Сегодня в вашей кофейне на Курском вокзале ждал латте 20 минут, и никто даже не извинился.
+  sent_at: 2026-10-15 09:50
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: null }
+  note: На Курском вокзале кофейни нет — поле остаётся пустым, ближайшую агент не подбирает.

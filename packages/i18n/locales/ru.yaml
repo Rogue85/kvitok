@@ -228,6 +228,8 @@ events:
   actionRejected: "Отклонено: {action}"
   actionRetried: "Повтор исполнения: {action}"
   actionExecuted: "Исполнено: {action}"
+  actionProposedByOperator: "Предложено вручную: {action}"
+  actionReplacedOthers: "· вместо него отклонены: {actions}"
   actionFailed: "Не исполнено: {action} — {error}"
   agentFailed: "Агент не смог разобрать тикет: {error}"
   identitiesFound: "Найдено в сообщении: {identities}"
@@ -268,11 +270,13 @@ validation:
   betweenRange: "Для between нужен [от, до]"
   optionsRequired: Для списка нужны варианты
   optionsUnique: Значения вариантов должны быть уникальны
+  tooManyOptions: "В списке не больше {max} вариантов, которые можно выбрать — ненужные отправьте в архив"
   number: Ожидается число
   integer: Ожидается целое число
   min: "Не меньше {min}"
   max: "Не больше {max}"
   unknownOption: Нет такого варианта
+  optionSetSelectOnly: Варианты из интеграции бывают только у списка
   phone: Некорректный телефон
   extractSource: "subject, body или header:<имя>"
   extractEmailRequired: Чтобы взять клиента из текста, извлеките email
@@ -406,6 +410,7 @@ ticket:
   answerToAgent: ответ на вопрос агента
   operator: Оператор
   toAgent: "{author} → агенту · {time}"
+  manualAction: "{author} · действие вручную · {time}"
   cost:
     title: Стоимость агента
     runs:
@@ -534,6 +539,7 @@ action:
     failed: ошибка
     rejected: отклонено
     superseded: заменено
+    awaitingExecution: ждёт исполнения
   rejected: Действие отклонено
   sentForExecution: Действие отправлено на исполнение
   parameters: "Параметры · {integration}"
@@ -549,8 +555,31 @@ action:
   confirmCustomerFirst: "Сначала подтвердите клиента: он найден по данным из сообщений"
   reject: Отклонить
   retry: Повторить
+  execute: Выполнить
+  edit: Изменить
+  cancel: Отменить
+  cancelled: Действие отменено
+  cancelledBy: "Отменил {name}"
+  proposedBy: "Предложил вручную {name}"
+  executedBy: "выполнил {name}"
+  edited: Изменено — новая версия ниже
+  replacedBy: "Заменено действием оператора: {action}"
+  operatorAction: действие оператора
+  willRefreshDraft: После исполнения агент обновит ответ
+  confirm:
+    title: "Выполнить «{action}»?"
+    willReject: "Будут отклонены ожидающие действия:"
+    askAgain: Если какое-то из них ещё нужно, попросите агента предложить его снова.
+    alreadyExecuted: "В тикете уже исполнено: {actions}"
 
 agentChat:
+  actions:
+    button: Действие
+    none: Нет интеграций с действиями для операторов
+    operatorOnly: только для операторов
+    blocked:
+      no_customer: клиент не найден
+      not_confirmed: сначала подтвердите клиента
   placeholder:
     disabled: Агент выключен — сообщение увидят только операторы
     answer: Ответ на вопрос агента…
@@ -560,6 +589,26 @@ agentChat:
   dontAnswer: Не отвечать на вопрос
   teamOnly: Видно только команде
   replyToCustomer: Ответить клиенту
+
+actionForm:
+  title: Новое действие
+  unavailable: Это действие больше недоступно для клиента тикета
+  parameters: Параметры
+  jsonHint: Параметры этого действия не укладываются в форму — введите их как JSON
+  invalidJson: Введите JSON-объект
+  fillExample: Заполнить примером
+  notSet: Не задано
+  canBeEmpty: можно оставить пустым
+  required: Обязательное поле
+  notInteger: Введите целое число
+  notNumber: Введите число
+  reason: Почему
+  reasonHint: Увидят коллеги и агент
+  reasonPlaceholder: Гость прислал фото чека
+  reasonRequired: Напишите причину — её увидят коллеги и агент
+  refreshDraft: После исполнения обновить ответ
+  propose: Предложить
+  proposed: Действие в тикете — проверьте и нажмите «Выполнить»
 
 agentRuns:
   mode:
@@ -580,6 +629,7 @@ agentRuns:
     manual: вручную
     stale_rerun: повтор после изменений
     customer_linked: привязан клиент
+    action_executed: действие вручную
   dryRun: пробный
   model: "Модель: {model}"
   configVersion: "Версия конфигурации: {version}"
@@ -598,6 +648,9 @@ agentMessage:
     low_confidence: низкая уверенность
     locked: поле закреплено оператором
     filled_by_other_source: уже заполнено из другого источника
+    ambiguous: подходят несколько вариантов
+  severalFit: подходят несколько вариантов, выберите
+  chooseCandidate: Заполнить поле этим вариантом
   analyzed: Агент разобрал тикет
   updated: Агент обновил разбор
   newDraft: новый черновик ответа
@@ -729,6 +782,7 @@ audit:
     identification_settings: Настройки определения клиента
     channel: Канал
     integration: Интеграция
+    option_set: Справочник интеграции
     user: Пользователь
     ticket_view: Общая предустановка очереди
   action:
@@ -846,6 +900,28 @@ fieldsSettings:
   whereToShow: Где показывать
   departmentsHelp: Пусто — во всех
   requiredOnResolve: Обязательно для решения тикета
+  archivedOption: "{label} (в архиве)"
+  optionsManual: Вручную
+  optionsFromSet: Из интеграции
+  optionSetPlaceholder: Выберите справочник
+  optionSetHelp: Варианты следуют за интеграцией. Новые появляются сами, закрытые уходят в архив и остаются в старых тикетах.
+  noOptionSets: Подключённые интеграции не публикуют справочников (option_sets в манифесте).
+  optionSetRemoved: больше нет в манифесте, последние варианты сохранены
+  optionSetSize: "вариантов: {count}"
+  optionSetRequired: Выберите справочник или переключите варианты на «Вручную»
+  archiveOption: Убрать вариант в архив. В старых тикетах он останется, выбрать его будет нельзя
+  restoreOption: Вернуть вариант из архива
+  agentOptions:
+    title: Как агент видит варианты
+    auto:
+      label: Автоматически
+      description: "Списком в промпте до {count} вариантов, поиском — если больше"
+    list:
+      label: Списком в промпте
+      description: Агент видит все варианты; промпт длиннее
+    search:
+      label: Поиском
+      description: Агент находит варианты инструментом поиска
 
 integrations:
   status:
@@ -863,6 +939,9 @@ integrations:
     updatedTitle: Manifest обновлён
     noPlaybookChanges: Плейбуки без изменений
     error: Не удалось синхронизировать
+    optionSetsTitle: Справочники обновлены
+    optionSetUpdated: "{name}: новых {added}, изменено {changed}, в архив {archived}, вернулось {restored}"
+    optionSetFailed: "{name}: {error}"
   departmentsCreated: "Создано отделов: {count}"
   importFailed: Не удалось импортировать
   saved: Сохранено
@@ -874,6 +953,13 @@ integrations:
     actions: "Действия: {count}"
     instructions: Знания для агента
     departments: "Предложенные отделы: {count}"
+    optionSets: "Справочники для полей: {count}"
+  optionSetsHint: Справочники, которые бэкенд публикует для полей-списков. Синхронизируются вместе с манифестом; привязать поле можно в настройках полей.
+  optionSetSize: "активных {active} из {total}"
+  optionSetRemoved: Больше нет в манифесте
+  optionSetFields: "Поля: {fields}"
+  optionSetUnused: Пока ни одно поле его не использует.
+  bindInFields: Привязать поле
   connect: Подключить бэкенд
   connectShort: Подключить
   intro: "Бэкенд проекта по Support Action Protocol: отдаёт агенту данные клиента (чеки, заказы, купоны) и выполняет действия после подтверждения оператором. Из его manifest приходят знания для агента и плейбуки; отделы можно импортировать. Manifest сверяется автоматически раз в несколько минут."
@@ -1290,6 +1376,13 @@ analytics:
       rewritten: Переписан
       withoutAgentDraft: Без черновика агента
     actions: Предложенные действия
+    executedActions: Исполненные действия
+    executedActionsHint: Предложения агента и действия, которые операторы сделали вручную. «Пропустил» — агент мог предложить и не предложил.
+    executed:
+      byAgent: Предложил агент
+      manual: Вручную
+      replaced: Вручную вместо предложения агента
+      missed: Вручную, агент пропустил
 
 api:
   errors:
@@ -1378,6 +1471,7 @@ api:
   defaultSubject: Обращение
   fieldKeyExists: "Поле с ключом «{key}» уже есть"
   fieldNotFound: Поле не найдено
+  optionSetNotFound: Справочник интеграции не найден
   departmentKeyExists: "Отдел с ключом «{key}» уже есть"
   departmentNotFound: Отдел не найден
   departmentNotFoundOrArchived: Отдел не найден или в архиве
@@ -1388,6 +1482,12 @@ api:
     requestFailed: "запрос не дошёл до бэкенда ({error})"
     outcomeUnknown: "Исход не подтверждён: {reason}. Повтор безопасен — бэкенд не исполнит действие дважды."
     notExecuted: Бэкенд не исполнил действие
+    unknownAction: "В интеграции нет действия «{action}» для операторов"
+    noCustomer: Клиент не найден в этой интеграции — сначала привяжите его
+    invalidParams: Бэкенд не принял параметры
+    backendUnavailable: "Бэкенд не ответил: {error}"
+    notReplaceable: Изменить можно только ожидающее ручное действие
+    approvedMeanwhile: "Тем временем коллега одобрил: {actions}. Проверьте тикет перед выполнением."
   proposalNotFound: Предложение не найдено
   actionAlreadyInStatus: "Действие уже в статусе «{status}»"
   emailNotFound: Письмо не найдено
@@ -1412,6 +1512,7 @@ api:
   agentDisabled: Агент выключен в настройках workspace
   noDepartmentSuggestion: Подсказки по отделу нет
   noFieldSuggestion: Подсказки по полю нет
+  notASuggestedValue: Выберите одно из значений, которые предложил агент
   questionNotFound: Вопрос не найден или уже закрыт
   agentNeedsModel: Чтобы включить агента, выберите провайдера и модель
   agentNotConfigured: "Агент не настроен: выберите провайдера и модель"

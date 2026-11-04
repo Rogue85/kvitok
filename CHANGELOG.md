@@ -4,6 +4,29 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+### Added
+
+- A backend can publish directories for list fields: coffee shops, cities, products, plans. It declares them in `option_sets` of its manifest and serves each at `GET /option-sets/{name}` (`{ options: [{ value, label, group?, description?, active? }] }` with an `ETag`); an unknown one is `404 unknown_option_set`. The change is additive, `protocol_version` stays 1, and the conformance suite checks the new endpoint. See "Option sets" in `docs/protocol.md`.
+- A list field can take its options from such a directory: in Settings → Fields switch "Options" to "From an integration" and pick the directory. The options follow the backend with the manifest sync: new ones appear, renamed ones change, and ones the backend drops or marks inactive are archived, so old tickets keep them but nobody can choose them anymore. A failed sync keeps the previous options. Removing the integration leaves the field its options as its own. Settings → Integrations lists the directories, their size, sync errors and the fields that use them. Options typed by hand can be archived too, and a list can now have up to 1,000 options that can be chosen (it was 500), plus archived ones.
+- The agent picks the option the conversation or the data points to, and prefers an id from the backend's data (a receipt's `place_id`) to the customer's wording. When several options fit and nothing decides, it offers them as candidates: the operator picks one with a click in the agent's message, and candidates are never applied automatically. When none fits, the field stays empty. A value outside the options goes back to the agent once and is dropped after that, without failing the run. Up to 200 options are listed in the prompt; larger lists are searched with a built-in `find_field_options` tool, and the field's "How the agent sees the options" setting can force either way.
+- List fields with many options, groups or a directory get a searchable picker grouped by `group`.
+- The agent evaluation checks fields from directories: scenarios expect a value, an empty field or candidates (`expect.option_sets`), and the report counts correct answers and false fills. The coffee shop simulator publishes its coffee shops as the `places` directory, returns `place_id` in receipts and orders, and has new scenarios on ambiguous, unknown and closed coffee shops.
+- MCP: `create_field` and `update_field` take `optionSetId` and `agentOptionsMode`; `describe_workspace` and `get_integration` list the directories, and the fields reference explains them.
+- For the API: `optionSet` and `agentOptionsMode` in fields, `optionSets` in integrations and in the sync result; a field suggestion may carry `candidates` with the reason `ambiguous`, and accepting it takes the chosen `value`.
+- Operators can do an action by hand when the agent proposed none or proposed it wrong. "Action" in the input at the bottom of the ticket lists what the customer's integrations allow; the form is built from the action's parameters, the backend checks them at once, and the action appears in the ticket as a card with "Execute", "Edit" and "Cancel", so it can be looked over before anything happens. "Edit" on an agent's proposal opens the same form with its parameters. Executing a manual action rejects every other pending proposal of the ticket, after a confirmation that lists them; if a colleague approves one of them while the confirmation is open, the execution stops and asks to check the ticket. With "Update the reply after execution" (on by default) the agent rewrites the draft to match what was done. The agent sees manual actions and does not propose them again.
+- Analytics → "Executed actions" shows how many executed actions the agent proposed and how many operators did by hand: instead of the agent's proposal, or where the agent could have proposed one and did not. MCP `quality_report` has the same under `actions.manual` with example tickets, and `replay` lists the actions operators executed by hand after the replayed run (`actions.operatorManual`), so a configuration change can be checked against them.
+- For backends: an action may declare `audience`: `["operator"]` makes it available to operators by hand and hides it from the agent (for example a goodwill credit with your own limits). `execute` now carries `context` with who started the action: `source`, the ticket number and the email of the operator who pressed "Execute"; it is not part of the idempotency fingerprint. Both are optional additions, `protocol_version` stays 1, and backends should ignore request fields they do not know. A property's `title` in `input_schema` labels its field in the operator's form. The coffee shop simulator has an operator-only `adjust_points` action.
+- For the API: `GET /workspaces/:id/tickets/:id/actions/catalog`, `POST /workspaces/:id/tickets/:id/actions` (422 with the backend's `details.errors` when it rejects the parameters); action proposals carry `source`, `createdBy`, `replacedById` and `refreshDraft`; `approve` of a manual action takes `pending`, the proposals the operator expects to reject, and answers 409 if one of them was approved meanwhile; the analytics report has `quality.manualActions`.
+
+### Changed
+
+- MCP `quality_report`: `actions.byAction` and `actions.rejected` count only the agent's proposals, and a proposal an operator replaced with an action of their own is no longer counted as rejected.
+- The agent's core instructions (version 9) say how to choose among options, so evaluation results are not comparable one to one with version 8.
+
+### Fixed
+
+- An agent result in which the provider glued the next arguments into a text as XML tags (`</findings><fields>…`) is sent back to the model for a fix. It used to be accepted, and the arguments after the broken one, such as the field values, were lost.
+
 ## [0.5.0] - 2026-11-02
 
 ### Added

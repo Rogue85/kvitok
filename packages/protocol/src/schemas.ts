@@ -35,6 +35,10 @@ export const ToolDefinitionSchema = z.object({
 });
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 
+/** Who may start an action. */
+export const ACTION_AUDIENCES = ['agent', 'operator'] as const;
+export type ActionAudience = (typeof ACTION_AUDIENCES)[number];
+
 export const ActionDefinitionSchema = z.object({
   name: NameSchema,
   title: z.string().trim().min(1).max(200),
@@ -42,6 +46,16 @@ export const ActionDefinitionSchema = z.object({
   description: z.string().trim().min(1).max(4000),
   input_schema: InputSchemaSchema,
   requires_approval: z.boolean().default(true),
+  /**
+   * Who may start the action: the agent proposes it, an operator proposes it by hand from the ticket.
+   * `['operator']` — for operators only (a goodwill credit with the backend's own limits): the agent does not see it.
+   */
+  audience: z
+    .array(z.enum(ACTION_AUDIENCES))
+    .min(1)
+    .max(ACTION_AUDIENCES.length)
+    .refine((a) => new Set(a).size === a.length, 'duplicate audience')
+    .default([...ACTION_AUDIENCES]),
   examples: z.array(z.object({ title: z.string().max(200).optional(), params: ArgsSchema })).max(10).default([]),
 });
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
@@ -91,6 +105,18 @@ export const IdentityTypeDefinitionSchema = z.object({
 });
 export type IdentityTypeDefinition = z.infer<typeof IdentityTypeDefinitionSchema>;
 
+/**
+ * A directory the backend publishes for select fields (coffee shops, cities, products): the support team binds a field
+ * to it, the core keeps it in sync, the agent picks options from it. The options are served by `GET /option-sets/{name}`.
+ */
+export const OptionSetDeclarationSchema = z.object({
+  name: NameSchema,
+  title: z.string().trim().min(1).max(200),
+  /** For the agent and the admin: what an option is and where its value appears in tool data. */
+  description: z.string().trim().max(2000).default(''),
+});
+export type OptionSetDeclaration = z.infer<typeof OptionSetDeclarationSchema>;
+
 function compiles(pattern: string): boolean {
   try {
     new RegExp(pattern, 'gi');
@@ -99,6 +125,10 @@ function compiles(pattern: string): boolean {
     return false;
   }
 }
+
+export const MAX_OPTION_SETS = 20;
+/** The most options one set may have: the core keeps the whole list and searches it itself. */
+export const MAX_OPTIONS_PER_SET = 1000;
 
 export const ManifestSchema = z
   .object({
@@ -116,6 +146,8 @@ export const ManifestSchema = z
     actions: z.array(ActionDefinitionSchema).max(100).default([]),
     playbooks: z.array(PlaybookDefinitionSchema).max(200).default([]),
     suggested_departments: z.array(DepartmentSuggestionSchema).max(50).default([]),
+    /** Directories for select fields; their options are served by `GET /option-sets/{name}`. */
+    option_sets: z.array(OptionSetDeclarationSchema).max(MAX_OPTION_SETS).default([]),
   })
   .superRefine((manifest, ctx) => {
     const types = new Set<string>();
@@ -129,6 +161,7 @@ export const ManifestSchema = z
       [manifest.tools, 'tools'],
       [manifest.actions, 'actions'],
       [manifest.playbooks.map((p) => ({ name: p.key })), 'playbooks'],
+      [manifest.option_sets, 'option_sets'],
     ] as const) {
       const seen = new Set<string>();
       list.forEach((item, index) => {
@@ -141,6 +174,35 @@ export const ManifestSchema = z
   });
 export type Manifest = z.infer<typeof ManifestSchema>;
 export type ManifestInput = z.input<typeof ManifestSchema>;
+
+/* ───────────── option sets ───────────── */
+
+/** One option of a directory. `value` is stable: a new value is a new option. */
+export const OptionSchema = z.object({
+  value: z.string().trim().min(1).max(200),
+  /** What the operator sees. */
+  label: z.string().trim().min(1).max(200),
+  /** Groups options in the UI and tells repeated labels apart: a city, a category. */
+  group: z.string().trim().min(1).max(100).optional(),
+  /** For the agent and the search: aliases, landmarks, former names. */
+  description: z.string().trim().max(500).optional(),
+  /** false — the option is retired (a closed shop): old tickets keep it, nobody can choose it anymore. */
+  active: z.boolean().default(true),
+});
+export type Option = z.infer<typeof OptionSchema>;
+
+export const OptionSetResponseSchema = z
+  .object({ options: z.array(OptionSchema).max(MAX_OPTIONS_PER_SET) })
+  .superRefine((set, ctx) => {
+    const seen = new Set<string>();
+    set.options.forEach((option, index) => {
+      if (seen.has(option.value)) {
+        ctx.addIssue({ code: 'custom', path: ['options', index, 'value'], message: `Duplicate value ${option.value}` });
+      }
+      seen.add(option.value);
+    });
+  });
+export type OptionSetResponse = z.infer<typeof OptionSetResponseSchema>;
 
 /* ───────────── customer ───────────── */
 
@@ -227,9 +289,23 @@ export type ToolCallRequest = z.infer<typeof ToolCallRequestSchema>;
 
 /* ───────────── actions ───────────── */
 
+/**
+ * Who started the execution, for the backend's own audit. Sent with execute only; not part of the idempotency fingerprint.
+ * `operator` — the one who pressed "Execute": for an agent proposal, the one who approved it.
+ */
+export const ExecutionContextSchema = z.object({
+  source: z.enum(['agent', 'operator']),
+  /** The ticket number in the support system: `T-482`. */
+  ticket: z.string().max(100).optional(),
+  operator: z.object({ email: z.string().max(320) }).optional(),
+});
+export type ExecutionContext = z.infer<typeof ExecutionContextSchema>;
+
 export const ActionRequestSchema = z.object({
   customer_ref: CustomerRefSchema,
   params: ArgsSchema,
+  /** execute only. */
+  context: ExecutionContextSchema.optional(),
 });
 export type ActionRequest = z.infer<typeof ActionRequestSchema>;
 
@@ -274,6 +350,7 @@ export const PROTOCOL_ERROR_CODES = [
   'invalid_signature',
   'unknown_tool',
   'unknown_action',
+  'unknown_option_set',
   'unknown_customer',
   'not_found',
   'invalid_arguments',
@@ -287,6 +364,7 @@ export const PROTOCOL_ERROR_STATUS: Record<ProtocolErrorCode, number> = {
   invalid_signature: 401,
   unknown_tool: 404,
   unknown_action: 404,
+  unknown_option_set: 404,
   unknown_customer: 404,
   not_found: 404,
   invalid_arguments: 422,
@@ -317,4 +395,5 @@ export const PROTOCOL_PATHS = {
   validate: (action: string) => `/actions/${encodeURIComponent(action)}/validate`,
   execute: (action: string) => `/actions/${encodeURIComponent(action)}/execute`,
   execution: (key: string) => `/actions/executions/${encodeURIComponent(key)}`,
+  optionSet: (name: string) => `/option-sets/${encodeURIComponent(name)}`,
 } as const;

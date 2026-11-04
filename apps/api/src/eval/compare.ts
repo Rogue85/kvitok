@@ -12,7 +12,30 @@ export interface ScenarioExpectation {
   actions: Array<{ type: string; params: Record<string, unknown> }>;
   forbidActions: string[];
   needsHuman?: boolean;
+  /** Fields bound to a directory, by the directory name. */
+  optionSets?: Record<string, OptionExpectation>;
   note?: string;
+}
+
+/** A value; null — the field must stay empty; candidates — the agent must leave the choice to the operator. */
+export type OptionExpectation = string | null | { candidates: string[] };
+
+/** What the agent put into a directory field: the value (applied or suggested) and the candidates; null — no such field. */
+export type OptionOutcome = { value: unknown; candidates: string[] } | null;
+
+/**
+ * correct; candidates — offered among candidates instead of choosing (or offered only some of the expected ones);
+ * guessed — picked one of several fitting options; wrong; missed — nothing given; false_fill — a value where none fits;
+ * extra_candidates — candidates where none fits; no_field — the workspace has no field bound to the directory.
+ */
+export type OptionVerdict = 'correct' | 'candidates' | 'guessed' | 'wrong' | 'missed' | 'false_fill' | 'extra_candidates' | 'no_field';
+
+export interface OptionScore {
+  set: string;
+  expected: OptionExpectation;
+  value: unknown;
+  candidates: string[];
+  verdict: OptionVerdict;
 }
 
 /** What the agent did on the scenario ticket. */
@@ -28,6 +51,8 @@ export interface ScenarioOutcome {
   summary: string | null;
   actions: Array<{ type: string; params: Record<string, unknown>; preview: string | null; reason: string }>;
   tools: string[];
+  /** Directory fields by the directory name. */
+  optionFields?: Record<string, OptionOutcome>;
   tokensIn: number;
   tokensOut: number;
   cost: number | null;
@@ -48,7 +73,8 @@ export interface ScenarioScore {
   /** Forbidden actions that were proposed. */
   forbidden: string[];
   needsHumanOk: boolean;
-  /** The scenario passed completely: department, all actions with parameters, nothing extra or forbidden. */
+  optionSets: OptionScore[];
+  /** The scenario passed completely: department, all actions with parameters, nothing extra or forbidden, directory fields right. */
   passed: boolean;
 }
 
@@ -63,6 +89,8 @@ export interface EvalSummary {
   department: { correct: number; total: number };
   actions: { expected: number; matched: number; paramsExact: number; proposed: number; extra: number };
   forbidden: number;
+  /** Directory fields: partial — candidates or a guess instead of the expected choice; falseFill — a value where none fits. */
+  optionSets: { total: number; correct: number; partial: number; wrong: number; missed: number; falseFill: number; noField: number };
   failedRuns: number;
   skipped: number;
   tokens: { input: number; output: number };
@@ -91,6 +119,25 @@ export function paramsMatch(expected: Record<string, unknown>, actual: Record<st
   return Object.entries(expected).every(([key, value]) => paramValueEquals(value, actual[key]));
 }
 
+export function scoreOption(set: string, expected: OptionExpectation, actual: OptionOutcome | undefined): OptionScore {
+  const value = actual?.value ?? null;
+  const candidates = actual?.candidates ?? [];
+  const score = (verdict: OptionVerdict): OptionScore => ({ set, expected, value, candidates, verdict });
+  if (actual === null || actual === undefined) return score('no_field');
+  const hasValue = value !== null && value !== '';
+  if (expected === null) return score(hasValue ? 'false_fill' : candidates.length > 0 ? 'extra_candidates' : 'correct');
+  if (typeof expected === 'string') {
+    if (value === expected) return score('correct');
+    if (hasValue) return score('wrong');
+    return score(candidates.includes(expected) ? 'candidates' : 'missed');
+  }
+  const offered = [...(hasValue ? [value] : []), ...candidates];
+  if (offered.length === 0) return score('missed');
+  if (expected.candidates.every((c) => offered.includes(c))) return score('correct');
+  if (hasValue && candidates.length === 0) return score(expected.candidates.includes(value as string) ? 'guessed' : 'wrong');
+  return score(offered.some((o) => expected.candidates.includes(o as string)) ? 'candidates' : 'wrong');
+}
+
 export function scoreScenario(scenario: ScenarioExpectation, outcome: ScenarioOutcome, attempt = 1): ScenarioScore {
   const remaining = [...outcome.actions];
   const expected = scenario.actions.map((want) => {
@@ -104,9 +151,16 @@ export function scoreScenario(scenario: ScenarioExpectation, outcome: ScenarioOu
   const forbidden = outcome.actions.filter((a) => scenario.forbidActions.includes(a.type)).map((a) => a.type);
   const departmentOk = outcome.department !== null && scenario.departments.includes(outcome.department);
   const needsHumanOk = scenario.needsHuman === undefined || outcome.needsHuman === scenario.needsHuman;
+  const optionSets = Object.entries(scenario.optionSets ?? {}).map(([set, want]) => scoreOption(set, want, outcome.optionFields?.[set]));
   const passed =
-    outcome.status === 'applied' && departmentOk && needsHumanOk && expected.every((e) => e.matched && e.paramsOk) && extra.length === 0 && forbidden.length === 0;
-  return { scenario, attempt, outcome, departmentOk, expected, extra, forbidden, needsHumanOk, passed };
+    outcome.status === 'applied' &&
+    departmentOk &&
+    needsHumanOk &&
+    expected.every((e) => e.matched && e.paramsOk) &&
+    extra.length === 0 &&
+    forbidden.length === 0 &&
+    optionSets.every((o) => o.verdict === 'correct');
+  return { scenario, attempt, outcome, departmentOk, expected, extra, forbidden, needsHumanOk, optionSets, passed };
 }
 
 export function summarize(scores: ScenarioScore[]): EvalSummary {
@@ -129,12 +183,25 @@ export function summarize(scores: ScenarioScore[]): EvalSummary {
       extra: sum((s) => s.extra.length),
     },
     forbidden: sum((s) => s.forbidden.length),
+    optionSets: {
+      total: sum((s) => s.optionSets.length),
+      correct: countVerdicts(ran, ['correct']),
+      partial: countVerdicts(ran, ['candidates', 'guessed', 'extra_candidates']),
+      wrong: countVerdicts(ran, ['wrong']),
+      missed: countVerdicts(ran, ['missed']),
+      falseFill: countVerdicts(ran, ['false_fill']),
+      noField: countVerdicts(ran, ['no_field']),
+    },
     failedRuns: ran.filter((s) => s.outcome.status !== 'applied').length,
     skipped: scores.length - ran.length,
     tokens: { input: sum((s) => s.outcome.tokensIn), output: sum((s) => s.outcome.tokensOut) },
     cost: { total: Math.round(sum((s) => s.outcome.cost ?? 0) * 1000) / 1000, currency: ran.find((s) => s.outcome.currency)?.outcome.currency ?? null },
     durationMs: { total: durations, average: ran.length ? Math.round(durations / ran.length) : 0 },
   };
+}
+
+function countVerdicts(scores: ScenarioScore[], verdicts: OptionVerdict[]): number {
+  return scores.reduce((total, s) => total + s.optionSets.filter((o) => verdicts.includes(o.verdict)).length, 0);
 }
 
 export function groupByScenario(scores: ScenarioScore[]): Map<string, ScenarioScore[]> {
@@ -167,6 +234,12 @@ export function renderMarkdown(report: EvalReport): string {
     `| Actions: exact parameters | ${pct(s.actions.paramsExact, s.actions.expected)} |`,
     `| Actions: extra among proposed | ${s.actions.extra} of ${s.actions.proposed} |`,
     `| Forbidden actions | ${s.forbidden} |`,
+    ...(s.optionSets.total > 0
+      ? [
+          `| Directory fields: correct | ${pct(s.optionSets.correct, s.optionSets.total)} |`,
+          `| Directory fields: false fills / wrong / missed / partial | ${s.optionSets.falseFill} / ${s.optionSets.wrong} / ${s.optionSets.missed} / ${s.optionSets.partial}${s.optionSets.noField ? `; no field: ${s.optionSets.noField}` : ''} |`,
+        ]
+      : []),
     `| Run errors | ${s.failedRuns}${s.skipped ? ` (skipped by budget: ${s.skipped})` : ''} |`,
     `| Tokens (input / output) | ${s.tokens.input.toLocaleString('en-US')} / ${s.tokens.output.toLocaleString('en-US')} |`,
     `| Cost | ${s.cost.total} ${s.cost.currency ?? ''} |`,
@@ -187,6 +260,7 @@ export function renderMarkdown(report: EvalReport): string {
     const actions = [
       ...score.expected.map((e) => `${mark(e.matched && e.paramsOk)} ${e.type}${e.matched && !e.paramsOk ? ' (parameters)' : e.matched ? '' : ' (missing)'}`),
       ...score.extra.map((e) => `✗ extra ${e.type}`),
+      ...score.optionSets.map((o) => `${mark(o.verdict === 'correct')} ${o.set}${o.verdict === 'correct' ? '' : ` (${o.verdict})`}`),
     ];
     const verdict =
       ran.length === 0 ? 'skipped' : o.status !== 'applied' && o.status !== 'skipped' && group.length === 1 ? `error: ${o.status}` : group.length === 1 ? mark(score.passed) : `${passed === ran.length ? '✓' : passed === 0 ? '✗' : '≈'} ${passed}/${ran.length}`;
@@ -213,9 +287,23 @@ export function renderMarkdown(report: EvalReport): string {
       }
       for (const e of score.extra) lines.push(`- Extra action ${e.type}: ${formatParams(e.params)}${score.forbidden.includes(e.type) ? ' — forbidden by the expectation' : ''}`);
       if (!score.needsHumanOk) lines.push(`- needs_human: expected ${score.scenario.needsHuman}, the agent — ${o.needsHuman}`);
+      for (const option of score.optionSets.filter((x) => x.verdict !== 'correct')) {
+        lines.push(`- Field from \`${option.set}\` (${option.verdict}): expected ${describeOption(option.expected)}, the agent — ${describeActual(option)}`);
+      }
       if (o.summary) lines.push(`- Agent summary: ${o.summary}`);
       if (o.tools.length) lines.push(`- Tools: ${o.tools.join(' → ')}`);
     }
   }
   return `${lines.join('\n')}\n`;
+}
+
+function describeOption(expected: OptionExpectation): string {
+  if (expected === null) return 'empty';
+  return typeof expected === 'string' ? `\`${expected}\`` : `candidates ${expected.candidates.map((c) => `\`${c}\``).join(', ')}`;
+}
+
+function describeActual(option: OptionScore): string {
+  if (option.verdict === 'no_field') return 'no field bound to the directory';
+  const parts = [option.value !== null && option.value !== '' ? `value \`${String(option.value)}\`` : null, option.candidates.length ? `candidates ${option.candidates.map((c) => `\`${c}\``).join(', ')}` : null];
+  return parts.filter(Boolean).join(', ') || 'empty';
 }

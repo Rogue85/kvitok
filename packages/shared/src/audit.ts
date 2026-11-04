@@ -13,6 +13,7 @@ export const AUDIT_ENTITIES = [
   'identification_settings',
   'channel',
   'integration',
+  'option_set',
   'user',
   'ticket_view',
 ] as const;

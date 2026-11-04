@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ManifestSchema } from '@kvitok/protocol';
-import { CreateFieldDefinitionSchema, CreateRoutingRuleSchema, FIELD_FILL_MODES, FIELD_TYPES } from '@kvitok/shared';
+import { AGENT_OPTIONS_LIST_LIMIT, CreateFieldDefinitionSchema, CreateRoutingRuleSchema, FIELD_FILL_MODES, FIELD_TYPES } from '@kvitok/shared';
 import { z } from 'zod';
 
 const PROTOCOL_URL = 'https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md';
@@ -85,6 +85,13 @@ Fill modes (fill_mode):
 - agent_auto — written right away when the agent's confidence is at least agentMinConfidence.
 
 agentHint tells the agent how to find and normalize the value, for example "The receipt number: 4–8 digits, usually after 'receipt' or '№'". requiredOn: "resolve" blocks resolving the ticket without the value, "agent_done" makes the agent ask for it. passToIntegration sends the value to the backend's /context and tools.
+
+Options of select and multiselect:
+- typed by hand in options (value, label, group, agentHint for the agent, archived to retire one), or
+- taken from a backend directory: optionSetId binds the field to an option set the integration publishes (option_sets in its manifest). The options then follow the backend: new ones appear, retired ones are archived and stay readable in old tickets. Prefer a directory whenever the backend has one (shops, cities, products), and make the backend return the same ids in its tool data: the agent copies an id from a receipt instead of matching names.
+- An archived option cannot be chosen anew; a ticket that has it keeps it.
+- agentOptionsMode: auto lists up to ${AGENT_OPTIONS_LIST_LIMIT} options in the prompt and lets the agent search larger lists with find_field_options; list and search force one way.
+- The agent returns value for a clear match, value null with candidates (best first) when several options fit, and leaves the field out when none does. Candidates are never applied automatically: the operator picks one. A value outside the options goes back to the agent once; after that the field is dropped and the run step shows field_rejected.
 
 Fill modes: ${FIELD_FILL_MODES.join(', ')}.
 

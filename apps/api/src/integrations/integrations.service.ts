@@ -9,8 +9,11 @@ import {
   type DepartmentDto,
   type IntegrationDto,
   type IntegrationManifestDto,
+  type FieldOption,
   type IntegrationSyncResultDto,
   type IntegrationToolDto,
+  type OptionSetDto,
+  type OptionSetSyncDto,
   type UpdateIntegrationInput,
 } from '@kvitok/shared';
 import { AuditService } from '../audit/audit.service';
@@ -23,6 +26,7 @@ import { SecretBox } from '../crypto/secret-box';
 import { DepartmentsService } from '../departments/departments.service';
 import type { Integration, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { mergeOptions, optionsHash, toOptionSetDto } from './option-sets';
 
 interface IntegrationSecrets {
   secret: string;
@@ -52,17 +56,28 @@ export class IntegrationsService {
   ) {}
 
   async list(workspaceId: string): Promise<IntegrationDto[]> {
-    const [rows, departments] = await Promise.all([
+    const [rows, departments, sets] = await Promise.all([
       this.prisma.integration.findMany({ where: { workspaceId }, orderBy: { createdAt: 'asc' } }),
       this.departments.list(workspaceId),
+      this.listOptionSets(workspaceId),
     ]);
     const keys = new Set(departments.map((d) => d.key));
-    return rows.map((row) => toIntegrationDto(row, keys));
+    return rows.map((row) => toIntegrationDto(row, keys, sets.filter((s) => s.integrationId === row.id)));
   }
 
   async getDto(workspaceId: string, id: string): Promise<IntegrationDto> {
-    const [row, departments] = await Promise.all([this.get(workspaceId, id), this.departments.list(workspaceId)]);
-    return toIntegrationDto(row, new Set(departments.map((d) => d.key)));
+    const [row, departments, sets] = await Promise.all([this.get(workspaceId, id), this.departments.list(workspaceId), this.listOptionSets(workspaceId, id)]);
+    return toIntegrationDto(row, new Set(departments.map((d) => d.key)), sets);
+  }
+
+  /** Directories of the workspace's integrations, for binding fields and for the integration page. */
+  async listOptionSets(workspaceId: string, integrationId?: string): Promise<OptionSetDto[]> {
+    const rows = await this.prisma.optionSet.findMany({
+      where: { workspaceId, ...(integrationId ? { integrationId } : {}) },
+      include: { integration: { select: { name: true } }, fields: { select: { key: true, archivedAt: true } } },
+      orderBy: [{ integration: { createdAt: 'asc' } }, { createdAt: 'asc' }],
+    });
+    return rows.map(toOptionSetDto);
   }
 
   async get(workspaceId: string, id: string): Promise<Integration> {
@@ -118,10 +133,21 @@ export class IntegrationsService {
     return this.getDto(workspaceId, id);
   }
 
-  /** Deletion also removes the playbooks from its manifest. */
+  /**
+   * Deletion also removes the playbooks from its manifest and its option sets. Fields bound to a set keep its options
+   * as their own static ones, so stored values stay valid and readable.
+   */
   async remove(workspaceId: string, id: string): Promise<void> {
     const existing = await this.get(workspaceId, id);
-    await this.prisma.integration.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      const sets = await tx.optionSet.findMany({ where: { integrationId: id }, include: { fields: { select: { id: true } } } });
+      for (const set of sets) {
+        for (const field of set.fields) {
+          await tx.fieldDefinition.update({ where: { id: field.id }, data: { options: json(set.options), optionSetId: null } });
+        }
+      }
+      await tx.integration.delete({ where: { id } });
+    });
     await this.audit.record({ workspaceId, entity: 'integration', entityId: id, action: 'delete', before: auditView(existing) });
   }
 
@@ -151,7 +177,9 @@ export class IntegrationsService {
 
     if (fetched.notModified) {
       await this.prisma.integration.update({ where: { id }, data: { lastSyncAt: now, syncedAt: now, lastSyncError: null } });
-      return { status: 'not_modified' };
+      const stored = parseStoredManifest(row);
+      const optionSets = stored ? await this.syncOptionSets(row, stored, options) : [];
+      return { status: 'not_modified', ...(optionSets.length > 0 ? { optionSets } : {}) };
     }
 
     const manifest = fetched.manifest;
@@ -177,7 +205,70 @@ export class IntegrationsService {
       action: 'sync',
       after: { manifestEtag: fetched.etag, playbooks },
     });
-    return { status: 'updated', playbooks };
+    const optionSets = await this.syncOptionSets(row, manifest, options);
+    return { status: 'updated', playbooks, ...(optionSets.length > 0 ? { optionSets } : {}) };
+  }
+
+  /**
+   * Fetches every set the manifest declares (each with its own ETag) and merges the options: nothing is deleted, missing
+   * and inactive options are archived. An error keeps the previous options. Sets the manifest dropped are marked removed.
+   */
+  private async syncOptionSets(row: Integration, manifest: Manifest, options: { force?: boolean }): Promise<OptionSetSyncDto[]> {
+    const now = new Date();
+    const existing = new Map((await this.prisma.optionSet.findMany({ where: { integrationId: row.id } })).map((s) => [s.name, s]));
+    const results: OptionSetSyncDto[] = [];
+    const client = this.client(row);
+
+    for (const declared of manifest.option_sets) {
+      const current = existing.get(declared.name);
+      existing.delete(declared.name);
+      const meta = { title: declared.title, description: declared.description, removedAt: null };
+      const empty = { added: 0, changed: 0, archived: 0, restored: 0 };
+      let fetched: Awaited<ReturnType<IntegrationClient['optionSet']>>;
+      try {
+        // A set that was removed or never loaded is fetched in full.
+        fetched = await client.optionSet(declared.name, options.force || !current || current.removedAt ? null : current.etag);
+      } catch (error) {
+        const message = (error instanceof IntegrationError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : String(error)).slice(0, 2000);
+        await this.prisma.optionSet.upsert({
+          where: { integrationId_name: { integrationId: row.id, name: declared.name } },
+          create: { id: newId(), workspaceId: row.workspaceId, integrationId: row.id, name: declared.name, ...meta, lastSyncError: message },
+          update: { ...meta, lastSyncError: message },
+        });
+        this.logger.warn(`Option set ${declared.name} of integration ${row.name} (${row.id}) sync failed: ${message}`);
+        results.push({ name: declared.name, status: 'error', error: message, ...empty });
+        continue;
+      }
+      if (fetched.notModified && current) {
+        await this.prisma.optionSet.update({ where: { id: current.id }, data: { ...meta, syncedAt: now, lastSyncError: null } });
+        results.push({ name: declared.name, status: 'not_modified', ...empty });
+        continue;
+      }
+      if (fetched.notModified) {
+        // 304 without our ETag: nothing to keep — try again in full next time.
+        results.push({ name: declared.name, status: 'error', error: 'unexpected 304', ...empty });
+        continue;
+      }
+      const merged = mergeOptions((current?.options ?? []) as FieldOption[], fetched.options);
+      const hash = optionsHash(merged.options);
+      const data = { ...meta, options: json(merged.options), hash, etag: fetched.etag, syncedAt: now, lastSyncError: null };
+      const saved = current
+        ? await this.prisma.optionSet.update({ where: { id: current.id }, data })
+        : await this.prisma.optionSet.create({ data: { id: newId(), workspaceId: row.workspaceId, integrationId: row.id, name: declared.name, ...data } });
+      const counts = { added: merged.added.length, changed: merged.changed.length, archived: merged.archived.length, restored: merged.restored.length };
+      if (!current || current.hash !== hash) {
+        await this.audit.record({ workspaceId: row.workspaceId, entity: 'option_set', entityId: saved.id, action: 'update', after: { name: declared.name, ...counts } });
+      }
+      results.push({ name: declared.name, status: current?.hash === hash ? 'not_modified' : 'updated', ...counts });
+    }
+
+    for (const stale of existing.values()) {
+      if (stale.removedAt === null) {
+        await this.prisma.optionSet.update({ where: { id: stale.id }, data: { removedAt: now } });
+        await this.audit.record({ workspaceId: row.workspaceId, entity: 'option_set', entityId: stale.id, action: 'update', after: { name: stale.name, removed: true } });
+      }
+    }
+    return results;
   }
 
   /** For the worker: all enabled integrations one by one. */
@@ -283,7 +374,7 @@ export function parseStoredManifest(row: Integration): Manifest | null {
   return parsed.success ? parsed.data : null;
 }
 
-export function toIntegrationDto(row: Integration, departmentKeys: Set<string>): IntegrationDto {
+export function toIntegrationDto(row: Integration, departmentKeys: Set<string>, optionSets: OptionSetDto[] = []): IntegrationDto {
   const manifest = parseStoredManifest(row);
   return {
     id: row.id,
@@ -299,6 +390,7 @@ export function toIntegrationDto(row: Integration, departmentKeys: Set<string>):
     claimLinking: row.claimLinking as ClaimLinking,
     textIdentities: row.textIdentities,
     fieldMapping: row.fieldMapping as Record<string, string>,
+    optionSets,
   };
 }
 

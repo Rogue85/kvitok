@@ -23,15 +23,32 @@ function status(integration: IntegrationDto): { label: string; color: 'success' 
   return { label: t('integrations.status.notSynced'), color: 'warning' };
 }
 
-function describeSync(sync: IntegrationSyncResultDto): { color: 'success' | 'error' | 'info'; title: string; description?: string } {
+/** What changed in the directories: "Coffee shops: +2, archived 1"; failures too. */
+function optionSetChanges(sync: IntegrationSyncResultDto): string[] {
+  return (sync.optionSets ?? [])
+    .filter((s) => s.status !== 'not_modified')
+    .map((s) =>
+      s.status === 'error'
+        ? t('integrations.sync.optionSetFailed', { name: s.name, error: s.error ?? '' })
+        : t('integrations.sync.optionSetUpdated', { name: s.name, added: s.added, changed: s.changed, archived: s.archived, restored: s.restored }),
+    );
+}
+
+function describeSync(sync: IntegrationSyncResultDto): { color: 'success' | 'error' | 'info' | 'warning'; title: string; description?: string } {
   if (sync.status === 'error') return { color: 'error', title: t('integrations.sync.failed'), description: sync.error };
-  if (sync.status === 'not_modified') return { color: 'info', title: t('integrations.sync.notModified') };
+  if (sync.status === 'not_modified') {
+    const changes = optionSetChanges(sync);
+    if (changes.length === 0) return { color: 'info', title: t('integrations.sync.notModified') };
+    const failed = sync.optionSets?.some((s) => s.status === 'error');
+    return { color: failed ? 'warning' : 'success', title: t('integrations.sync.optionSetsTitle'), description: changes.join('; ') };
+  }
   const p = sync.playbooks!;
   const parts = [
     p.added.length && t('integrations.sync.added', { count: p.added.length }),
     p.updated.length && t('integrations.sync.updated', { count: p.updated.length }),
     p.removed.length && t('integrations.sync.removed', { count: p.removed.length }),
     p.skipped.length && t('integrations.sync.skipped', { playbooks: p.skipped.map((s) => `${s.key} (${s.reason})`).join(', ') }),
+      ...optionSetChanges(sync),
   ].filter(Boolean);
   return { color: 'success', title: t('integrations.sync.updatedTitle'), description: parts.join('; ') || t('integrations.sync.noPlaybookChanges') };
 }
@@ -152,6 +169,7 @@ function sections(integration: IntegrationDto): AccordionItem[] {
     { label: t('integrations.sections.actions', { count: m.actions.length }), icon: 'i-lucide-zap', slot: 'actions' as const, value: 'actions' },
     { label: t('integrations.sections.instructions'), icon: 'i-lucide-book-open-text', slot: 'instructions' as const, value: 'instructions', disabled: !m.instructions },
     { label: t('integrations.sections.departments', { count: m.suggestedDepartments.length }), icon: 'i-lucide-users', slot: 'departments' as const, value: 'departments', disabled: m.suggestedDepartments.length === 0 },
+    { label: t('integrations.sections.optionSets', { count: integration.optionSets.length }), icon: 'i-lucide-list-tree', slot: 'optionSets' as const, value: 'optionSets', disabled: integration.optionSets.length === 0 },
   ];
 }
 </script>
@@ -269,6 +287,29 @@ function sections(integration: IntegrationDto): AccordionItem[] {
                 :disabled="!selectedDepartments[integration.id]?.length"
                 @click="importDepartments(integration)"
               />
+            </template>
+            <template #optionSets>
+              <p class="mb-2 text-xs text-(--ui-text-muted)">{{ t('integrations.optionSetsHint') }}</p>
+              <ul class="divide-y divide-(--ui-border) text-sm">
+                <li v-for="set in integration.optionSets" :key="set.id" class="py-2">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-medium">{{ set.title }}</span>
+                    <code class="text-xs text-(--ui-text-muted)">{{ set.name }}</code>
+                    <UBadge color="neutral" variant="outline" size="sm">{{ t('integrations.optionSetSize', { active: set.activeSize, total: set.size }) }}</UBadge>
+                    <UBadge v-if="set.removed" color="warning" variant="subtle" size="sm">{{ t('integrations.optionSetRemoved') }}</UBadge>
+                    <UBadge v-else-if="set.lastSyncError" color="error" variant="subtle" size="sm" :title="set.lastSyncError">{{ t('integrations.status.syncError') }}</UBadge>
+                  </div>
+                  <p v-if="set.description" class="mt-0.5 text-(--ui-text-muted)">{{ set.description }}</p>
+                  <p v-if="set.lastSyncError" class="mt-0.5 font-mono text-xs text-(--ui-color-error-500)">{{ set.lastSyncError }}</p>
+                  <p class="mt-0.5 text-xs text-(--ui-text-dimmed)">
+                    <template v-if="set.fieldKeys.length">{{ t('integrations.optionSetFields', { fields: set.fieldKeys.join(', ') }) }}</template>
+                    <template v-else>
+                      {{ t('integrations.optionSetUnused') }}
+                      <NuxtLink :to="`/w/${workspaceId}/settings/fields`" class="underline">{{ t('integrations.bindInFields') }}</NuxtLink>
+                    </template>
+                  </p>
+                </li>
+              </ul>
             </template>
           </UAccordion>
           <p v-if="integration.manifest" class="mt-3 text-xs text-(--ui-text-muted)">

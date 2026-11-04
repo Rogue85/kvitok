@@ -15,7 +15,7 @@ import { recordEvent, SYSTEM_ACTOR } from '../tickets/ticket-events';
 import { cancelKey } from './agent.constants';
 import { AgentRunner, type RunnerStep } from './agent-runner';
 import { AgentTriggerService, lockTicket } from './agent-trigger.service';
-import { CHAT_TRIGGERS, type AgentPending, type AgentTrigger } from './agent-trigger.types';
+import { PARTIAL_TRIGGERS, type AgentPending, type AgentTrigger } from './agent-trigger.types';
 import { ConfigSnapshotService } from './config-snapshot.service';
 import { assembleContext, type AssembledContext } from './context-assembler';
 import { DraftsService } from './drafts.service';
@@ -106,8 +106,9 @@ export class AgentEngine {
       if (outcome === 'stale' && pending === null) {
         pending = { mode: claim.pending.mode, triggers: [{ type: 'stale_rerun' }] };
       }
-      // The run did not finish — the operator got no reply to their messages: carry them over to the next run.
-      const unanswered = outcome === 'stale' || outcome === 'cancelled' ? claim.pending.triggers.filter((t) => CHAT_TRIGGERS.includes(t.type)) : [];
+      // The run did not finish — the operator got no reply to their messages, nor the reply updated after their action:
+      // carry them over to the next run.
+      const unanswered = outcome === 'stale' || outcome === 'cancelled' ? claim.pending.triggers.filter((t) => PARTIAL_TRIGGERS.includes(t.type)) : [];
       if ((pending !== null || row.agent_rerun_pending) && unanswered.length > 0) {
         pending = { mode: 'refine', triggers: [...unanswered, ...(pending?.triggers ?? [])].slice(-20) };
       }

@@ -1,8 +1,9 @@
 import { t } from '@kvitok/i18n';
 import { Injectable } from '@nestjs/common';
-import { IntegrationError } from '@kvitok/protocol';
+import { IntegrationError, type ExecutionContext } from '@kvitok/protocol';
 import { json } from '../common/json';
 import type { ActionProposal, Integration } from '../generated/prisma/client';
+import { AgentTriggerService } from '../agent/agent-trigger.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -23,10 +24,14 @@ export class ActionExecutor {
     private readonly prisma: PrismaService,
     private readonly integrations: IntegrationsService,
     private readonly realtime: RealtimeService,
+    private readonly triggers: AgentTriggerService,
   ) {}
 
   async execute(proposalId: string): Promise<'executed' | 'failed' | 'skipped'> {
-    const proposal = await this.prisma.actionProposal.findUnique({ where: { id: proposalId }, include: { integration: true } });
+    const proposal = await this.prisma.actionProposal.findUnique({
+      where: { id: proposalId },
+      include: { integration: true, ticket: { select: { number: true } }, decidedBy: { select: { email: true } } },
+    });
     if (!proposal || !['approved', 'executing'].includes(proposal.status)) return 'skipped';
     await this.prisma.actionProposal.update({ where: { id: proposalId }, data: { status: 'executing', attempts: { increment: 1 } } });
 
@@ -34,7 +39,13 @@ export class ActionExecutor {
     const key = proposal.idempotencyKey ?? proposal.id;
     const params = (proposal.normalizedParams ?? proposal.params) as Record<string, unknown>;
     try {
-      const response = await client.execute(proposal.action, proposal.customerRef, params, key);
+      // Who started it, for the backend's audit: the operator is the one who pressed "Execute" (approved the proposal).
+      const context: ExecutionContext = {
+        source: proposal.source === 'operator' ? 'operator' : 'agent',
+        ticket: `T-${proposal.ticket.number}`,
+        ...(proposal.decidedBy ? { operator: { email: proposal.decidedBy.email } } : {}),
+      };
+      const response = await client.execute(proposal.action, proposal.customerRef, params, key, context);
       return this.finish(proposal, response.status, response);
     } catch (error) {
       if (error instanceof IntegrationError && !error.retryable) {
@@ -79,6 +90,14 @@ export class ActionExecutor {
       });
     });
     await this.realtime.publish(proposal.workspaceId, { type: 'ticket.updated', ticketId: proposal.ticketId });
+    // An operator's action asked to update the reply: the draft may promise the opposite of what was done.
+    if (proposal.source === 'operator' && proposal.refreshDraft) {
+      await this.triggers.trigger(
+        proposal.ticketId,
+        { type: 'action_executed', actionId: proposal.id, ...(proposal.decidedById ? { userId: proposal.decidedById } : {}) },
+        { mode: 'refine' },
+      );
+    }
     return status;
   }
 }

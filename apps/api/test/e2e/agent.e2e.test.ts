@@ -191,6 +191,45 @@ describe('agent', () => {
     expect(after).toMatchObject({ departmentId: departments.loyalty.id, departmentLocked: true, analysis: { departmentSuggestion: null } });
   });
 
+  it('candidates for a select: never applied automatically, the operator picks one of them', async () => {
+    const { channel, http, base } = await setup();
+    await http.post(`${base}/fields`, {
+      entity: 'ticket',
+      key: 'shop',
+      label: 'Кофейня',
+      type: 'select',
+      fillMode: 'agent_auto',
+      agentMinConfidence: 0.5,
+      options: [
+        { value: 'arbat', label: 'Арбат, 24' },
+        { value: 'novy_arbat', label: 'Новый Арбат, 15' },
+      ],
+    });
+    const created = await newTicket(channel, { body: 'Кофейня на Арбате, баллы не пришли' });
+    agent.setLlm(
+      new ScriptedLlm([
+        toolCall('submit_result', result({ fields: { shop: { value: null, candidates: ['arbat', 'novy_arbat'], confidence: 0.6, evidence: 'на Арбате' } } })),
+      ]),
+    );
+
+    await expect(processQueued(created.ticket_id)).resolves.toBe('applied');
+
+    const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } });
+    expect(ticket.fields).not.toHaveProperty('shop');
+    expect(ticket.analysis).toMatchObject({
+      fieldSuggestions: { shop: { value: null, candidates: ['arbat', 'novy_arbat'], confidence: 0.6, evidence: 'на Арбате', reason: 'ambiguous' } },
+    });
+
+    const accept = (body: object) => http.post(`${base}/tickets/${created.ticket_id}/agent/suggestions/accept`, { kind: 'field', key: 'shop', ...body });
+    expect((await accept({})).statusCode).toBe(422);
+    expect((await accept({ value: 'tiara' })).statusCode).toBe(422);
+    expect((await accept({ value: 'novy_arbat' })).statusCode).toBe(204);
+    const after = await prisma.ticket.findUniqueOrThrow({ where: { id: created.ticket_id } });
+    expect(after.fields).toMatchObject({ shop: 'novy_arbat' });
+    expect(after.fieldMeta).toMatchObject({ shop: { source: 'operator', locked: true } });
+    expect(after.analysis).not.toHaveProperty('fieldSuggestions.shop');
+  });
+
   it('if the ticket changed during the run — the result is not applied and the run restarts', async () => {
     const { channel } = await setup();
     const created = await newTicket(channel);

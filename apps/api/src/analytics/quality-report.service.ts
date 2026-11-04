@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { TicketAnalysis } from '@kvitok/shared';
 import { htmlToPlainText } from '../mail/html';
 import { ticketScopeWhere, type TicketAccess } from '../departments/department-access';
+import { parseStoredManifest } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const MAX_EXAMPLES = 10;
@@ -20,6 +21,10 @@ interface Tally {
   departmentOverrides: number;
   rejectedActions: number;
   rewrittenReplies: number;
+  /** An operator executed by hand an action the agent could have proposed and did not. */
+  missedActions: number;
+  /** An operator executed an action by hand instead of the agent's proposal. */
+  replacedActions: number;
 }
 
 export interface QualityReport {
@@ -40,8 +45,21 @@ export interface QualityReport {
   /** An operator moved the ticket to another department after the agent picked one. */
   departmentOverrides: Array<TicketRef & { agentChose: string | null; from: string | null; to: string | null }>;
   actions: {
+    /** The agent's proposals by action and status. */
     byAction: Record<string, Record<string, number>>;
+    /** The agent's proposals rejected by an operator (not replaced by an operator's action). */
     rejected: Array<TicketRef & { action: string; params: unknown; reason: string; comment: string | null }>;
+    /** Actions operators executed by hand. */
+    manual: {
+      /** Executed manual actions by name. */
+      executed: Record<string, number>;
+      /** Agent proposals an operator replaced with an action of their own: what the agent proposed and what was done. */
+      replaced: number;
+      replacedExamples: Array<TicketRef & { action: string; params: unknown; operatorAction: string; operatorParams: unknown; reason: string }>;
+      /** Executed by hand, available to the agent, replaced nothing, the agent had analyzed the ticket before. */
+      missed: number;
+      missedExamples: Array<TicketRef & { action: string; params: unknown; reason: string }>;
+    };
   };
   /** Sent replies compared with the agent's last draft before them. */
   replies: {
@@ -87,12 +105,13 @@ export class QualityReportService {
         cost: true,
         startedAt: true,
         finishedAt: true,
+        createdAt: true,
         configVersion: { select: { number: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
     const ticketIds = [...new Set(runs.map((r) => r.ticketId))];
-    const [workspace, tickets, departments, overrides, proposals, replies, questions] = await Promise.all([
+    const [workspace, tickets, departments, overrides, proposals, replies, questions, integrations] = await Promise.all([
       this.prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { currency: true } }),
       this.prisma.ticket.findMany({ where: { id: { in: ticketIds } }, select: { id: true, number: true, departmentId: true, analysis: true } }),
       this.prisma.department.findMany({ where: { workspaceId }, select: { id: true, key: true } }),
@@ -107,6 +126,7 @@ export class QualityReportService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.agentQuestion.findMany({ where: { ticketId: { in: ticketIds }, createdAt: { gte: from } }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.integration.findMany({ where: { workspaceId } }),
     ]);
     const drafts = await this.prisma.replyDraft.findMany({
       where: { ticketId: { in: ticketIds }, source: 'agent' },
@@ -138,16 +158,53 @@ export class QualityReportService {
       return { ...ref(event.ticketId), agentChose: analysisOf(event.ticketId)?.department ?? null, from: keyOf(data.from), to: keyOf(data.to) };
     });
 
+    const agentProposals = proposals.filter((p) => p.source !== 'operator');
+    const manualActions = proposals.filter((p) => p.source === 'operator');
     const byAction: Record<string, Record<string, number>> = {};
-    for (const proposal of proposals) {
+    for (const proposal of agentProposals) {
       const counts = (byAction[proposal.action] ??= {});
       counts[proposal.status] = (counts[proposal.status] ?? 0) + 1;
-      if (proposal.status === 'rejected') tally(proposal.ticketId, 'rejectedActions');
+      // A replaced proposal is a correction (counted below), not a rejection.
+      if (proposal.status === 'rejected' && !proposal.replacedById) tally(proposal.ticketId, 'rejectedActions');
     }
-    const rejected = proposals
-      .filter((p) => p.status === 'rejected')
+    const rejected = agentProposals
+      .filter((p) => p.status === 'rejected' && !p.replacedById)
       .slice(0, MAX_EXAMPLES)
       .map((p) => ({ ...ref(p.ticketId), action: p.action, params: p.normalizedParams ?? p.params, reason: p.reason, comment: p.decisionComment }));
+
+    // Manual actions: only executed ones count — a cancelled card is nothing.
+    const manualById = new Map(manualActions.map((p) => [p.id, p]));
+    const executedManual = manualActions.filter((p) => p.status === 'executed');
+    const replacedProposals = agentProposals.filter((p) => p.status === 'rejected' && p.replacedById && manualById.get(p.replacedById)?.status === 'executed');
+    for (const proposal of replacedProposals) tally(proposal.ticketId, 'replacedActions');
+    const replacing = new Set(replacedProposals.map((p) => p.replacedById));
+    const forAgent = new Map(
+      integrations.flatMap((row) => (parseStoredManifest(row)?.actions ?? []).map((a) => [`${row.id}:${a.name}`, a.audience.includes('agent')] as const)),
+    );
+    const missed = executedManual.filter(
+      (p) =>
+        !replacing.has(p.id) &&
+        forAgent.get(`${p.integrationId}:${p.action}`) !== false &&
+        runs.some((r) => r.ticketId === p.ticketId && r.createdAt < p.createdAt),
+    );
+    for (const action of missed) tally(action.ticketId, 'missedActions');
+    const manual = {
+      executed: countBy(executedManual, (p) => p.action),
+      replaced: replacedProposals.length,
+      replacedExamples: replacedProposals.slice(0, MAX_EXAMPLES).map((p) => {
+        const by = manualById.get(p.replacedById!)!;
+        return {
+          ...ref(p.ticketId),
+          action: p.action,
+          params: p.normalizedParams ?? p.params,
+          operatorAction: by.action,
+          operatorParams: by.normalizedParams ?? by.params,
+          reason: by.reason,
+        };
+      }),
+      missed: missed.length,
+      missedExamples: missed.slice(0, MAX_EXAMPLES).map((p) => ({ ...ref(p.ticketId), action: p.action, params: p.normalizedParams ?? p.params, reason: p.reason })),
+    };
 
     const replyStats = { sent: replies.length, withoutAgentDraft: 0, unchanged: 0, edited: 0, rewritten: 0 };
     const rewrittenExamples: Array<TicketRef & { similarity: number }> = [];
@@ -193,7 +250,7 @@ export class QualityReportService {
         sentToTriage: analyses.filter((a) => a.sentToTriage).length,
       },
       departmentOverrides: departmentOverrides.slice(0, MAX_EXAMPLES),
-      actions: { byAction, rejected },
+      actions: { byAction, rejected, manual },
       replies: { ...replyStats, rewrittenExamples },
       questions: { asked: questions.length, examples: questions.slice(0, MAX_EXAMPLES).map((q) => ({ ...ref(q.ticketId), text: q.text })) },
       byDepartment,
@@ -224,7 +281,7 @@ function words(text: string): string[] {
 }
 
 function emptyTally(): Tally {
-  return { tickets: 0, departmentOverrides: 0, rejectedActions: 0, rewrittenReplies: 0 };
+  return { tickets: 0, departmentOverrides: 0, rejectedActions: 0, rewrittenReplies: 0, missedActions: 0, replacedActions: 0 };
 }
 
 function countBy<T>(items: T[], key: (item: T) => string): Record<string, number> {

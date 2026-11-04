@@ -82,12 +82,44 @@ export interface IntegrationDto {
   claimLinking: ClaimLinking;
   textIdentities: boolean;
   fieldMapping: Record<string, string>;
+  /** Directories from the manifest with their sync state. */
+  optionSets: OptionSetDto[];
+}
+
+/** A backend directory for select fields (`option_sets` in the manifest). */
+export interface OptionSetDto {
+  id: string;
+  integrationId: string;
+  integrationName: string;
+  name: string;
+  title: string;
+  description: string;
+  /** All options, archived ones included. */
+  size: number;
+  activeSize: number;
+  syncedAt: string | null;
+  lastSyncError: string | null;
+  /** The manifest no longer declares the set: bound fields keep its last options. */
+  removed: boolean;
+  /** Keys of the fields bound to the set. */
+  fieldKeys: string[];
+}
+
+export interface OptionSetSyncDto {
+  name: string;
+  status: 'updated' | 'not_modified' | 'error';
+  error?: string;
+  added: number;
+  changed: number;
+  archived: number;
+  restored: number;
 }
 
 export interface IntegrationSyncResultDto {
   status: 'updated' | 'not_modified' | 'error';
   error?: string;
   playbooks?: { added: string[]; updated: string[]; removed: string[]; skipped: Array<{ key: string; reason: string }> };
+  optionSets?: OptionSetSyncDto[];
 }
 
 /* Customer in an external system */

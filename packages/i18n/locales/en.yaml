@@ -229,6 +229,8 @@ events:
   actionRejected: "Rejected: {action}"
   actionRetried: "Retrying: {action}"
   actionExecuted: "Executed: {action}"
+  actionProposedByOperator: "Proposed by hand: {action}"
+  actionReplacedOthers: "· rejected instead: {actions}"
   actionFailed: "Not executed: {action} — {error}"
   agentFailed: "The agent could not analyze the ticket: {error}"
   identitiesFound: "Found in the message: {identities}"
@@ -267,11 +269,13 @@ validation:
   betweenRange: "between needs [from, to]"
   optionsRequired: A list needs options
   optionsUnique: Option values must be unique
+  tooManyOptions: "A list has at most {max} options that can be chosen — archive the ones no longer needed"
   number: A number is expected
   integer: An integer is expected
   min: "At least {min}"
   max: "At most {max}"
   unknownOption: No such option
+  optionSetSelectOnly: Only a list can take its options from an integration
   phone: Invalid phone number
   extractSource: "subject, body or header:<name>"
   extractEmailRequired: To take the customer from the text, extract an email
@@ -403,6 +407,7 @@ ticket:
   answerToAgent: answer to the agent's question
   operator: Operator
   toAgent: "{author} → agent · {time}"
+  manualAction: "{author} · action by hand · {time}"
   cost:
     title: Agent cost
     runs:
@@ -527,6 +532,7 @@ action:
     failed: error
     rejected: rejected
     superseded: replaced
+    awaitingExecution: awaiting execution
   rejected: Action rejected
   sentForExecution: Action sent for execution
   parameters: "Parameters · {integration}"
@@ -542,8 +548,31 @@ action:
   confirmCustomerFirst: "Confirm the customer first: they were found by data from the messages"
   reject: Reject
   retry: Retry
+  execute: Execute
+  edit: Edit
+  cancel: Cancel
+  cancelled: Action cancelled
+  cancelledBy: "Cancelled by {name}"
+  proposedBy: "Proposed by hand by {name}"
+  executedBy: "executed by {name}"
+  edited: Edited — see the new version below
+  replacedBy: "Replaced by an operator's action: {action}"
+  operatorAction: an operator's action
+  willRefreshDraft: The agent will update the reply after execution
+  confirm:
+    title: "Execute “{action}”?"
+    willReject: "These pending actions will be rejected:"
+    askAgain: If one of them is still needed, ask the agent to propose it again.
+    alreadyExecuted: "Already executed in this ticket: {actions}"
 
 agentChat:
+  actions:
+    button: Action
+    none: No integration with actions for operators
+    operatorOnly: for operators only
+    blocked:
+      no_customer: customer not found
+      not_confirmed: confirm the customer first
   placeholder:
     disabled: The agent is off — only operators will see the message
     answer: Answer to the agent's question…
@@ -553,6 +582,26 @@ agentChat:
   dontAnswer: Don't answer the question
   teamOnly: Visible to the team only
   replyToCustomer: Reply to customer
+
+actionForm:
+  title: New action
+  unavailable: This action is not available for the ticket's customer anymore
+  parameters: Parameters
+  jsonHint: These parameters do not fit a form — enter them as JSON
+  invalidJson: Enter a JSON object
+  fillExample: Fill with an example
+  notSet: Not set
+  canBeEmpty: can be empty
+  required: Required
+  notInteger: Enter a whole number
+  notNumber: Enter a number
+  reason: Why
+  reasonHint: Colleagues and the agent will see it
+  reasonPlaceholder: The guest sent a photo of the receipt
+  reasonRequired: Say why — colleagues and the agent will see it
+  refreshDraft: Update the reply after execution
+  propose: Propose
+  proposed: The action is in the ticket — check it and press Execute
 
 agentRuns:
   mode:
@@ -573,6 +622,7 @@ agentRuns:
     manual: manual
     stale_rerun: rerun after changes
     customer_linked: customer linked
+    action_executed: action by hand
   dryRun: dry run
   model: "Model: {model}"
   configVersion: "Configuration version: {version}"
@@ -591,6 +641,9 @@ agentMessage:
     low_confidence: low confidence
     locked: the field is pinned by an operator
     filled_by_other_source: already filled from another source
+    ambiguous: several options fit
+  severalFit: several options fit, choose one
+  chooseCandidate: Fill the field with this option
   analyzed: The agent analyzed the ticket
   updated: The agent updated the analysis
   newDraft: new reply draft
@@ -716,6 +769,7 @@ audit:
     identification_settings: Customer identification settings
     channel: Channel
     integration: Integration
+    option_set: Integration directory
     user: User
     ticket_view: Shared queue view
   action:
@@ -831,6 +885,28 @@ fieldsSettings:
   whereToShow: Where to show
   departmentsHelp: Empty — in all
   requiredOnResolve: Required to resolve the ticket
+  archivedOption: "{label} (archived)"
+  optionsManual: By hand
+  optionsFromSet: From an integration
+  optionSetPlaceholder: Choose a directory
+  optionSetHelp: The options follow the integration. New ones appear by themselves, retired ones are archived, and old tickets keep them.
+  noOptionSets: The connected integrations publish no directories (option_sets in the manifest).
+  optionSetRemoved: no longer in the manifest, the last options are kept
+  optionSetSize: "{count} options"
+  optionSetRequired: Choose a directory or switch the options to “By hand”
+  archiveOption: Archive the option. Old tickets keep it, nobody can choose it anymore
+  restoreOption: Restore the option
+  agentOptions:
+    title: How the agent sees the options
+    auto:
+      label: Automatically
+      description: "A list in the prompt up to {count} options, a search above that"
+    list:
+      label: A list in the prompt
+      description: The agent sees every option; the prompt is longer
+    search:
+      label: A search
+      description: The agent finds options with a search tool
 
 integrations:
   status:
@@ -848,6 +924,9 @@ integrations:
     updatedTitle: Manifest updated
     noPlaybookChanges: No playbook changes
     error: Could not sync
+    optionSetsTitle: Directories updated
+    optionSetUpdated: "{name}: new {added}, changed {changed}, archived {archived}, restored {restored}"
+    optionSetFailed: "{name}: {error}"
   departmentsCreated: "Departments created: {count}"
   importFailed: Could not import
   saved: Saved
@@ -859,6 +938,13 @@ integrations:
     actions: "Actions: {count}"
     instructions: Knowledge for the agent
     departments: "Suggested departments: {count}"
+    optionSets: "Directories for fields: {count}"
+  optionSetsHint: Directories the backend publishes for list fields. They are synced with the manifest; bind a field to one in the field settings.
+  optionSetSize: "{active} active of {total}"
+  optionSetRemoved: Not in the manifest anymore
+  optionSetFields: "Fields: {fields}"
+  optionSetUnused: No field uses it yet.
+  bindInFields: Bind a field
   connect: Connect a backend
   connectShort: Connect
   intro: "A project backend speaking the Support Action Protocol: it gives the agent customer data (receipts, orders, coupons) and executes actions after an operator approves them. Its manifest provides knowledge for the agent and playbooks; departments can be imported. The manifest is checked automatically every few minutes."
@@ -1265,6 +1351,13 @@ analytics:
       rewritten: Rewritten
       withoutAgentDraft: Without an agent draft
     actions: Proposed actions
+    executedActions: Executed actions
+    executedActionsHint: The agent's proposals and the actions operators did by hand. "Missed" — the agent could have proposed it and did not.
+    executed:
+      byAgent: Proposed by the agent
+      manual: By hand
+      replaced: By hand instead of the agent's proposal
+      missed: By hand, missed by the agent
 
 api:
   errors:
@@ -1353,6 +1446,7 @@ api:
   defaultSubject: Request
   fieldKeyExists: "A field with the key “{key}” already exists"
   fieldNotFound: Field not found
+  optionSetNotFound: Integration directory not found
   departmentKeyExists: "A department with the key “{key}” already exists"
   departmentNotFound: Department not found
   departmentNotFoundOrArchived: Department not found or archived
@@ -1363,6 +1457,12 @@ api:
     requestFailed: "the request did not reach the backend ({error})"
     outcomeUnknown: "The outcome was not confirmed: {reason}. Retrying is safe — the backend will not execute the action twice."
     notExecuted: The backend did not execute the action
+    unknownAction: "The integration has no action “{action}” for operators"
+    noCustomer: The customer is not found in this integration — link them first
+    invalidParams: The backend did not accept the parameters
+    backendUnavailable: "The backend did not answer: {error}"
+    notReplaceable: Only a pending manual action can be edited
+    approvedMeanwhile: "Meanwhile a colleague approved: {actions}. Check the ticket before executing."
   proposalNotFound: Proposal not found
   actionAlreadyInStatus: "The action is already “{status}”"
   emailNotFound: Email not found
@@ -1387,6 +1487,7 @@ api:
   agentDisabled: The agent is disabled in the workspace settings
   noDepartmentSuggestion: There is no department suggestion
   noFieldSuggestion: There is no suggestion for the field
+  notASuggestedValue: Choose one of the values the agent suggested
   questionNotFound: The question was not found or is already closed
   agentNeedsModel: To enable the agent, choose a provider and a model
   agentNotConfigured: "The agent is not configured: choose a provider and a model"

@@ -149,6 +149,11 @@ export class AnalyticsService {
           rewritten: quality.replies.rewritten,
         },
         actions,
+        manualActions: {
+          executed: Object.values(quality.actions.manual.executed).reduce((sum, count) => sum + count, 0),
+          replaced: quality.actions.manual.replaced,
+          missed: quality.actions.manual.missed,
+        },
       },
     };
   }

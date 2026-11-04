@@ -594,7 +594,8 @@ function fieldFilter(definition: FieldDefinitionDto, raw: string): Prisma.Ticket
   if (definition.type === 'multiselect') {
     return { fields: { path: [definition.key], array_contains: [raw] } };
   }
-  const parsed = fieldValueSchema(definition).safeParse(raw);
+  // A filter may look for an archived option too: old tickets keep it.
+  const parsed = fieldValueSchema(definition, raw).safeParse(raw);
   if (!parsed.success) {
     throw errors.validation([{ path: `field.${definition.key}`, message: t('api.invalidFilterValue'), code: 'custom' }]);
   }

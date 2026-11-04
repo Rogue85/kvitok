@@ -1,14 +1,26 @@
-import type { ActionProposalDto, ActionStatus } from '@kvitok/shared';
+import type { ActionProposalDto, ActionSource, ActionStatus } from '@kvitok/shared';
 import type { ActionProposal, Integration, User } from '../generated/prisma/client';
 
-export type ActionWithRelations = ActionProposal & { integration: Pick<Integration, 'name'>; decidedBy: Pick<User, 'id' | 'name'> | null };
+export type ActionWithRelations = ActionProposal & {
+  integration: Pick<Integration, 'name'>;
+  decidedBy: Pick<User, 'id' | 'name'> | null;
+  createdBy: Pick<User, 'id' | 'name'> | null;
+};
 
-export const ACTION_INCLUDE = { integration: { select: { name: true } }, decidedBy: { select: { id: true, name: true } } } as const;
+export const ACTION_INCLUDE = {
+  integration: { select: { name: true } },
+  decidedBy: { select: { id: true, name: true } },
+  createdBy: { select: { id: true, name: true } },
+} as const;
 
 export function toActionDto(row: ActionWithRelations): ActionProposalDto {
   return {
     id: row.id,
     runId: row.runId,
+    source: row.source as ActionSource,
+    createdBy: row.createdBy,
+    replacedById: row.replacedById,
+    refreshDraft: row.refreshDraft,
     integrationId: row.integrationId,
     integrationName: row.integration.name,
     action: row.action,

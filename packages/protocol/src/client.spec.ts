@@ -57,6 +57,17 @@ describe('IntegrationClient', () => {
     expect(seen.at(-1)!.url).toBe('/api/support/manifest');
   });
 
+  it('fetches an option set with ETag and 304', async () => {
+    handler = (req) => (req.headers['if-none-match'] === '"s1"' ? { status: 304 } : { status: 200, body: { options: [{ value: '512', label: 'Tverskaya' }] }, headers: { etag: '"s1"' } });
+
+    const first = await client().optionSet('places');
+    const second = await client().optionSet('places', '"s1"');
+
+    expect(first).toEqual({ notModified: false, etag: '"s1"', options: [{ value: '512', label: 'Tverskaya', active: true }] });
+    expect(second).toEqual({ notModified: true });
+    expect(seen.at(-1)!.url).toBe('/api/support/option-sets/places');
+  });
+
   it('execute passes Idempotency-Key and a body with customer_ref', async () => {
     handler = () => ({ status: 200, body: { status: 'executed', external_ref: 'acc-1' } });
 

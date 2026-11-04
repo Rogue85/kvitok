@@ -10,7 +10,15 @@ const LocalDateTime = z.string().regex(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}
 const LocalDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD');
 const Money = z.number().nonnegative();
 
-export const PlaceSchema = z.object({ id: Id, name: z.string().min(1), city: z.string().min(1) });
+export const PlaceSchema = z.object({
+  id: Id,
+  name: z.string().min(1),
+  city: z.string().min(1),
+  /** Landmarks and aliases: the description of the option in the `places` directory. */
+  description: z.string().min(1).optional(),
+  /** false — the coffee shop is closed: old receipts keep it, the directory marks it inactive. */
+  active: z.boolean().default(true),
+});
 
 export const CouponTypeSchema = z.object({
   id: Id,
@@ -61,8 +69,10 @@ export const BaseWorldSchema = z.object({
       max_points: z.number().int().positive().default(1000),
       max_coupons: z.number().int().positive().default(3),
       max_cups: z.number().int().positive().default(3),
+      /** A goodwill credit by an operator (adjust_points). */
+      max_goodwill_points: z.number().int().positive().default(300),
     })
-    .default({ max_points: 1000, max_coupons: 3, max_cups: 3 }),
+    .default({ max_points: 1000, max_coupons: 3, max_cups: 3, max_goodwill_points: 300 }),
 });
 export type BaseWorld = z.infer<typeof BaseWorldSchema>;
 
@@ -183,6 +193,13 @@ export const ScenarioSchema = z.object({
     /** Actions that must not be proposed. */
     forbid_actions: z.array(z.string()).default([]),
     needs_human: z.boolean().optional(),
+    /**
+     * Fields bound to a directory, by the directory name: the expected value; null — the field must stay empty
+     * (no value, no candidates); { candidates } — several fit and the agent must leave the choice to the operator.
+     */
+    option_sets: z
+      .record(z.string(), z.union([z.string().min(1), z.null(), z.object({ candidates: z.array(z.string().min(1)).min(2) })]))
+      .default({}),
     /** An explanation for humans: why this is the expectation. */
     note: z.string().optional(),
   }),

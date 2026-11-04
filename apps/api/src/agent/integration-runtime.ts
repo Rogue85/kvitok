@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { RunnerStep } from './agent-runner';
 import { escapeUntrusted } from './context-assembler';
 import { READ_PLAYBOOK, SUBMIT_RESULT } from './submit-schema';
+import { FIND_FIELD_OPTIONS } from './field-options';
 
 /** Within this period the customer card is taken from the previous run, without a request to the backend. */
 export const CONTEXT_TTL_SECONDS = 300;
@@ -25,7 +26,7 @@ const MAX_FACT_AGE_MS = 24 * 60 * 60 * 1000;
 /** A service tool: find the customer by an identity from the messages. */
 export const IDENTIFY_CUSTOMER = 'identify_customer';
 const MAX_IDENTIFY_CALLS = 3;
-const RESERVED_TOOLS = new Set([SUBMIT_RESULT, READ_PLAYBOOK, IDENTIFY_CUSTOMER, 'propose_action']);
+const RESERVED_TOOLS = new Set([SUBMIT_RESULT, READ_PLAYBOOK, IDENTIFY_CUSTOMER, FIND_FIELD_OPTIONS, 'propose_action']);
 
 /** What goes into the step input when the agent or the engine calls an integration. */
 export interface IntegrationStepInput {
@@ -618,6 +619,8 @@ function bindTools(params: {
   }
   // Actions are always about a specific customer: without one there is nothing to propose.
   for (const action of manifest.actions) {
+    // Operator-only actions (a goodwill credit) are never offered to the agent.
+    if (!action.audience.includes('agent')) continue;
     const name = exposedNames.get(`${manifest.name}:action:${action.name}`)!;
     if (params.onlyNew && bindings.has(name)) continue;
     if (!customerRef) {

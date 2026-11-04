@@ -19,7 +19,8 @@ describe.each(SIM_LOCALES)('scenarios (%s)', (locale) => {
     const departments = new Set(world.scenarios.flatMap((s) => [s.expect.department].flat()));
     const expected = new Set(world.scenarios.flatMap((s) => s.expect.actions.map((a) => a.type)));
     expect([...departments].sort()).toEqual(['app', 'loyalty', 'stores', 'triage']);
-    expect([...expected].sort()).toEqual(actions.map((a) => a.name).sort());
+    // Operator-only actions are never expected from the agent.
+    expect([...expected].sort()).toEqual(actions.filter((a) => (a.audience ?? ['agent']).includes('agent')).map((a) => a.name).sort());
     expect(world.scenarios.filter((s) => s.expect.actions.length === 0).length).toBeGreaterThanOrEqual(4);
   });
 
@@ -35,6 +36,18 @@ describe.each(SIM_LOCALES)('scenarios (%s)', (locale) => {
         expect(outcome.normalized).toMatchObject(expected.params);
       }
     });
+  });
+
+  it('expected coffee shops are active places of the world; scenarios check a value, an empty field and candidates', () => {
+    const active = new Set(world.base.places.filter((p) => p.active).map((p) => p.id));
+    const expectations = world.scenarios.flatMap((s) => Object.entries(s.expect.option_sets));
+    expect(expectations.every(([set]) => set === 'places')).toBe(true);
+    for (const [, expected] of expectations) {
+      const values = expected === null ? [] : typeof expected === 'string' ? [expected] : expected.candidates;
+      expect(values.every((v) => active.has(v))).toBe(true);
+    }
+    const kinds = new Set(expectations.map(([, e]) => (e === null ? 'empty' : typeof e === 'string' ? 'value' : 'candidates')));
+    expect([...kinds].sort()).toEqual(['candidates', 'empty', 'value']);
   });
 
   it('a single scenario loads on its own', () => {

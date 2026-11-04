@@ -19,7 +19,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { z } from 'zod';
 import { simActions, type SimAction } from './actions.js';
 import { DEFAULT_SIM_LOCALE, localizer, type Localize, type SimLocale } from './locale.js';
-import { buildManifest, manifestEtag } from './manifest.js';
+import { buildManifest, manifestEtag, PLACES_OPTION_SET, placeOptions } from './manifest.js';
 import { loadWorld } from './scenarios.js';
 import { SimStore, type Guest } from './store.js';
 import { buildContext, SimError, simTools, type SimTool } from './tools.js';
@@ -44,7 +44,7 @@ export interface SimServerOptions {
 export type FaultMode = 'timeout' | 'error_500' | 'drop_response';
 
 interface Fault {
-  /** `execute:accrue_points`, `execute:*`, `tool:get_coupons`, `resolve`, `context`, `manifest`, `*`. */
+  /** `execute:accrue_points`, `execute:*`, `tool:get_coupons`, `option_set:places`, `resolve`, `context`, `manifest`, `*`. */
   target: string;
   mode: FaultMode;
   remaining: number;
@@ -178,6 +178,19 @@ export function createSimServer(options: SimServerOptions): SimServer {
         }),
       );
 
+      api.get<{ Params: { name: string } }>('/option-sets/:name', async (request, reply) => {
+        if (request.params.name !== PLACES_OPTION_SET) {
+          return send(reply, 'unknown_option_set', l({ en: `No option set ${request.params.name}`, ru: `Нет справочника ${request.params.name}` }));
+        }
+        return withFault(`option_set:${request.params.name}`, reply, () => {
+          const options = placeOptions(store.base.places);
+          const setEtag = `"${stableHash(options).slice(0, 16)}"`;
+          reply.header('etag', setEtag);
+          if (request.headers['if-none-match'] === setEtag) return reply.status(304).send();
+          return { options };
+        });
+      });
+
       api.post('/customers/resolve', async (request, reply) =>
         withFault('resolve', reply, (): ResolveResponse => {
           const { identities } = parseOrThrow(ResolveRequestSchema, request.body, l);
@@ -249,6 +262,7 @@ export function createSimServer(options: SimServerOptions): SimServer {
         if (typeof key !== 'string' || key.trim() === '') return send(reply, 'invalid_arguments', l({ en: 'The Idempotency-Key header is required', ru: 'Нужен заголовок Idempotency-Key' }));
         return withFault(`execute:${action.name}`, reply, () => {
           const body = parseOrThrow(ActionRequestSchema, request.body, l);
+          // The context (who started it) is not part of the fingerprint: a retry may come from another approver.
           const paramsHash = stableHash({ action: action.name, customer_ref: body.customer_ref, params: body.params });
           const previous = store.executions.get(key);
           if (previous) {
@@ -265,7 +279,7 @@ export function createSimServer(options: SimServerOptions): SimServer {
             const { result, externalRef } = action.execute({ store, guest }, outcome.normalized);
             response = { status: 'executed', result, external_ref: externalRef };
           }
-          store.executions.set(key, { key, action: action.name, customerRef: guest.id, paramsHash, params: body.params, response, at: store.now });
+          store.executions.set(key, { key, action: action.name, customerRef: guest.id, paramsHash, params: body.params, response, at: store.now, ...(body.context ? { context: body.context } : {}) });
           return response;
         }).catch((error: unknown) => {
           if (error instanceof ConflictError) return send(

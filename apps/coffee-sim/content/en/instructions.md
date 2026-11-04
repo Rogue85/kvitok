@@ -1,5 +1,7 @@
 A coffee shop chain. Guests collect points on a loyalty card in the mobile app and order pickup. Times in the data are local (Moscow), in the format "YYYY-MM-DD HH:mm".
 
+Coffee shops: `place_id` in receipts and orders is the coffee shop id, the value in the "Coffee shops" directory (`places`). `place` is its name.
+
 ## Points and cashback
 - A guest has a cashback tier `cashback_percent` (3–10 %). A receipt on the card earns floor(total × percent / 100) points — that is the receipt's `balance_add`. `balance_writeoff` — how many points were written off towards the payment.
 - A purchase from the ticket missing from `get_transactions` most often means the receipt was not registered on the card (the card was not tapped, the app did not open), not that "there was no purchase". We trust the amount in the guest's words.

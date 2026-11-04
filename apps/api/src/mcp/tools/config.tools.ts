@@ -179,7 +179,9 @@ export class ConfigTools {
         title: 'Create a field',
         description:
           'A ticket or customer field. key and type never change later. agentHint tells the agent how to find and normalize the value; ' +
-          `fillMode decides whether the agent may fill it. See kvitok://reference/fields. ${CHANGES_APPLY}`,
+          'fillMode decides whether the agent may fill it. A select or multiselect can take its options from a backend directory: ' +
+          'pass optionSetId (integrations[].optionSets[].id in describe_workspace) instead of options. ' +
+          `See kvitok://reference/fields. ${CHANGES_APPLY}`,
         input: CreateFieldDefinitionSchema,
         scope: 'config:write',
         role: 'admin',
@@ -188,7 +190,9 @@ export class ConfigTools {
       tool({
         name: 'update_field',
         title: 'Change a field',
-        description: `Pass the entity and key of the field and only what changes; key and type cannot change, archived: true retires it. ${CHANGES_APPLY}`,
+        description:
+          'Pass the entity and key of the field and only what changes; key and type cannot change, archived: true retires it. ' +
+          `optionSetId binds a list to a backend directory, null unbinds it (the field keeps the directory's options as its own). ${CHANGES_APPLY}`,
         input: UpdateFieldDefinitionSchema.safeExtend({ entity: FieldEntitySchema, key: z.string() }),
         scope: 'config:write',
         role: 'admin',

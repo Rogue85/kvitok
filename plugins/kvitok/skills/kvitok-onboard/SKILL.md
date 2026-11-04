@@ -30,12 +30,13 @@ Read `kvitok://docs/protocol` and `kvitok://schemas/manifest`. Add a separate mo
 - Reuse the existing loaders and action services; scope every query to the `customer_ref` Kvitok passes.
 - `execute` validates again and is idempotent by `Idempotency-Key` (an executions table).
 - Keep instructions and playbooks as markdown files and build the manifest from them; give every tool and action a precise description and examples.
+- If a field should hold one of a known set of things (shops, cities, products, plans), publish it as an option set: declare it in `option_sets`, serve `GET /option-sets/{name}` with stable ids, and return the same ids in tool data (a receipt's `place_id`). Say in the set's description where the id appears: the agent then copies it instead of matching names.
 - Write the backend's own tests in its framework, keep the existing ones green.
 - Check with `validate_manifest` and the conformance suite: `run_conformance` when Kvitok can reach the backend, otherwise `PROTOCOL_SECRET=… pnpm --filter @kvitok/protocol conformance --profile profile.json` from a Kvitok checkout (the profile format is in the protocol resource).
 
 ## 4. Configure Kvitok
 
-Prefer a separate workspace for the project (`create_workspace`, if the token has `workspaces:create`). Ask the user to add the LLM provider in that workspace themselves (Kvitok: Settings → Agent → LLM providers), so the model key does not pass through you; then check it with `test_llm_provider` and select it with `update_agent_settings`. Use `create_llm_provider` only for a provider without a secret (a local model) or when the user explicitly gives you the endpoint and key. Then: `connect_integration` + `import_departments`, departments with descriptions and examples, fields, routing rules checked with `test_rule`, the support policy via `update_agent_settings`, support-owned playbooks, an API channel and a sandbox mailbox.
+Prefer a separate workspace for the project (`create_workspace`, if the token has `workspaces:create`). Ask the user to add the LLM provider in that workspace themselves (Kvitok: Settings → Agent → LLM providers), so the model key does not pass through you; then check it with `test_llm_provider` and select it with `update_agent_settings`. Use `create_llm_provider` only for a provider without a secret (a local model) or when the user explicitly gives you the endpoint and key. Then: `connect_integration` + `import_departments`, departments with descriptions and examples, fields (a list from a backend directory is bound with `optionSetId`, see `kvitok://reference/fields`), routing rules checked with `test_rule`, the support policy via `update_agent_settings`, support-owned playbooks, an API channel and a sandbox mailbox.
 
 ## 5. Check on test data
 

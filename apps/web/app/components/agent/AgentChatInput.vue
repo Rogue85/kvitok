@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { MessageDto, TicketAgentDto, TicketDto } from '@kvitok/shared';
+import type { ActionCatalogIntegration, MessageDto, TicketAgentDto, TicketDto } from '@kvitok/shared';
+import type { DropdownMenuItem } from '@nuxt/ui';
 
 /** The input at the bottom of the ticket: everything typed here is a message to the agent (visible to the team only). */
 const props = defineProps<{
@@ -32,6 +33,40 @@ watch(replyTo, async (question) => {
     await nextTick();
     prompt.value?.textareaRef?.focus();
   }
+});
+
+/* Manual actions: the menu lists what the customer's integrations allow; choosing one opens the form. */
+const form = useActionForm();
+const catalog = ref<ActionCatalogIntegration[] | null>(null);
+async function loadCatalog(open: boolean): Promise<void> {
+  if (!open) return;
+  try {
+    catalog.value = await api<ActionCatalogIntegration[]>(`${base.value}/actions/catalog`);
+  } catch (error) {
+    toast.add({ color: 'error', title: error instanceof ApiError ? error.message : t('common.actionFailed') });
+  }
+}
+const actionItems = computed<DropdownMenuItem[][]>(() => {
+  if (catalog.value === null) return [[{ label: t('common.loading'), icon: 'i-lucide-loader', disabled: true }]];
+  if (catalog.value.length === 0) return [[{ label: t('agentChat.actions.none'), disabled: true }]];
+  return catalog.value.map((integration) => [
+    {
+      type: 'label' as const,
+      label: integration.blocked
+        ? `${integration.title} · ${t(`agentChat.actions.blocked.${integration.blocked}`)}`
+        : `${integration.title}${integration.customer?.displayName ? ` · ${integration.customer.displayName}` : ''}`,
+    },
+    // Operator-only actions first: they exist for exactly this.
+    ...[...integration.actions]
+      .sort((a, b) => Number(b.operatorOnly) - Number(a.operatorOnly))
+      .map((action) => ({
+        label: action.title,
+        icon: action.operatorOnly ? 'i-lucide-hand-heart' : 'i-lucide-zap',
+        ...(action.operatorOnly ? { description: t('agentChat.actions.operatorOnly') } : {}),
+        disabled: integration.blocked !== null,
+        onSelect: () => form?.open({ integrationId: integration.integrationId, action: action.name }),
+      })),
+  ]);
 });
 
 async function submit(): Promise<void> {
@@ -69,6 +104,11 @@ async function submit(): Promise<void> {
         <span class="truncate max-sm:sr-only">{{ t('agentChat.teamOnly') }}</span>
       </div>
       <div class="flex items-center gap-2">
+        <UDropdownMenu v-if="form" :items="actionItems" :content="{ align: 'end', side: 'top' }" :ui="{ content: 'min-w-64' }" @update:open="loadCatalog">
+          <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-zap" class="whitespace-nowrap" :aria-label="t('agentChat.actions.button')">
+            <span class="max-sm:sr-only">{{ t('agentChat.actions.button') }}</span>
+          </UButton>
+        </UDropdownMenu>
         <UButton v-if="!replyOpen" size="sm" color="neutral" variant="outline" icon="i-lucide-reply" class="whitespace-nowrap" @click="emit('reply')">{{ t('agentChat.replyToCustomer') }}</UButton>
         <UChatPromptSubmit :status="sending ? 'submitted' : 'ready'" :disabled="!text.trim()" />
       </div>

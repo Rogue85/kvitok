@@ -1,6 +1,6 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { Scenario } from '@kvitok/coffee-sim';
-import type { TicketAnalysis } from '@kvitok/shared';
+import { FieldKeySchema, type FieldValues, type TicketAnalysis } from '@kvitok/shared';
 import { AgentEngine } from '../agent/agent-engine';
 import { AgentSettingsService } from '../agent/agent-settings.service';
 import { ConfigSnapshotService } from '../agent/config-snapshot.service';
@@ -10,9 +10,10 @@ import { PlaybooksService } from '../agent/playbooks.service';
 import { ChannelsService } from '../channels/channels.service';
 import { newId } from '../common/ids';
 import { DepartmentsService } from '../departments/departments.service';
+import { FieldsService } from '../fields/fields.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { scoreScenario, summarize, type EvalReport, type ScenarioExpectation, type ScenarioOutcome, type ScenarioScore } from './compare';
+import { scoreScenario, summarize, type EvalReport, type OptionOutcome, type ScenarioExpectation, type ScenarioOutcome, type ScenarioScore } from './compare';
 
 /** A provider from environment variables (CI): the key comes from secrets. */
 export interface EnvProvider {
@@ -182,15 +183,67 @@ export class EvalRunner {
     }
     // Playbooks could reference departments that did not exist at sync time.
     await integrations.sync(workspaceId, integration.id, { force: true });
+    const optionFields = await this.prepareFields(workspaceId, source?.id ?? null, options.scenarios);
 
     const { channel, apiKey } = await this.app.get(ChannelsService).create(workspaceId, { type: 'api', name: 'Scenarios', metadataMapping: {}, webhookUrl: null });
-    return { workspaceId, channelId: channel.id, apiKey: apiKey!, currency };
+    return { workspaceId, channelId: channel.id, apiKey: apiKey!, currency, optionFields };
+  }
+
+  /**
+   * Ticket fields of the configuration under evaluation. A field bound to a directory is bound to the simulator's directory
+   * of the same name (or keeps its options as its own when the simulator has none). A directory the scenarios expect
+   * but no field uses gets a field of its own. Returns the field key of every directory.
+   */
+  private async prepareFields(workspaceId: string, sourceId: string | null, scenarios: Scenario[]): Promise<Record<string, string>> {
+    const fieldsService = this.app.get(FieldsService);
+    const sets = await this.app.get(IntegrationsService).listOptionSets(workspaceId);
+    const setByName = new Map(sets.map((set) => [set.name, set]));
+    const departments = await this.app.get(DepartmentsService).list(workspaceId);
+    const result: Record<string, string> = {};
+
+    if (sourceId) {
+      const sourceDepartments = new Map((await this.app.get(DepartmentsService).list(sourceId)).map((d) => [d.id, d.key]));
+      for (const field of (await fieldsService.list(sourceId, 'ticket')).filter((f) => !f.archived)) {
+        const set = field.optionSet ? setByName.get(field.optionSet.name) : undefined;
+        if (field.optionSet && !set && field.options.length === 0) continue;
+        const scope = field.scopeDepartmentIds.flatMap((id) => departments.filter((d) => d.key === sourceDepartments.get(id)).map((d) => d.id));
+        await fieldsService.create(workspaceId, {
+          entity: 'ticket',
+          key: field.key,
+          label: field.label,
+          type: field.type,
+          ...(set ? { optionSetId: set.id } : { options: field.options }),
+          validation: field.validation,
+          agentHint: field.agentHint,
+          fillMode: field.fillMode,
+          agentMinConfidence: field.agentMinConfidence,
+          requiredOn: field.requiredOn,
+          scopeDepartmentIds: scope,
+          display: field.display,
+          position: field.position,
+          agentOptionsMode: field.agentOptionsMode,
+        });
+        if (set && !(set.name in result)) result[set.name] = field.key;
+      }
+    }
+
+    const taken = new Set((await fieldsService.list(workspaceId, 'ticket')).map((f) => f.key));
+    for (const name of new Set(scenarios.flatMap((s) => Object.keys(s.expect.option_sets)))) {
+      const set = setByName.get(name);
+      if (!set || name in result) continue;
+      let key = FieldKeySchema.safeParse(name).success ? name.slice(0, 40) : 'directory';
+      while (taken.has(key)) key = `${key}_x`;
+      await fieldsService.create(workspaceId, { entity: 'ticket', key, label: set.title, type: 'select', optionSetId: set.id, fillMode: 'agent_suggest' });
+      taken.add(key);
+      result[name] = key;
+    }
+    return result;
   }
 
   private async runScenario(
     scenario: Scenario,
     attempt: number,
-    setup: { channelId: string; apiKey: string; currency: string },
+    setup: { channelId: string; apiKey: string; currency: string; optionFields: Record<string, string> },
     options: EvalRunOptions,
   ): Promise<ScenarioOutcome> {
     const started = Date.now();
@@ -237,6 +290,16 @@ export class EvalRunner {
         reason: p.reason,
       })),
       tools: steps.map((s) => s.name ?? '?'),
+      optionFields: Object.fromEntries(
+        Object.keys(scenario.expect.option_sets).map((set): [string, OptionOutcome] => {
+          const key = setup.optionFields[set];
+          if (!key) return [set, null];
+          // Applied right away, or left as a suggestion for the operator.
+          const suggestion = analysis?.fieldSuggestions?.[key];
+          const applied = (after.fields as FieldValues)[key];
+          return [set, { value: applied ?? suggestion?.value ?? null, candidates: suggestion?.candidates ?? [] }];
+        }),
+      ),
       tokensIn: run.tokensIn ?? 0,
       tokensOut: run.tokensOut ?? 0,
       cost: run.cost === null ? null : Number(run.cost),
@@ -255,6 +318,7 @@ function toExpectation(scenario: Scenario): ScenarioExpectation {
     actions: scenario.expect.actions.map((a) => ({ type: a.type, params: a.params })),
     forbidActions: scenario.expect.forbid_actions,
     needsHuman: scenario.expect.needs_human,
+    optionSets: scenario.expect.option_sets,
     note: scenario.expect.note,
   };
 }

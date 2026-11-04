@@ -1,14 +1,18 @@
-import type { DepartmentDto, FieldDefinitionDto, FieldType } from '@kvitok/shared';
+import { activeOptions, type DepartmentDto, type FieldDefinitionDto, type FieldType } from '@kvitok/shared';
 import { z } from 'zod';
 import type { LlmTool } from '../llm/llm.types';
+import { MAX_CANDIDATES, optionsPresentation } from './field-options';
 
 export const SUBMIT_RESULT = 'submit_result';
 export const READ_PLAYBOOK = 'read_playbook';
 
 export interface AgentFieldValue {
+  /** null for a select when only candidates are given. */
   value: unknown;
   confidence: number;
   evidence: string | null;
+  /** A select: plausible options when several fit and nothing decides between them, best first. */
+  candidates?: string[];
 }
 
 /**
@@ -69,14 +73,22 @@ export function findLeakedMarkup(value: unknown, keys: string[] = [], path = '')
   return null;
 }
 
+/**
+ * Another argument leaked in as JSON (`", "summary": "…`) or as an XML element of its own (`</findings>\n<fields>`):
+ * proxies that translate XML tool calls sometimes close a string with the next argument's tag.
+ */
 function leakedJsonField(text: string, keys: string[]): boolean {
-  return keys.some((key) => new RegExp(`"\\s*,\\s*"${key}"\\s*:`).test(text));
+  return keys.some((key) => new RegExp(`"\\s*,\\s*"${key}"\\s*:`).test(text) || new RegExp(`</?${key}>`).test(text));
 }
 
 const fieldValueSchema = z.object({
   value: z.unknown(),
   confidence: confidence.default(0.5),
   evidence: z.string().max(1000).nullable().optional().transform((v) => v ?? null),
+  // Option values: ids may come as numbers; the options themselves are checked by checkFieldOptions.
+  candidates: z
+    .preprocess((v) => (v === null || v === undefined ? [] : Array.isArray(v) ? v : [v]), z.array(z.union([z.string(), z.number()]).transform(String)).max(20))
+    .optional(),
 });
 
 /**
@@ -149,7 +161,7 @@ function fieldsToolSchema(fields: FieldDefinitionDto[]): Record<string, unknown>
   return {
     type: 'object',
     additionalProperties: false,
-    description: 'Only the field values you found; leave out the ones you did not',
+    description: 'Only the fields you found a value (or candidates) for; leave out the others',
     properties: Object.fromEntries(
       fields.map((field) => [
         field.key,
@@ -159,8 +171,18 @@ function fieldsToolSchema(fields: FieldDefinitionDto[]): Record<string, unknown>
           required: ['value', 'confidence'],
           properties: {
             value: valueJsonSchema(field),
+            ...(field.type === 'select'
+              ? {
+                  candidates: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    maxItems: MAX_CANDIDATES,
+                    description: 'Only when several options fit and nothing decides between them: their values, best first; value is null then',
+                  },
+                }
+              : {}),
             confidence: { type: 'number', minimum: 0, maximum: 1 },
-            evidence: { type: 'string', description: 'A quote from the conversation the value is based on' },
+            evidence: { type: 'string', description: 'A quote from the conversation or the data the value is based on' },
           },
         },
       ]),
@@ -168,9 +190,10 @@ function fieldsToolSchema(fields: FieldDefinitionDto[]): Record<string, unknown>
   };
 }
 
-/** JSON Schema of a field value for the model (the stricter check is fieldValueSchema in ResultApplier). */
+/** JSON Schema of a field value for the model (the stricter checks are checkFieldOptions and fieldValueSchema in ResultApplier). */
 function valueJsonSchema(field: FieldDefinitionDto): Record<string, unknown> {
-  const options = field.options.map((o) => o.value);
+  // Listed options are an enum; searched ones are too many for it.
+  const options = optionsPresentation(field) === 'list' ? { enum: activeOptions(field.options).map((o) => o.value) } : {};
   const byType: Record<FieldType, Record<string, unknown>> = {
     text: { type: 'string' },
     textarea: { type: 'string' },
@@ -178,8 +201,8 @@ function valueJsonSchema(field: FieldDefinitionDto): Record<string, unknown> {
     boolean: { type: 'boolean' },
     date: { type: 'string', description: 'YYYY-MM-DD' },
     datetime: { type: 'string', description: 'ISO 8601 with a time zone' },
-    select: { type: 'string', enum: options },
-    multiselect: { type: 'array', items: { type: 'string', enum: options } },
+    select: 'enum' in options ? { type: ['string', 'null'], enum: [...(options.enum as string[]), null] } : { type: ['string', 'null'] },
+    multiselect: { type: 'array', items: { type: 'string', ...options } },
     email: { type: 'string' },
     phone: { type: 'string' },
     url: { type: 'string' },

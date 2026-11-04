@@ -113,14 +113,28 @@ export class ResultApplier {
       const autoActor: Record<string, { confidence: number; evidence: string | null }> = {};
       for (const [key, proposal] of Object.entries(result.fields)) {
         const definition = snapshot.fields.find((f) => f.entity === 'ticket' && f.key === key && f.fillMode !== 'manual');
-        if (!definition || !fieldValueSchema(definition).safeParse(proposal.value).success) continue;
+        if (!definition) continue;
+        // Only a select chooses among candidates; for other types they are noise.
+        const candidates = definition.type === 'select' ? (proposal.candidates ?? []) : [];
+        const hasValue = !isEmptyFieldValue(proposal.value);
+        if (hasValue ? !fieldValueSchema(definition, values[key]).safeParse(proposal.value).success : candidates.length === 0) continue;
 
         delete fieldSuggestions[key];
         const current = meta[key];
         const suggestion = (reason: FieldSuggestion['reason']) => {
-          fieldSuggestions[key] = { value: proposal.value, confidence: proposal.confidence, evidence: proposal.evidence, reason };
+          fieldSuggestions[key] = {
+            value: hasValue ? proposal.value : null,
+            confidence: proposal.confidence,
+            evidence: proposal.evidence,
+            ...(candidates.length > 0 ? { candidates } : {}),
+            reason,
+          };
         };
-        if (current?.locked) {
+        if (candidates.length > 0) {
+          // Several options fit: the operator chooses, whatever the field's mode. Not over a pinned value or another source's one.
+          const takenByOthers = current?.locked || (current && current.source !== 'agent' && !isEmptyFieldValue(values[key]));
+          if (!takenByOthers) suggestion('ambiguous');
+        } else if (current?.locked) {
           if (JSON.stringify(values[key]) !== JSON.stringify(proposal.value)) suggestion('locked');
         } else if (current && current.source !== 'agent' && !isEmptyFieldValue(values[key])) {
           if (JSON.stringify(values[key]) !== JSON.stringify(proposal.value)) suggestion('filled_by_other_source');
@@ -239,7 +253,8 @@ export class ResultApplier {
       // a partial one only if the agent proposed new ones or explicitly withdrew old ones. Decided ones are left alone.
       const proposals = options.proposals ?? [];
       if (!options.partial || proposals.length > 0 || result.drop_pending_actions === true) {
-        await tx.actionProposal.updateMany({ where: { ticketId: ticket.id, status: 'proposed' }, data: { status: 'superseded' } });
+        // Only the agent's own proposals: an operator's manual card waits for the operator.
+        await tx.actionProposal.updateMany({ where: { ticketId: ticket.id, status: 'proposed', source: 'agent' }, data: { status: 'superseded' } });
       }
       const actions = proposals.map((p) => ({ id: newId(), title: p.title, preview: p.preview }));
       if (proposals.length > 0) {

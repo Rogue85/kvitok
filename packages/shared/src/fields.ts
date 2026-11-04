@@ -27,6 +27,19 @@ export const FieldFillModeSchema = z.enum(FIELD_FILL_MODES);
 export type FieldFillMode = z.infer<typeof FieldFillModeSchema>;
 
 export const FIELD_REQUIRED_ON = ['resolve', 'agent_done'] as const;
+
+/** How the agent sees the options of a select: listed in the prompt, or found with find_field_options; auto — by their number. */
+export const FIELD_AGENT_OPTIONS_MODES = ['auto', 'list', 'search'] as const;
+export const FieldAgentOptionsModeSchema = z.enum(FIELD_AGENT_OPTIONS_MODES);
+export type FieldAgentOptionsMode = z.infer<typeof FieldAgentOptionsModeSchema>;
+/** In the auto mode, up to this many active options are listed in the prompt; more are searched. */
+export const AGENT_OPTIONS_LIST_LIMIT = 200;
+/**
+ * Options a field may have: as many active ones as a backend directory (unbinding a field copies the directory's options
+ * into it), and archived ones on top — they are never deleted from a directory, so old tickets stay readable.
+ */
+export const MAX_FIELD_OPTIONS = 1000;
+export const MAX_FIELD_OPTIONS_WITH_ARCHIVED = 10_000;
 export const FIELD_DISPLAY = ['sidebar', 'list_column', 'filter'] as const;
 
 export const FieldKeySchema = z
@@ -35,11 +48,31 @@ export const FieldKeySchema = z
   .regex(/^[a-z][a-z0-9_]{0,47}$/, { error: () => t('validation.fieldKey') });
 
 export const FieldOptionSchema = z.object({
-  value: z.string().trim().min(1).max(100),
+  value: z.string().trim().min(1).max(200),
   label: z.string().trim().min(1).max(200),
+  /** Groups options in pickers and tells repeated labels apart: a city, a category. */
+  group: z.string().trim().max(100).optional(),
   agentHint: z.string().max(1000).optional(),
+  /** Retired: old values stay readable, the option cannot be chosen anymore. */
+  archived: z.boolean().optional(),
 });
 export type FieldOption = z.infer<typeof FieldOptionSchema>;
+
+/** Options that can still be chosen. */
+export function activeOptions(options: FieldOption[]): FieldOption[] {
+  return options.filter((o) => !o.archived);
+}
+
+/** The backend directory a select field takes its options from. */
+export interface FieldOptionSetRef {
+  id: string;
+  integrationId: string;
+  name: string;
+  title: string;
+  description: string;
+  /** The manifest no longer declares the set: the field keeps its last options. */
+  removed: boolean;
+}
 
 export const FieldValidationSchema = z
   .object({
@@ -54,7 +87,7 @@ export type FieldValidation = z.infer<typeof FieldValidationSchema>;
 
 const FieldDefinitionBase = z.object({
   label: z.string().trim().min(1).max(200),
-  options: z.array(FieldOptionSchema).max(500).default([]),
+  options: z.array(FieldOptionSchema).max(MAX_FIELD_OPTIONS_WITH_ARCHIVED).default([]),
   validation: FieldValidationSchema.default({}),
   agentHint: z.string().max(4000).default(''),
   fillMode: FieldFillModeSchema.default('manual'),
@@ -64,12 +97,24 @@ const FieldDefinitionBase = z.object({
   display: z.array(z.enum(FIELD_DISPLAY)).default(['sidebar']),
   passToIntegration: z.boolean().default(false),
   position: z.number().int().default(0),
+  /** Bind the select to a backend directory (an option set id); null — options typed by hand. */
+  optionSetId: z.string().min(1).nullable().default(null),
+  agentOptionsMode: FieldAgentOptionsModeSchema.default('auto'),
 });
 
-function checkOptions(value: { type?: FieldType; options?: FieldOption[]; validation?: FieldValidation }, ctx: z.RefinementCtx): void {
+function checkOptions(
+  value: { type?: FieldType; options?: FieldOption[]; validation?: FieldValidation; optionSetId?: string | null },
+  ctx: z.RefinementCtx,
+): void {
   const needsOptions = value.type === 'select' || value.type === 'multiselect';
-  if (needsOptions && (value.options?.length ?? 0) === 0) {
+  if (value.optionSetId && value.type !== undefined && !needsOptions) {
+    ctx.addIssue({ code: 'custom', path: ['optionSetId'], message: t('validation.optionSetSelectOnly') });
+  }
+  if (needsOptions && !value.optionSetId && (value.options?.length ?? 0) === 0) {
     ctx.addIssue({ code: 'custom', path: ['options'], message: t('validation.optionsRequired') });
+  }
+  if (value.options && activeOptions(value.options).length > MAX_FIELD_OPTIONS) {
+    ctx.addIssue({ code: 'custom', path: ['options'], message: t('validation.tooManyOptions', { max: MAX_FIELD_OPTIONS }) });
   }
   const values = value.options?.map((o) => o.value) ?? [];
   if (new Set(values).size !== values.length) {
@@ -113,6 +158,9 @@ export interface FieldDefinitionDto {
   display: Array<(typeof FIELD_DISPLAY)[number]>;
   passToIntegration: boolean;
   position: number;
+  /** For a field bound to a directory: the set; `options` are its options, archived ones included. */
+  optionSet: FieldOptionSetRef | null;
+  agentOptionsMode: FieldAgentOptionsMode;
   archived: boolean;
 }
 
@@ -140,10 +188,12 @@ const PHONE_RE = /^\+?[0-9][0-9 ()-]{3,24}$/;
 /**
  * zod schema of one field value. Strings from external sources are coerced to the field type
  * (e.g. "214" → 214 for number), so ingest and forms behave the same.
+ * A select takes active options only; `current` — the stored value: its archived options stay valid, so an old value survives edits.
  */
-export function fieldValueSchema(def: Pick<FieldDefinitionDto, 'type' | 'options' | 'validation'>): z.ZodType<unknown> {
+export function fieldValueSchema(def: Pick<FieldDefinitionDto, 'type' | 'options' | 'validation'>, current?: unknown): z.ZodType<unknown> {
   const v = def.validation ?? {};
-  const optionValues = def.options.map((o) => o.value);
+  const kept = new Set(Array.isArray(current) ? current : current === undefined || current === null ? [] : [current]);
+  const optionValues = def.options.filter((o) => !o.archived || kept.has(o.value)).map((o) => o.value);
 
   switch (def.type) {
     case 'text':

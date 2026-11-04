@@ -80,7 +80,8 @@ export function applyFieldValues(params: ApplyFieldValuesParams): ApplyFieldValu
       continue;
     }
 
-    const parsed = fieldValueSchema(definition).safeParse(raw);
+    // The stored value keeps its archived options valid: editing an old ticket does not fail on a retired option.
+    const parsed = fieldValueSchema(definition, old).safeParse(raw);
     if (!parsed.success) {
       result.rejected.push({ key, reason: parsed.error.issues[0]?.message ?? t('api.invalidValue') });
       continue;

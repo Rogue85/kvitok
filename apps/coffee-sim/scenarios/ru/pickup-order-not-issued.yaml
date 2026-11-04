@@ -25,3 +25,4 @@ expect:
   actions:
     - { type: refund_order, params: { order_id: nikita-o1 } }
   forbid_actions: [accrue_points, accrue_cups]
+  option_sets: { places: tiara }

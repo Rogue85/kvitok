@@ -1,4 +1,4 @@
-import type { ExecuteResponse } from '@kvitok/protocol';
+import type { ExecuteResponse, ExecutionContext } from '@kvitok/protocol';
 import type { z } from 'zod';
 import { parseLocal, type BaseWorld, type OrderSchema, type PromoSchema, type ReceiptItemSchema, type Scenario } from './world.js';
 
@@ -77,6 +77,8 @@ export interface Execution {
   params: Record<string, unknown>;
   response: ExecuteResponse;
   at: Date;
+  /** Who started it in the support system, if it said so. */
+  context?: ExecutionContext;
 }
 
 export class WorldError extends Error {

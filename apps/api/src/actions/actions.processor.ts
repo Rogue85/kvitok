@@ -2,6 +2,7 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { BullModule } from '@nestjs/bullmq';
 import { Logger, Module } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { AgentTriggerModule } from '../agent/agent-trigger.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { ActionExecutor } from './action-executor';
 import { ACTIONS_QUEUE, type ExecuteJobData } from './actions.constants';
@@ -29,7 +30,7 @@ export class ActionsProcessor extends WorkerHost {
 
 /** Executing actions — in the worker only. */
 @Module({
-  imports: [BullModule.registerQueue({ name: ACTIONS_QUEUE }), IntegrationsModule],
+  imports: [BullModule.registerQueue({ name: ACTIONS_QUEUE }), IntegrationsModule, AgentTriggerModule],
   providers: [ActionExecutor, ActionsProcessor],
   exports: [ActionExecutor],
 })

@@ -6,14 +6,17 @@ import {
   ExecuteResponseSchema,
   ExecutionStatusResponseSchema,
   ManifestSchema,
+  OptionSetResponseSchema,
   PROTOCOL_PATHS,
   ResolveResponseSchema,
   ValidateResponseSchema,
   type ContextResponse,
   type DataResult,
   type ExecuteResponse,
+  type ExecutionContext,
   type ExecutionStatusResponse,
   type Manifest,
+  type OptionSetResponse,
   type ResolveResponse,
   type ValidateResponse,
 } from './schemas.js';
@@ -48,6 +51,10 @@ export class IntegrationError extends Error {
 }
 
 export type ManifestFetchResult = { notModified: true } | { notModified: false; manifest: Manifest; etag: string | null };
+export type OptionSetFetchResult = { notModified: true } | { notModified: false; options: OptionSetResponse['options']; etag: string | null };
+
+/** A full directory is larger than a usual response: up to 1,000 options with descriptions. */
+const OPTION_SET_MAX_BYTES = 2_000_000;
 
 /** Support Action Protocol client: signs requests and validates responses with the schemas. */
 export class IntegrationClient {
@@ -73,6 +80,16 @@ export class IntegrationClient {
     return { notModified: false, manifest, etag: response.headers.get('etag') };
   }
 
+  /** The options of a directory declared in the manifest; with `etag` the backend may respond 304. */
+  async optionSet(name: string, etag?: string | null): Promise<OptionSetFetchResult> {
+    const response = await this.send('GET', PROTOCOL_PATHS.optionSet(name), undefined, etag ? { 'if-none-match': etag } : {});
+    if (response.status === 304) {
+      return { notModified: true };
+    }
+    const set = await this.parse(response, OptionSetResponseSchema, Math.max(this.maxResponseBytes, OPTION_SET_MAX_BYTES));
+    return { notModified: false, options: set.options, etag: response.headers.get('etag') };
+  }
+
   resolve(identities: Record<string, string>): Promise<ResolveResponse> {
     return this.call('POST', PROTOCOL_PATHS.resolve, { identities }, ResolveResponseSchema);
   }
@@ -89,9 +106,18 @@ export class IntegrationClient {
     return this.call('POST', PROTOCOL_PATHS.validate(action), { customer_ref: customerRef, params }, ValidateResponseSchema);
   }
 
-  /** A repeat with the same key returns the previous result and does not execute the action again. */
-  execute(action: string, customerRef: string, params: Record<string, unknown>, idempotencyKey: string): Promise<ExecuteResponse> {
-    return this.call('POST', PROTOCOL_PATHS.execute(action), { customer_ref: customerRef, params }, ExecuteResponseSchema, {
+  /**
+   * A repeat with the same key returns the previous result and does not execute the action again.
+   * `context` — who started it, for the backend's audit; not part of the idempotency fingerprint.
+   */
+  execute(
+    action: string,
+    customerRef: string,
+    params: Record<string, unknown>,
+    idempotencyKey: string,
+    context?: ExecutionContext,
+  ): Promise<ExecuteResponse> {
+    return this.call('POST', PROTOCOL_PATHS.execute(action), { customer_ref: customerRef, params, ...(context ? { context } : {}) }, ExecuteResponseSchema, {
       [IDEMPOTENCY_HEADER]: idempotencyKey,
     });
   }
@@ -136,10 +162,10 @@ export class IntegrationClient {
     }
   }
 
-  private async parse<S extends z.ZodType>(response: Response, schema: S): Promise<z.infer<S>> {
+  private async parse<S extends z.ZodType>(response: Response, schema: S, maxBytes = this.maxResponseBytes): Promise<z.infer<S>> {
     const text = await response.text();
-    if (Buffer.byteLength(text) > this.maxResponseBytes) {
-      throw new IntegrationError('response_too_large', `The response is larger than ${this.maxResponseBytes} bytes`, response.status, false);
+    if (Buffer.byteLength(text) > maxBytes) {
+      throw new IntegrationError('response_too_large', `The response is larger than ${maxBytes} bytes`, response.status, false);
     }
     let json: unknown;
     try {

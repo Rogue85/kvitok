@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import {
+  AGENT_OPTIONS_LIST_LIMIT,
+  FIELD_AGENT_OPTIONS_MODES,
   FIELD_DISPLAY,
   FIELD_FILL_MODES,
   FIELD_TYPES,
+  type FieldAgentOptionsMode,
   type FieldDefinitionDto,
   type FieldEntity,
   type FieldFillMode,
   type FieldOption,
   type FieldType,
+  type IntegrationDto,
 } from '@kvitok/shared';
 import type { TableColumn } from '@nuxt/ui';
 
@@ -19,6 +23,26 @@ const isAdmin = computed(() => can('admin'));
 const typeLabel = (type: FieldType) => t(`fieldsSettings.type.${type}`);
 const fillLabel = (mode: FieldFillMode) => t(`fieldsSettings.fill.${mode}`);
 const displayLabel = (display: (typeof FIELD_DISPLAY)[number]) => t(`fieldsSettings.display.${display}`);
+
+// Directories the integrations publish: a list can take its options from one of them.
+const { data: integrations } = await useAsyncData(
+  () => `integrations:${workspaceId.value}`,
+  () => api<IntegrationDto[]>(`/workspaces/${workspaceId.value}/integrations`),
+  { default: () => [] },
+);
+const optionSets = computed(() => integrations.value.flatMap((i) => i.optionSets));
+const optionSetItems = computed(() =>
+  optionSets.value.map((s) => ({
+    label: `${s.integrationName}: ${s.title}`,
+    description: s.removed ? t('fieldsSettings.optionSetRemoved') : t('fieldsSettings.optionSetSize', { count: s.activeSize }),
+    value: s.id,
+  })),
+);
+const agentOptionsItems = FIELD_AGENT_OPTIONS_MODES.map((mode) => ({
+  value: mode,
+  label: t(`fieldsSettings.agentOptions.${mode}.label`),
+  description: t(`fieldsSettings.agentOptions.${mode}.description`, { count: AGENT_OPTIONS_LIST_LIMIT }),
+}));
 
 const entity = ref<FieldEntity>('ticket');
 const rows = computed(() => fields.data.value.filter((f) => f.entity === entity.value));
@@ -37,6 +61,10 @@ interface FieldForm {
   label: string;
   type: FieldType;
   options: FieldOption[];
+  /** manual — the options below; set — a directory of an integration. */
+  optionsSource: 'manual' | 'set';
+  optionSetId: string | null;
+  agentOptionsMode: FieldAgentOptionsMode;
   agentHint: string;
   fillMode: FieldFillMode;
   agentMinConfidence: number;
@@ -50,7 +78,7 @@ interface FieldForm {
   archived: boolean;
 }
 const emptyForm = (): FieldForm => ({
-  id: null, entity: entity.value, key: '', label: '', type: 'text', options: [], agentHint: '', fillMode: 'manual',
+  id: null, entity: entity.value, key: '', label: '', type: 'text', options: [], optionsSource: 'manual', optionSetId: null, agentOptionsMode: 'auto', agentHint: '', fillMode: 'manual',
   agentMinConfidence: 0.8, requiredOnResolve: false, display: ['sidebar'], scopeDepartmentIds: [],
   integer: false, min: null, max: null, pattern: '', archived: false,
 });
@@ -66,7 +94,10 @@ function edit(field: FieldDefinitionDto | null): void {
       ? {
           ...emptyForm(),
           ...field,
-          options: field.options.map((o) => ({ ...o })),
+          // A bound field shows the set's options read-only; the form keeps only its own.
+          options: field.optionSet ? [] : field.options.map((o) => ({ ...o })),
+          optionsSource: field.optionSet ? 'set' : 'manual',
+          optionSetId: field.optionSet?.id ?? null,
           requiredOnResolve: field.requiredOn.includes('resolve'),
           integer: field.validation.integer ?? false,
           min: field.validation.min ?? null,
@@ -79,6 +110,25 @@ function edit(field: FieldDefinitionDto | null): void {
 }
 
 const hasOptions = computed(() => form.type === 'select' || form.type === 'multiselect');
+const optionSetModel = computed({
+  get: () => form.optionSetId ?? undefined,
+  set: (value: string | undefined) => {
+    form.optionSetId = value ?? null;
+  },
+});
+const fromSet = computed(() => hasOptions.value && form.optionsSource === 'set');
+/** The options of the bound set, for a read-only preview. */
+const editedField = computed(() => (form.id ? fields.data.value.find((f) => f.id === form.id) : undefined));
+const setPreview = computed(() => (editedField.value?.optionSet?.id === form.optionSetId ? (editedField.value?.options ?? []) : []));
+// Unbinding a field keeps the directory's options as its own: the manual list starts from them, archived ones included.
+watch(
+  () => form.optionsSource,
+  (source) => {
+    if (source === 'manual' && form.options.length === 0 && editedField.value?.optionSet) {
+      form.options = editedField.value.options.map((o) => ({ ...o }));
+    }
+  },
+);
 
 async function save(): Promise<void> {
   error.value = null;
@@ -88,9 +138,14 @@ async function save(): Promise<void> {
     ...(form.type === 'number' && form.max !== null ? { max: form.max } : {}),
     ...((form.type === 'text' || form.type === 'textarea') && form.pattern ? { pattern: form.pattern } : {}),
   };
+  if (fromSet.value && !form.optionSetId) {
+    error.value = t('fieldsSettings.optionSetRequired');
+    return;
+  }
   const body = {
     label: form.label,
-    options: hasOptions.value ? form.options.filter((o) => o.value && o.label) : [],
+    ...(fromSet.value ? { optionSetId: form.optionSetId } : { optionSetId: null, options: hasOptions.value ? form.options.filter((o) => o.value && o.label) : [] }),
+    ...(hasOptions.value ? { agentOptionsMode: form.agentOptionsMode } : {}),
     validation,
     agentHint: form.agentHint,
     fillMode: form.fillMode,
@@ -146,7 +201,10 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
       </p>
       <ResponsiveTable :data="rows" :columns="columns" class="cursor-pointer" :on-select="(_e: Event, row: { original: FieldDefinitionDto }) => isAdmin && edit(row.original)">
         <template #key-cell="{ row }"><code class="text-xs">{{ row.original.key }}</code></template>
-        <template #type-cell="{ row }">{{ typeLabel(row.original.type) }}</template>
+        <template #type-cell="{ row }">
+          {{ typeLabel(row.original.type) }}
+          <span v-if="row.original.optionSet" class="text-xs text-(--ui-text-muted)"> · {{ row.original.optionSet.title }}</span>
+        </template>
         <template #fillMode-cell="{ row }">{{ fillLabel(row.original.fillMode) }}</template>
         <template #flags-cell="{ row }">
           <div class="flex gap-1">
@@ -171,15 +229,63 @@ const departmentItems = computed(() => departments.data.value.filter((d) => !d.a
             </div>
 
             <div v-if="hasOptions" class="space-y-2">
-              <p class="text-sm font-medium">{{ t('fieldsSettings.options') }}</p>
-              <div v-for="(option, index) in form.options" :key="index" class="grid grid-cols-[1fr_1fr_auto] gap-2 sm:grid-cols-[1fr_1fr_2fr_auto]">
-                <UInput v-model="option.value" :placeholder="t('fieldsSettings.optionValue')" size="sm" />
-                <UInput v-model="option.label" :placeholder="t('fieldsSettings.optionLabel')" size="sm" />
-                <!-- On phones the hint takes its own line under the value and the label. -->
-                <UInput v-model="option.agentHint" :placeholder="t('fieldsSettings.optionHint')" size="sm" class="max-sm:order-last max-sm:col-span-3" />
-                <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" @click="form.options.splice(index, 1)" />
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-sm font-medium">{{ t('fieldsSettings.options') }}</p>
+                <UTabs
+                  v-model="form.optionsSource"
+                  :items="[
+                    { label: t('fieldsSettings.optionsManual'), value: 'manual' },
+                    { label: t('fieldsSettings.optionsFromSet'), value: 'set' },
+                  ]"
+                  :content="false"
+                  size="xs"
+                />
               </div>
-              <UButton icon="i-lucide-plus" size="xs" variant="soft" @click="form.options.push({ value: '', label: '' })">{{ t('fieldsSettings.option') }}</UButton>
+              <template v-if="fromSet">
+                <USelectMenu
+                  v-model="optionSetModel"
+                  :items="optionSetItems"
+                  value-key="value"
+                  :placeholder="t('fieldsSettings.optionSetPlaceholder')"
+                  class="w-full"
+                />
+                <p v-if="optionSetItems.length === 0" class="text-xs text-(--ui-text-muted)">{{ t('fieldsSettings.noOptionSets') }}</p>
+                <p v-else class="text-xs text-(--ui-text-muted)">{{ t('fieldsSettings.optionSetHelp') }}</p>
+                <div v-if="setPreview.length" class="max-h-40 overflow-y-auto rounded-md border border-(--ui-border) px-2.5 py-1.5 text-xs">
+                  <div v-for="option in setPreview" :key="option.value" class="flex gap-2 py-0.5" :class="option.archived ? 'text-(--ui-text-dimmed) line-through' : ''">
+                    <code class="shrink-0">{{ option.value }}</code>
+                    <span class="truncate">{{ option.label }}<template v-if="option.group"> · {{ option.group }}</template></span>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div
+                  v-for="(option, index) in form.options"
+                  :key="index"
+                  class="grid grid-cols-[1fr_1fr_auto_auto] gap-2 sm:grid-cols-[1fr_1fr_2fr_auto_auto]"
+                  :class="option.archived ? 'opacity-60' : ''"
+                >
+                  <UInput v-model="option.value" :placeholder="t('fieldsSettings.optionValue')" size="sm" />
+                  <UInput v-model="option.label" :placeholder="t('fieldsSettings.optionLabel')" size="sm" />
+                  <!-- On phones the hint takes its own line under the value and the label. -->
+                  <UInput v-model="option.agentHint" :placeholder="t('fieldsSettings.optionHint')" size="sm" class="max-sm:order-last max-sm:col-span-4" />
+                  <!-- An archived option stays readable in old tickets and cannot be chosen anew. -->
+                  <UButton
+                    :icon="option.archived ? 'i-lucide-archive-restore' : 'i-lucide-archive'"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="option.archived ? t('fieldsSettings.restoreOption') : t('fieldsSettings.archiveOption')"
+                    :title="option.archived ? t('fieldsSettings.restoreOption') : t('fieldsSettings.archiveOption')"
+                    @click="option.archived = !option.archived || undefined"
+                  />
+                  <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" :aria-label="t('common.delete')" @click="form.options.splice(index, 1)" />
+                </div>
+                <UButton icon="i-lucide-plus" size="xs" variant="soft" @click="form.options.push({ value: '', label: '' })">{{ t('fieldsSettings.option') }}</UButton>
+              </template>
+              <UFormField v-if="form.fillMode !== 'manual'" :label="t('fieldsSettings.agentOptions.title')">
+                <USelect v-model="form.agentOptionsMode" :items="agentOptionsItems" class="w-full" />
+              </UFormField>
             </div>
 
             <div v-if="form.type === 'number'" class="grid items-end gap-3 sm:grid-cols-3">

@@ -1,0 +1,16 @@
+id: store-not-in-list
+title: A complaint about a coffee shop the chain does not have
+tags: [stores, no-action, places]
+guests:
+  - { id: timur, name: Timur, phone: '79000000046', cashback_percent: 5, balance: 60 }
+ticket:
+  customer: timur
+  subject: A complaint about a coffee shop
+  body: Today at your coffee shop at Kursky railway station I waited 20 minutes for a latte, and nobody even apologized.
+  sent_at: 2026-10-15 09:50
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: null }
+  note: There is no coffee shop at Kursky railway station — the field stays empty, the agent does not pick the nearest one.

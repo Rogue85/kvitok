@@ -1,3 +1,4 @@
+import type { ActionAudience } from '@kvitok/protocol';
 import { z } from 'zod';
 import { DEFAULT_SIM_LOCALE, localizer, type Localize, type SimLocale } from './locale.js';
 import type { Guest, SimStore, Transaction } from './store.js';
@@ -22,6 +23,8 @@ export interface SimAction<S extends z.ZodType = z.ZodType> {
   description: string;
   input: S;
   examples: Array<{ title?: string; params: Record<string, unknown> }>;
+  /** Who may start it; by default the agent and operators. */
+  audience?: ActionAudience[];
   validate(ctx: ActionContext, params: z.infer<S>): ValidationOutcome<z.infer<S>>;
   execute(ctx: ActionContext, params: z.infer<S>): { result: unknown; externalRef: string };
 }
@@ -384,6 +387,44 @@ export function simActions(locale: SimLocale = DEFAULT_SIM_LOCALE): SimAction[] 
         order.status = 'refunded';
         order.refundedAt = ctx.store.now;
         return { result: { params, amount: order.total, payment_method: order.payment_method }, externalRef: ctx.store.nextId('rfd') };
+      },
+    }),
+    defineAction({
+      name: 'adjust_points',
+      title: l({ en: 'Goodwill points', ru: 'Баллы в качестве компенсации' }),
+      description: l({
+        en: 'A goodwill credit by an operator: an apology for a mistake of a coffee shop, a compensation the rules do not cover. Not tied to a receipt; the comment goes to the guest\'s history.',
+        ru: 'Начисление баллов оператором в качестве компенсации: извинение за ошибку кофейни, случай, который правила не покрывают. Без привязки к чеку; комментарий попадает в историю гостя.',
+      }),
+      audience: ['operator'],
+      input: z.object({
+        // `title` labels the field in the operator's form.
+        amount: z.number().int().min(1).meta({ title: l({ en: 'Points', ru: 'Баллы' }), description: l({ en: 'A whole number of points', ru: 'Целое число баллов' }) }),
+        comment: z
+          .string()
+          .trim()
+          .min(3)
+          .max(500)
+          .meta({ title: l({ en: 'Comment', ru: 'Комментарий' }), description: l({ en: 'Why, for the guest\'s history', ru: 'За что — для истории гостя' }) }),
+      }),
+      examples: [{ title: l({ en: 'An apology for a wrong order', ru: 'Извинение за перепутанный заказ' }), params: { amount: 50, comment: l({ en: 'The coffee shop mixed up the order', ru: 'Кофейня перепутала заказ' }) } }],
+      validate(ctx, params) {
+        const check = new Check({ ...params });
+        const { store, guest } = ctx;
+        const limit = store.base.limits.max_goodwill_points;
+        if (params.amount > limit) check.error(l({ en: `A goodwill credit is at most ${limit} points`, ru: `Компенсация — не больше ${limit} баллов` }), 'amount');
+        const since = new Date(store.now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const recent = [...store.executions.values()].filter(
+          (e) => e.action === 'adjust_points' && e.customerRef === guest.id && e.response.status === 'executed' && e.at >= since,
+        );
+        if (recent.length > 0) {
+          check.warn(l({ en: `The guest already got ${recent.length} goodwill credit(s) in the last 30 days`, ru: `Гостю уже начисляли компенсацию за последние 30 дней: ${recent.length}` }));
+        }
+        return check.done(l({ en: `Credit ${params.amount} goodwill points — ${guest.name}`, ru: `Начислить ${params.amount} баллов компенсации — ${guest.name}` }));
+      },
+      execute(ctx, params) {
+        ctx.guest.balance += params.amount;
+        return { result: { params, balance_after: ctx.guest.balance }, externalRef: ctx.store.nextId('gw') };
       },
     }),
   ];

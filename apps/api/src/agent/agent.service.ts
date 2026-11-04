@@ -239,7 +239,13 @@ export class AgentService {
     } else {
       const suggestion = analysis?.fieldSuggestions[input.key];
       if (!suggestion) throw errors.notFound(t('api.noFieldSuggestion'));
-      await this.tickets.update(workspaceId, ticketId, { fields: { [input.key]: suggestion.value } }, userId);
+      // A candidate is chosen by its value; without one the suggested value is taken.
+      const offered = [suggestion.value, ...(suggestion.candidates ?? [])].filter((v) => v !== null && v !== undefined);
+      const value = input.value ?? suggestion.value;
+      if (value === null || value === undefined || !offered.some((v) => JSON.stringify(v) === JSON.stringify(value))) {
+        throw errors.validation([{ path: 'value', message: t('api.notASuggestedValue'), code: 'custom' }]);
+      }
+      await this.tickets.update(workspaceId, ticketId, { fields: { [input.key]: value } }, userId);
     }
     await this.dropSuggestion(ticketId, input);
   }

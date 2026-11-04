@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ActionExecutor, ActionOutcomeUnknownError } from '../../src/actions/action-executor';
 import { ACTIONS_QUEUE } from '../../src/actions/actions.constants';
 import { AGENT_QUEUE } from '../../src/agent/agent.constants';
+import { AgentTriggerService } from '../../src/agent/agent-trigger.service';
 import { IntegrationsService } from '../../src/integrations/integrations.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { RealtimeService } from '../../src/realtime/realtime.service';
@@ -30,7 +31,7 @@ describe('actions in an external system', () => {
     prisma = app.get(PrismaService);
     agent = await createAgentHarness();
     // The test executes actions itself instead of the worker: this shows every attempt.
-    executor = new ActionExecutor(prisma, app.get(IntegrationsService), app.get(RealtimeService));
+    executor = new ActionExecutor(prisma, app.get(IntegrationsService), app.get(RealtimeService), app.get(AgentTriggerService));
     queues.push(app.get<Queue>(getQueueToken(AGENT_QUEUE)), app.get<Queue>(getQueueToken(ACTIONS_QUEUE)));
     sim = createSimServer({ secret: SIM_SECRET, locale: 'ru' });
     simUrl = await sim.listen();

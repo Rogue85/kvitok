@@ -74,7 +74,7 @@ Configuration tools also need the admin role in the workspace. A client only see
 | --- | --- |
 | Overview | `list_workspaces`, `describe_workspace` (the whole configuration in one call), `get_playbook`, `get_integration`, `get_prompt_preview` |
 | Tickets and runs | `search_tickets` (also by assignee), `get_ticket` (timeline, analysis, proposed actions and decisions, fields, draft, assignees), `get_agent_run` (steps, tool calls, cost) |
-| Quality | `quality_report`: departments changed by operators after the agent, rejected actions with comments, sent replies compared with the agent's draft, questions, `needs_human`, failed runs, cost; by department and playbook, with example tickets. `list_audit_log` |
+| Quality | `quality_report`: departments changed by operators after the agent, rejected actions with comments, actions operators did by hand instead of the agent's proposal or that the agent missed, sent replies compared with the agent's draft, questions, `needs_human`, failed runs, cost; by department and playbook, with example tickets. `list_audit_log` |
 | Members | `list_members` (role, departments, whether they accept tickets), `set_accepting_tickets` |
 | Configuration | `create_workspace`, `update_workspace` (also the assignment settings), `update_agent_settings`, `create/update/delete_llm_provider`, `create/update_department` (also `assignmentMode`), `create/update_field`, `create/update/delete_playbook`, `create/update/delete_routing_rule`, `create_api_channel`, `create_mailbox`, `update_channel` |
 | Integrations | `connect_integration`, `update_integration`, `sync_integration`, `import_departments`, `remove_integration` |
@@ -94,7 +94,7 @@ Departments, playbooks and fields are addressed by key, rules, providers, channe
 | --- | --- |
 | `kvitok://guide/instruction-layers` | who owns which part of the agent prompt and how to split an existing support prompt |
 | `kvitok://reference/routing-rules` | stages, condition fields, operators, effects and the JSON Schema of a rule |
-| `kvitok://reference/fields` | field types, fill modes and the JSON Schema of a field |
+| `kvitok://reference/fields` | field types, fill modes, options from backend directories and the JSON Schema of a field |
 | `kvitok://docs/protocol` | the Support Action Protocol specification |
 | `kvitok://schemas/manifest` | the JSON Schema of the backend manifest |
 

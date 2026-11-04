@@ -1,0 +1,16 @@
+id: store-closed-place
+title: A question about a closed coffee shop
+tags: [stores, no-action, places]
+guests:
+  - { id: vika, name: Vika, phone: '79000000047', cashback_percent: 5, balance: 210 }
+ticket:
+  customer: vika
+  subject: Other
+  body: The coffee shop on Leninsky Avenue, where I went every morning, has closed. Why was it closed and will it open again?
+  sent_at: 2026-10-15 08:30
+expect:
+  department: [stores, triage]
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: null }
+  note: The Leninsky coffee shop is closed and inactive in the directory — it cannot be chosen, and the agent does not substitute a neighbor. A question without a complaint may go to the general queue as well.

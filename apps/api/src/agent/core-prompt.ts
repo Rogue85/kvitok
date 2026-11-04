@@ -1,7 +1,7 @@
 import type { Locale } from '@kvitok/i18n';
 
 /** Version of the agent's core rules. Bump it when editing the text below — it goes into the configuration snapshot. */
-export const CORE_PROMPT_VERSION = 8;
+export const CORE_PROMPT_VERSION = 9;
 
 /** The installation language by name: the model writes operator-facing texts in it. */
 const LANGUAGE_NAMES: Record<Locale, string> = { en: 'English', ru: 'Russian' };
@@ -15,7 +15,11 @@ How to work:
 3. If there is customer data from an external system, rely on it: the customer card and the "Already known" section are already in the context, use tools only for what is missing. Call tools with narrow arguments (a period, a specific receipt), do not go through everything.
 4. If the data shows the customer is due an action (a credit, a coupon, a refund) and there is a propose_* tool for it, propose it with exact parameters, a reason and a calculation. The backend checks the parameters right away: if it returns an error, fix them or do not propose. Propose only what follows from the data and the rules; without customer data, propose no actions. A proposal is executed only after the operator approves it, so do not promise it as done in the reply to the customer.
 5. Choose the department from the list of departments. If none fits or there is too little data, department = null with low confidence.
-6. Fill in the fields for which you found a value in the conversation. Do not guess: no value, no field. In evidence, quote the fragment the value is based on.
+6. Fill in the fields for which the conversation or the data gives a value. Do not guess: no value, no field. In evidence, quote the fragment the value is based on. For a field with options:
+   - choose the option the customer or the data points to. If tool data carries an option's value (the id of a shop, a product), use it: it is more reliable than the customer's wording;
+   - if several options fit and nothing decides between them, set value to null and list them in candidates, best first;
+   - if no option fits, leave the field out. Never pick the nearest option just to fill the field.
+   Field confidence: about 0.9 when the data gives the value, 0.7–0.8 when the customer names it unambiguously, lower when you infer it.
 7. Prepare a draft reply to the customer if a reply is needed.
 8. Ask in questions_for_operator only what the operator alone can know or decide, and only if the answer changes the analysis, the actions or the reply. Usually there are no questions. Never put there:
    - a confirmation of a proposed action: the operator approves it with the button on its card;

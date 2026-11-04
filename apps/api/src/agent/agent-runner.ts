@@ -5,6 +5,7 @@ import type { LlmClient, LlmMessage, LlmRequest, LlmToolCall } from '../llm/llm.
 import type { AssembledContext } from './context-assembler';
 import type { AgentConfigSnapshot } from './config-snapshot.service';
 import type { ToolExecutor } from './integration-runtime';
+import { checkFieldOptions, FIND_FIELD_OPTIONS, optionsPresentation, runFindFieldOptions } from './field-options';
 import { findLeakedMarkup, READ_PLAYBOOK, resultSchema, type AgentResult } from './submit-schema';
 
 const MAX_REPAIRS = 2;
@@ -107,16 +108,25 @@ export class AgentRunner {
       }
     };
 
-    const tryParse = (raw: unknown): { ok: true; value: AgentResult } | { ok: false; error: string } => {
+    /** Values outside a field's options get one chance to be fixed; after that the result is accepted without them. */
+    let optionsRepaired = false;
+    const tryParse = (raw: unknown): ParseOutcome => {
       // Call markup inside a string — the model lost track of the arguments; the schema would accept it, but the data would be corrupted.
       const leaked = findLeakedMarkup(raw, resultKeys);
       if (leaked) {
         return { ok: false, error: `${leaked}: tool-call markup or other fields leaked into the value; every field must be a separate JSON field` };
       }
       const parsed = schema.safeParse(raw);
-      return parsed.success
-        ? { ok: true, value: parsed.data }
-        : { ok: false, error: parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ') };
+      if (!parsed.success) {
+        return { ok: false, error: parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ') };
+      }
+      const checked = checkFieldOptions(parsed.data.fields, context.agentFields);
+      // With the repair budget used up, a wrong option costs the field, not the whole run.
+      if (checked.problems.length > 0 && !optionsRepaired && repairs < MAX_REPAIRS) {
+        optionsRepaired = true;
+        return { ok: false, error: checked.problems.join('; ') };
+      }
+      return { ok: true, value: { ...parsed.data, fields: checked.fields }, rejectedFields: checked.problems };
     };
 
     for (let iteration = 0; iteration < snapshot.settings.maxToolCalls + MAX_REPAIRS + 3; iteration += 1) {
@@ -146,7 +156,7 @@ export class AgentRunner {
           kind: 'tool',
           name: context.submitTool,
           input: { text: response.content },
-          output: parsed.ok ? 'accepted from text' : null,
+          output: parsed.ok ? acceptedOutput('accepted from text', parsed.rejectedFields) : null,
           error: parsed.ok ? null : parsed.error,
           tokensIn: null,
           tokensOut: null,
@@ -208,7 +218,7 @@ export class AgentRunner {
     call: LlmToolCall,
     context: AssembledContext,
     snapshot: AgentConfigSnapshot,
-    tryParse: (raw: unknown) => { ok: true; value: AgentResult } | { ok: false; error: string },
+    tryParse: (raw: unknown) => ParseOutcome,
     onStep: RunnerInput['onStep'],
     tools: ToolExecutor | undefined,
   ): Promise<
@@ -230,7 +240,7 @@ export class AgentRunner {
         kind: 'tool',
         name: call.name,
         input: args ?? call.arguments,
-        output: parsed.ok ? 'accepted' : null,
+        output: parsed.ok ? acceptedOutput('accepted', parsed.rejectedFields) : null,
         error: parsed.ok ? null : parsed.error,
         tokensIn: null,
         tokensOut: null,
@@ -263,6 +273,10 @@ export class AgentRunner {
       const playbook = snapshot.playbooks.find((p) => p.key === key);
       content = playbook ? `# ${playbook.title}\nWhen: ${playbook.when}\n\n${playbook.body}` : `Playbook "${key}" not found. Available: ${context.playbookKeys.join(', ')}`;
       if (!playbook) error = 'not found';
+    } else if (call.name === FIND_FIELD_OPTIONS) {
+      const found = runFindFieldOptions(args, context.agentFields.filter((f) => optionsPresentation(f) === 'search'));
+      content = found.content;
+      error = found.error;
     } else {
       content = `Tool ${call.name} is unavailable.`;
       error = 'unknown tool';
@@ -270,6 +284,13 @@ export class AgentRunner {
     await onStep?.({ kind: 'tool', name: call.name, input: args ?? call.arguments, output: content, error, tokensIn: null, tokensOut: null, durationMs: Date.now() - started });
     return { kind: 'tool', content };
   }
+}
+
+type ParseOutcome = { ok: true; value: AgentResult; rejectedFields?: string[] } | { ok: false; error: string };
+
+/** The step output of an accepted result: field values dropped after the repair stay visible in the run. */
+function acceptedOutput(status: string, rejectedFields: string[] | undefined): unknown {
+  return rejectedFields && rejectedFields.length > 0 ? { status, field_rejected: rejectedFields } : status;
 }
 
 function textResultRequest(submitTool: string): string {

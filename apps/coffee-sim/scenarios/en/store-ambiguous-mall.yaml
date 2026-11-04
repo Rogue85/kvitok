@@ -1,0 +1,16 @@
+id: store-ambiguous-mall
+title: A complaint about the coffee shop "in the mall" without a receipt
+tags: [stores, no-action, places]
+guests:
+  - { id: sveta, name: Sveta, phone: '79000000045', cashback_percent: 3, balance: 40 }
+ticket:
+  customer: sveta
+  subject: A complaint about a coffee shop
+  body: Yesterday at your coffee shop in a mall in Moscow I was sold a stale croissant. I did not keep the receipt.
+  sent_at: 2026-10-15 11:30
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: { candidates: [okeania, kristall] } }
+  note: There are two coffee shops in Moscow malls and no receipts — the operator chooses.

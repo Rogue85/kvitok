@@ -27,7 +27,7 @@ cp apps/api/.env.example apps/api/.env
 docker compose up -d
 ```
 
-On the first start the `deps` service installs dependencies into the container volumes and builds `packages/*`, and `migrate` applies the migrations. This takes a couple of minutes. Then create demo data:
+On the first start the `deps` service installs dependencies into the container volumes and builds `packages/*`, and `migrate` applies the migrations. This takes a couple of minutes. Then open http://localhost:3000: the first visit opens `/setup`, which creates the first superadministrator and workspace (see [Users and access](#users-and-access)). To skip it, seed demo data:
 
 ```bash
 docker compose exec api pnpm --filter @kvitok/api db:seed
@@ -160,11 +160,11 @@ Create the scenario tickets in the system (an API channel is required):
 pnpm --filter @kvitok/coffee-sim seed --channel <channelId> --key <channel key>
 ```
 
-A scenario is a YAML file: world data (guests, receipts, coupons, orders), a ticket and an expectation (department, actions with parameters, forbidden actions). All scenarios share the same "now" (`scenarios/<locale>/_base.yaml`), so they can be loaded together or one by one. A new scenario is added to every language with the same file name; only the texts differ (names, items, the ticket, notes), and the numbers in them stay the same. The service endpoints `/__sim/*` reset the world, show the journal of executed actions and switch on failures (`timeout`, `error_500`, `drop_response`).
+A scenario is a YAML file: world data (guests, receipts, coupons, orders), a ticket and an expectation (department, actions with parameters, forbidden actions, and the coffee shop the agent picks from the `places` directory: a value, `null` for an empty field, or `{ candidates: [...] }` when the operator must choose). All scenarios share the same "now" (`scenarios/<locale>/_base.yaml`), so they can be loaded together or one by one. A new scenario is added to every language with the same file name; only the texts differ (names, items, the ticket, notes), and the numbers in them stay the same. The service endpoints `/__sim/*` reset the world, show the journal of executed actions and switch on failures (`timeout`, `error_500`, `drop_response`).
 
 ## Agent evaluation
 
-Runs all simulator scenarios on a real model and compares them with the expectations: department, proposed actions and their parameters, forbidden actions, tokens and cost.
+Runs all simulator scenarios on a real model and compares them with the expectations: department, proposed actions and their parameters, forbidden actions, fields from directories (false fills are counted separately), tokens and cost. Ticket fields come from the configuration under evaluation; a field bound to a directory is bound to the simulator's directory of the same name, and a directory the scenarios expect gets a field if none uses it.
 
 ```bash
 pnpm eval --from coffee-sim --concurrency 3

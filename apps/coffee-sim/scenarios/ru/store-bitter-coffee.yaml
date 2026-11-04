@@ -20,4 +20,5 @@ expect:
   department: stores
   actions: []
   forbid_actions: [accrue_points, accrue_cups, issue_coupon]
+  option_sets: { places: kristall }
   note: Компенсации баллами агент сам не предлагает.

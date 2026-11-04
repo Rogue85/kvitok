@@ -30,13 +30,45 @@ const snapshot: AgentConfigSnapshot = {
     { id: 'd2', key: 'general', title: 'Общая', description: '', examples: [], instructions: '', isTriage: true, archived: false },
   ],
   fields: [
-    { id: 'f1', entity: 'ticket', key: 'receipt_number', label: 'Номер чека', type: 'text', options: [], validation: {}, agentHint: 'из письма', fillMode: 'agent_auto', agentMinConfidence: 0.8, requiredOn: [], scopeDepartmentIds: [], display: ['sidebar'], passToIntegration: false, position: 0, archived: false },
-    { id: 'f2', entity: 'ticket', key: 'resolution', label: 'Решение', type: 'textarea', options: [], validation: {}, agentHint: '', fillMode: 'manual', agentMinConfidence: 0.8, requiredOn: [], scopeDepartmentIds: [], display: ['sidebar'], passToIntegration: false, position: 1, archived: false },
-    { id: 'f3', entity: 'ticket', key: 'store', label: 'Кофейня', type: 'text', options: [], validation: {}, agentHint: '', fillMode: 'agent_suggest', agentMinConfidence: 0.8, requiredOn: [], scopeDepartmentIds: [], display: ['sidebar'], passToIntegration: false, position: 2, archived: false },
+    { id: 'f1', entity: 'ticket', key: 'receipt_number', label: 'Номер чека', type: 'text', options: [], validation: {}, agentHint: 'из письма', fillMode: 'agent_auto', agentMinConfidence: 0.8, requiredOn: [], scopeDepartmentIds: [], display: ['sidebar'], passToIntegration: false, position: 0, optionSet: null, agentOptionsMode: 'auto', archived: false },
+    { id: 'f2', entity: 'ticket', key: 'resolution', label: 'Решение', type: 'textarea', options: [], validation: {}, agentHint: '', fillMode: 'manual', agentMinConfidence: 0.8, requiredOn: [], scopeDepartmentIds: [], display: ['sidebar'], passToIntegration: false, position: 1, optionSet: null, agentOptionsMode: 'auto', archived: false },
+    { id: 'f3', entity: 'ticket', key: 'store', label: 'Кофейня', type: 'text', options: [], validation: {}, agentHint: '', fillMode: 'agent_suggest', agentMinConfidence: 0.8, requiredOn: [], scopeDepartmentIds: [], display: ['sidebar'], passToIntegration: false, position: 2, optionSet: null, agentOptionsMode: 'auto', archived: false },
   ],
 };
 
 const at = (minute: number) => new Date(Date.UTC(2026, 9, 31, 10, minute));
+
+/** A select bound to the coffee shop directory; the old text field is retired. */
+const shopField = (overrides: Partial<AgentConfigSnapshot['fields'][number]> = {}): AgentConfigSnapshot['fields'][number] => ({
+  id: 'f4',
+  entity: 'ticket',
+  key: 'coffee_shop',
+  label: 'Кофейня',
+  type: 'select',
+  options: [
+    { value: 'kristall', label: 'ТЦ «Кристалл»', group: 'Москва', agentHint: 'м. Каширская' },
+    { value: 'arbat', label: 'Арбат, 24', group: 'Москва', agentHint: 'Старый Арбат' },
+    { value: 'novy_arbat', label: 'Новый Арбат, 15', group: 'Москва' },
+    { value: 'leninsky', label: 'Ленинский проспект, 30', group: 'Москва', archived: true },
+  ],
+  validation: {},
+  agentHint: 'Кофейню бери из чека',
+  fillMode: 'agent_suggest',
+  agentMinConfidence: 0.8,
+  requiredOn: [],
+  scopeDepartmentIds: [],
+  display: ['sidebar'],
+  passToIntegration: false,
+  position: 3,
+  optionSet: { id: 's1', integrationId: 'i1', name: 'places', title: 'Кофейни', description: 'value — place_id из чеков', removed: false },
+  agentOptionsMode: 'auto',
+  archived: false,
+  ...overrides,
+});
+const withShop = (overrides: Partial<AgentConfigSnapshot['fields'][number]> = {}): AgentConfigSnapshot => ({
+  ...snapshot,
+  fields: [...snapshot.fields.filter((f) => f.key !== 'store'), shopField(overrides)],
+});
 
 function message(overrides: Partial<Message & { authorUser: User | null }>): Message & { authorUser: User | null } {
   return {
@@ -162,6 +194,40 @@ describe('assembleContext', () => {
     expect(user).not.toContain('сообщение 5\n');
     expect(user).toContain('messages skipped: 9');
     expect(user).toContain('сообщение 29');
+  });
+
+  it('a select from a directory: active options listed with groups and hints, an enum with null, candidates in the schema', () => {
+    const context = assembleContext(input({ snapshot: withShop() }));
+    const system = context.messages[0]!.content as string;
+    expect(system).toContain('Options come from the directory "Кофейни": value — place_id из чеков');
+    expect(system).toContain('  - kristall — ТЦ «Кристалл» · Москва · м. Каширская');
+    expect(system).not.toContain('leninsky');
+    const fields = (context.tools.find((t) => t.name === 'submit_result')!.parameters.properties as Record<string, { properties: Record<string, unknown> }>).fields;
+    expect(fields!.properties.coffee_shop).toMatchObject({
+      properties: { value: { type: ['string', 'null'], enum: ['kristall', 'arbat', 'novy_arbat', null] }, candidates: { type: 'array', maxItems: 5 } },
+    });
+    expect(context.tools.map((t) => t.name)).not.toContain('find_field_options');
+  });
+
+  it('a select in the search mode: options not listed, find_field_options offered, no enum', () => {
+    const context = assembleContext(input({ snapshot: withShop({ agentOptionsMode: 'search' }) }));
+    const system = context.messages[0]!.content as string;
+    expect(system).toContain('3 options, not listed here: find them with find_field_options.');
+    expect(system).not.toContain('ТЦ «Кристалл»');
+    expect(context.tools.map((t) => t.name)).toEqual(['read_playbook', 'find_field_options', 'submit_result']);
+    const fields = (context.tools.find((t) => t.name === 'submit_result')!.parameters.properties as Record<string, { properties: Record<string, { properties: Record<string, unknown> }> }>).fields;
+    expect(fields!.properties.coffee_shop!.properties.value).toEqual({ type: ['string', 'null'] });
+  });
+
+  it('a select value in the ticket shows its label; waiting candidates are in the previous analysis', () => {
+    const analysis = {
+      department: 'loyalty', confidence: 0.9, summary: 'Жалоба', findings: [], routingReason: '', needsHuman: false,
+      fieldSuggestions: { coffee_shop: { value: null, candidates: ['arbat', 'novy_arbat'], confidence: 0.5, evidence: null, reason: 'ambiguous' } },
+    };
+    const ticket = { ...input().ticket, fields: { coffee_shop: 'leninsky' }, fieldMeta: {}, analysis } as never;
+    const user = assembleContext(input({ snapshot: withShop(), ticket })).messages[1]!.content as string;
+    expect(user).toContain('Кофейня [coffee_shop] = "leninsky" (Ленинский проспект, 30 · Москва, retired)');
+    expect(user).toContain('- coffee_shop: "arbat" (Арбат, 24 · Москва), "novy_arbat" (Новый Арбат, 15 · Москва)');
   });
 
   it('without tools — JSON mode with the schema in the prompt and full playbooks', () => {
@@ -309,6 +375,49 @@ describe('AgentRunner', () => {
     expect(llm.requests).toHaveLength(1);
   });
 
+  it('a value outside the options gets one repair; candidates are cleaned up', async () => {
+    const llm = new ScriptedLlm([
+      toolCall('submit_result', result({ fields: { coffee_shop: { value: 'Арбат', confidence: 0.7 } } })),
+      text(JSON.stringify(result({ fields: { coffee_shop: { value: null, candidates: ['arbat', 'novy_arbat', 'arbat', 'leninsky', 'moon'], confidence: 0.5 } } }))),
+    ]);
+
+    const output = await runner.run({ client: llm, model: 'm', snapshot: withShop(), context: assembleContext(input({ snapshot: withShop() })) });
+
+    expect(llm.requests[1]!.messages.at(-2)!.content).toContain('fields.coffee_shop.value: "Арбат" is not an option of coffee_shop; use a value from the list');
+    expect(output.result.fields.coffee_shop).toEqual({ value: null, candidates: ['arbat', 'novy_arbat'], confidence: 0.5, evidence: null });
+  });
+
+  it('a wrong option after the repair costs the field, not the run; a numeric id is read as text', async () => {
+    const steps: Array<{ name: string | null; output: unknown }> = [];
+    const wrong = () => toolCall('submit_result', result({ fields: { coffee_shop: { value: 'moon', confidence: 0.9 }, receipt_number: { value: '0548', confidence: 0.9 } } }));
+    const llm = new ScriptedLlm([wrong(), wrong()]);
+
+    const output = await runner.run({ client: llm, model: 'm', snapshot: withShop(), context: assembleContext(input({ snapshot: withShop() })), onStep: (s) => void steps.push(s) });
+
+    expect(output.result.fields).toEqual({ receipt_number: { value: '0548', confidence: 0.9, evidence: null } });
+    expect(steps.at(-1)).toMatchObject({ name: 'submit_result', output: { status: 'accepted', field_rejected: [expect.stringContaining('"moon"')] } });
+
+    const numeric = await runner.run({
+      client: new ScriptedLlm([toolCall('submit_result', result({ fields: { coffee_shop: { value: 512, confidence: 0.9 } } }))]),
+      model: 'm',
+      snapshot: withShop({ options: [{ value: '512', label: 'Тверская, 12' }] }),
+      context: assembleContext(input({ snapshot: withShop({ options: [{ value: '512', label: 'Тверская, 12' }] }) })),
+    });
+    expect(numeric.result.fields.coffee_shop).toMatchObject({ value: '512' });
+  });
+
+  it('find_field_options answers from the field options, counts as a tool call', async () => {
+    const shop = withShop({ agentOptionsMode: 'search' });
+    const llm = new ScriptedLlm([toolCall('find_field_options', { field: 'coffee_shop', query: 'арбат' }), toolCall('submit_result', result())]);
+    const steps: string[] = [];
+
+    await runner.run({ client: llm, model: 'm', snapshot: shop, context: assembleContext(input({ snapshot: shop })), onStep: (s) => void steps.push(`${s.kind}:${s.name}`) });
+
+    const answer = JSON.parse(llm.requests[1]!.messages.at(-1)!.content as string);
+    expect(answer).toMatchObject({ field: 'coffee_shop', total_matches: 2, options: [{ value: 'arbat' }, { value: 'novy_arbat' }] });
+    expect(steps).toContain('tool:find_field_options');
+  });
+
   it('without fields for the agent the submit_result schema has no fields section', () => {
     const context = assembleContext(input({ snapshot: { ...snapshot, fields: [] } }));
     const submit = context.tools.find((t) => t.name === 'submit_result')!;
@@ -332,6 +441,8 @@ describe('findLeakedMarkup', () => {
     expect(findLeakedMarkup({ summary: 'ok<tool_call>{"name": "x"}</tool_call>' }, keys)).toBe('summary');
     expect(findLeakedMarkup({ summary: 'ok<|python_tag|>' }, keys)).toBe('summary');
     expect(findLeakedMarkup({ findings: ['ok", "reply_body": "Здравствуйте'] }, keys)).toBe('findings.0');
+    // An XML-call proxy closed the string with the next argument's tags: the fields after it were lost.
+    expect(findLeakedMarkup({ findings: 'Кофейня неизвестна.</findings>\n<fields>\n</fields>\n<reply_body>Здравствуйте' }, [...keys, 'fields'])).toBe('findings');
   });
 
   it('leaves ordinary text alone', () => {

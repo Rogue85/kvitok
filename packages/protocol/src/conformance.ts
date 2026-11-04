@@ -140,6 +140,21 @@ export async function runConformance(profile: ConformanceProfile): Promise<Confo
     await expectError(await raw('POST', PROTOCOL_PATHS.tool(tool.name), { customer_ref: tool.requires_customer ? customerRef : null, args: {} }), 422, 'invalid_arguments');
   });
 
+  for (const set of m?.option_sets ?? []) {
+    await check(`option_sets.${set.name}`, `option set ${set.name} responds according to the schema`, async () => {
+      const result = await client.optionSet(set.name);
+      if (result.notModified) fail('304 without If-None-Match');
+      const { options, etag } = result as { options: unknown[]; etag: string | null };
+      if (options.length === 0) return 'the set is empty — a field bound to it has nothing to choose from';
+      if (!etag) return 'no ETag — the core will load the whole set on every sync';
+      const again = await client.optionSet(set.name, etag);
+      if (!again.notModified) fail('304 was expected with If-None-Match for the same ETag');
+    });
+  }
+  await check('option_sets.unknown', 'an undeclared option set — 404 unknown_option_set', async () => {
+    await expectError(await raw('GET', PROTOCOL_PATHS.optionSet('conformance_unknown_set')), 404, 'unknown_option_set');
+  });
+
   await check('actions.unknown', 'an unknown action — 404 unknown_action', async () => {
     if (!customerRef) return 'skip';
     await expectError(await raw('POST', PROTOCOL_PATHS.validate('conformance_unknown_action'), { customer_ref: customerRef, params: {} }), 404, 'unknown_action');

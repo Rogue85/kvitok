@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paramValueEquals, renderMarkdown, scoreScenario, summarize, type ScenarioExpectation, type ScenarioOutcome } from './compare';
+import { paramValueEquals, renderMarkdown, scoreOption, scoreScenario, summarize, type ScenarioExpectation, type ScenarioOutcome } from './compare';
 
 const scenario = (overrides: Partial<ScenarioExpectation> = {}): ScenarioExpectation => ({
   id: 'receipt-not-on-card',
@@ -87,6 +87,34 @@ describe('scenario evaluation', () => {
     expect(markdown).toContain('| Scenarios stable (in every repeat) | 1 / 2 (50%); flaky: 1 |');
     expect(markdown).toContain('| flaky | ✓ loyalty | ✗ accrue_points (missing) | ≈ 1/2 |');
     expect(markdown).toContain('### flaky (repeat 2)');
+  });
+
+  it('directory fields: a value, an empty field and candidates', () => {
+    const verdict = (expected: Parameters<typeof scoreOption>[1], value: unknown, candidates: string[] = []) => scoreOption('places', expected, { value, candidates }).verdict;
+    expect(verdict('kristall', 'kristall')).toBe('correct');
+    expect(verdict('kristall', 'arbat')).toBe('wrong');
+    expect(verdict('kristall', null, ['arbat', 'kristall'])).toBe('candidates');
+    expect(verdict('kristall', null)).toBe('missed');
+    expect(verdict(null, null)).toBe('correct');
+    expect(verdict(null, 'arbat')).toBe('false_fill');
+    expect(verdict(null, null, ['arbat', 'novy_arbat'])).toBe('extra_candidates');
+    const ambiguous = { candidates: ['okeania', 'kristall'] };
+    expect(verdict(ambiguous, null, ['kristall', 'okeania', 'arbat'])).toBe('correct');
+    expect(verdict(ambiguous, 'okeania', ['kristall'])).toBe('correct');
+    expect(verdict(ambiguous, 'okeania')).toBe('guessed');
+    expect(verdict(ambiguous, null, ['okeania', 'arbat'])).toBe('candidates');
+    expect(verdict(ambiguous, 'tiara')).toBe('wrong');
+    expect(scoreOption('places', 'kristall', null).verdict).toBe('no_field');
+
+    // A wrong directory field fails the scenario and shows up in the summary and the report.
+    const score = scoreScenario(scenario({ actions: [], optionSets: { places: null } }), outcome({ actions: [], optionFields: { places: { value: 'arbat', candidates: [] } } }));
+    expect(score.passed).toBe(false);
+    const summary = summarize([score]);
+    expect(summary.optionSets).toEqual({ total: 1, correct: 0, partial: 0, wrong: 0, missed: 0, falseFill: 1, noField: 0 });
+    const markdown = renderMarkdown({ startedAt: '2026-10-31T11:00:00.000Z', finishedAt: '2026-10-31T11:01:00.000Z', config: { model: null, provider: null, configHash: null, corePromptVersion: 9, source: 'x' }, summary, scores: [score] });
+    expect(markdown).toContain('| Directory fields: false fills / wrong / missed / partial | 1 / 0 / 0 / 0 |');
+    expect(markdown).toContain('✗ places (false_fill)');
+    expect(markdown).toContain('- Field from `places` (false_fill): expected empty, the agent — value `arbat`');
   });
 
   it('summary and report: rates, cost, analysis of mismatches', () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AgentAnalyzedEventData, CustomerLinkDto, TicketAgentDto, TicketDto, TicketEventDto } from '@kvitok/shared';
+import type { AgentAnalyzedEventData, CustomerLinkDto, FieldSuggestion, TicketAgentDto, TicketDto, TicketEventDto } from '@kvitok/shared';
 
 /** An agent message in the ticket timeline: reply to the operator, analysis, questions and (on the latest analysis) suggestions. */
 const props = defineProps<{ event: TicketEventDto; ticket: TicketDto; agent: TicketAgentDto | null; latest: boolean; links?: CustomerLinkDto[] }>();
@@ -40,7 +40,7 @@ const openQuestionIds = computed(() => new Set(props.agent?.questions.map((q) =>
 const analysis = computed(() => (props.latest ? current.value : null));
 const hasSuggestions = computed(() => Boolean(analysis.value?.departmentSuggestion) || Object.keys(analysis.value?.fieldSuggestions ?? {}).length > 0);
 
-const SUGGESTION_REASONS = ['suggest_mode', 'low_confidence', 'locked', 'filled_by_other_source'] as const;
+const SUGGESTION_REASONS = ['suggest_mode', 'low_confidence', 'locked', 'filled_by_other_source', 'ambiguous'] as const;
 function suggestionReason(reason: string): string {
   const known = SUGGESTION_REASONS.find((r) => r === reason);
   return known ? t(`agentMessage.suggestionReason.${known}`) : reason;
@@ -50,6 +50,15 @@ function fieldLabel(key: string): string {
 }
 function fieldOptions(key: string) {
   return ticketFields.value.find((f) => f.key === key)?.options ?? [];
+}
+/** A candidate chip: the label and the group, so "Arbat" in two cities can be told apart. */
+function optionTitle(key: string, value: unknown): string {
+  const option = fieldOptions(key).find((o) => o.value === value);
+  return option ? [option.label, option.group].filter(Boolean).join(' · ') : String(value);
+}
+/** The suggested value first, then the other candidates. */
+function choices(suggestion: FieldSuggestion): string[] {
+  return [suggestion.value, ...(suggestion.candidates ?? [])].filter((v): v is string => typeof v === 'string' && v !== '');
 }
 
 async function call(path: string, body: object = {}, success?: string): Promise<void> {
@@ -163,15 +172,41 @@ async function call(path: string, body: object = {}, success?: string): Promise<
           :key="key"
           class="flex flex-wrap items-center gap-2 rounded-md border border-(--ui-border) bg-(--ui-bg)/70 px-2.5 py-1.5 text-xs"
         >
-          <span class="min-w-0">
-            {{ fieldLabel(String(key)) }}: <b>{{ formatFieldValue(suggestion.value, fieldOptions(String(key))) }}</b>
-            <span class="text-(--ui-text-muted)"> · {{ Math.round(suggestion.confidence * 100) }}%, {{ suggestionReason(suggestion.reason) }}</span>
-            <span v-if="suggestion.evidence" class="block italic text-(--ui-text-muted)">«{{ suggestion.evidence }}»</span>
-          </span>
-          <span v-if="editable" class="ml-auto flex gap-1">
-            <UButton size="xs" variant="soft" @click="call('suggestions/accept', { kind: 'field', key }, t('agentMessage.fieldFilled'))">{{ t('agentMessage.accept') }}</UButton>
-            <UButton size="xs" color="neutral" variant="ghost" @click="call('suggestions/reject', { kind: 'field', key })">{{ t('action.reject') }}</UButton>
-          </span>
+          <template v-if="suggestion.candidates?.length">
+            <!-- Several options fit: the operator picks one with a click. -->
+            <span class="min-w-0 basis-full">
+              {{ fieldLabel(String(key)) }}: <b>{{ t('agentMessage.severalFit') }}</b>
+              <span class="text-(--ui-text-muted)"> · {{ Math.round(suggestion.confidence * 100) }}%</span>
+              <span v-if="suggestion.evidence" class="block italic text-(--ui-text-muted)">«{{ suggestion.evidence }}»</span>
+            </span>
+            <span class="flex min-w-0 flex-wrap gap-1">
+              <UButton
+                v-for="value in choices(suggestion)"
+                :key="value"
+                size="xs"
+                variant="soft"
+                :disabled="!editable"
+                :label="optionTitle(String(key), value)"
+                :title="t('agentMessage.chooseCandidate')"
+                class="max-w-full"
+                @click="call('suggestions/accept', { kind: 'field', key, value }, t('agentMessage.fieldFilled'))"
+              />
+            </span>
+            <span v-if="editable" class="ml-auto flex gap-1">
+              <UButton size="xs" color="neutral" variant="ghost" @click="call('suggestions/reject', { kind: 'field', key })">{{ t('action.reject') }}</UButton>
+            </span>
+          </template>
+          <template v-else>
+            <span class="min-w-0">
+              {{ fieldLabel(String(key)) }}: <b>{{ formatFieldValue(suggestion.value, fieldOptions(String(key))) }}</b>
+              <span class="text-(--ui-text-muted)"> · {{ Math.round(suggestion.confidence * 100) }}%, {{ suggestionReason(suggestion.reason) }}</span>
+              <span v-if="suggestion.evidence" class="block italic text-(--ui-text-muted)">«{{ suggestion.evidence }}»</span>
+            </span>
+            <span v-if="editable" class="ml-auto flex gap-1">
+              <UButton size="xs" variant="soft" @click="call('suggestions/accept', { kind: 'field', key }, t('agentMessage.fieldFilled'))">{{ t('agentMessage.accept') }}</UButton>
+              <UButton size="xs" color="neutral" variant="ghost" @click="call('suggestions/reject', { kind: 'field', key })">{{ t('action.reject') }}</UButton>
+            </span>
+          </template>
         </div>
       </div>
 

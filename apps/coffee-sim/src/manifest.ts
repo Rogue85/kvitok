@@ -9,12 +9,14 @@ import {
   PROTOCOL_VERSION,
   type InputSchema,
   type Manifest,
+  type Option,
 } from '@kvitok/protocol';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { simActions } from './actions.js';
 import { DEFAULT_SIM_LOCALE, localizer, type SimLocale } from './locale.js';
 import { simTools } from './tools.js';
+import type { BaseWorld } from './world.js';
 
 /** Package root: one level up from both src/ and dist/. */
 export const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -87,11 +89,29 @@ export function buildManifest(locale: SimLocale = DEFAULT_SIM_LOCALE): Manifest 
       description: a.description,
       input_schema: toInputSchema(a.input),
       requires_approval: true,
+      audience: a.audience ?? ['agent', 'operator'],
       examples: a.examples,
     })),
     playbooks,
     suggested_departments: departments,
+    option_sets: [
+      {
+        name: PLACES_OPTION_SET,
+        title: l({ en: 'Coffee shops', ru: 'Кофейни' }),
+        description: l({
+          en: 'Coffee shops of the chain. value is the coffee shop id: the same as place_id in get_transactions and get_orders. group is the city.',
+          ru: 'Кофейни сети. value — id кофейни: то же, что place_id в get_transactions и get_orders. group — город.',
+        }),
+      },
+    ],
   });
+}
+
+/** The directory of coffee shops: the options come from the world's places. */
+export const PLACES_OPTION_SET = 'places';
+
+export function placeOptions(places: BaseWorld['places']): Option[] {
+  return places.map((p) => ({ value: p.id, label: p.name, group: p.city, ...(p.description ? { description: p.description } : {}), active: p.active }));
 }
 
 export function manifestEtag(manifest: Manifest): string {

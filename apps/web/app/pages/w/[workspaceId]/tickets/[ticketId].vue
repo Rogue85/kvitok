@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ActionFormPrefill } from '~/composables/useActionForm';
 import {
   TICKET_STATUSES,
   type AgentAnalyzedEventData,
@@ -45,6 +46,23 @@ const { data: links, refresh: refreshLinks } = await useAsyncData(
   () => api<CustomerLinkDto[]>(`${base.value}/customer-links`).catch(() => []),
   { watch: [ticketId], default: () => [] },
 );
+/* Manual actions: the form opens from the chat input and from the action cards. */
+const actionFormOpen = ref(false);
+const actionPrefill = ref<ActionFormPrefill | null>(null);
+provideActionForm({
+  open: (prefill) => {
+    actionPrefill.value = prefill;
+    actionFormOpen.value = true;
+  },
+  actions: computed(() => agent.value?.actions ?? []),
+});
+/** An operator's manual action proposed in this event: shown as its card. */
+function manualActionOf(event: { data: Record<string, unknown> }) {
+  return agent.value?.actions.find((a) => a.id === event.data.proposalId) ?? null;
+}
+function actionLocked(integrationId: string): boolean {
+  return links.value.some((l) => l.integrationId === integrationId && l.status === 'found' && !l.confirmed);
+}
 const runsOpen = ref(false);
 const runId = ref<string | null>(null);
 function openRun(id: string | null): void {
@@ -105,6 +123,7 @@ const lastSeenMessageId = computed(() => {
 });
 
 const AGENT_EVENTS = new Set(['agent_analyzed', 'agent_failed']);
+const MANUAL_ACTION_EVENT = 'action_proposed_by_operator';
 /** Identification events that asked the operator a question: shown as a card while the decision is open. */
 const IDENTIFICATION_CARDS = new Set(['suggestion', 'conflict', 'candidates', 'confirm']);
 function isIdentificationCard(event: { type: string; data: Record<string, unknown> }): boolean {
@@ -118,7 +137,7 @@ type TimelineEntry = TimelineItemDto | { kind: 'events'; events: TicketEventDto[
 const entries = computed(() => {
   const result: TimelineEntry[] = [];
   for (const item of timeline.value) {
-    if (item.kind === 'message' || isIdentificationCard(item.event) || AGENT_EVENTS.has(item.event.type)) {
+    if (item.kind === 'message' || isIdentificationCard(item.event) || AGENT_EVENTS.has(item.event.type) || item.event.type === MANUAL_ACTION_EVENT) {
       result.push(item);
       continue;
     }
@@ -366,6 +385,18 @@ watch(
                   :ticket-id="ticket.id"
                   @changed="refreshAll"
                 />
+                <div v-else-if="item.event.type === MANUAL_ACTION_EVENT" class="ml-auto w-full max-w-[85%] sm:max-w-[80%]">
+                  <AgentActionCard
+                    v-if="manualActionOf(item.event)"
+                    :action="manualActionOf(item.event)!"
+                    :ticket-id="ticket.id"
+                    :locked="actionLocked(manualActionOf(item.event)!.integrationId)"
+                    @changed="refreshAll"
+                  />
+                  <p class="mt-0.5 text-right text-xs text-(--ui-text-muted)" :title="formatDateTime(item.event.createdAt)">
+                    {{ t('ticket.manualAction', { author: item.event.actor?.name ?? t('ticket.operator'), time: formatRelative(item.event.createdAt) }) }}
+                  </p>
+                </div>
                 <AgentMessage
                   v-else
                   :event="item.event"
@@ -422,6 +453,7 @@ watch(
         <aside v-else-if="propsOpen" class="w-80 shrink-0 overflow-y-auto border-l border-(--ui-border) p-6">
           <TicketSidebar :ticket="ticket" :links="links" :cost="agent?.cost ?? null" @update="update" @changed="refreshAll" @open-runs="openRun(null)" />
         </aside>
+        <AgentActionForm v-model:open="actionFormOpen" :ticket-id="ticket.id" :prefill="actionPrefill" @created="refreshAll" />
         <AgentRunsModal v-if="agent" v-model:open="runsOpen" :runs="agent.runs" :run-id="runId" :currency="agent.cost.currency" />
       </div>
 

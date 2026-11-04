@@ -101,10 +101,14 @@ describe('coffee-sim over the protocol', () => {
   });
 
   it('service /__sim: reset to one scenario, execution journal, guest state', async () => {
-    await client.execute('accrue_cups', 'ivan', { basis: 'coupon_not_issued', count: 5 }, 'k-ivan');
+    const context = { source: 'operator' as const, ticket: 'T-7', operator: { email: 'op@example.com' } };
+    await client.execute('accrue_cups', 'ivan', { basis: 'coupon_not_issued', count: 5 }, 'k-ivan', context);
+    // The context is not part of the fingerprint: a retry with another approver is the same execution.
+    await client.execute('accrue_cups', 'ivan', { basis: 'coupon_not_issued', count: 5 }, 'k-ivan', { source: 'agent' });
     const base = url.replace(/\/api\/support$/, '');
-    const executions = (await (await fetch(`${base}/api/support/__sim/executions`)).json()) as Array<{ key: string }>;
+    const executions = (await (await fetch(`${base}/api/support/__sim/executions`)).json()) as Array<{ key: string; context?: unknown }>;
     expect(executions.map((e) => e.key)).toEqual(['k-ivan']);
+    expect(executions[0]!.context).toEqual(context);
     expect(await (await fetch(`${base}/api/support/__sim/guests/ivan`)).json()).toMatchObject({ active_cups: 5 });
 
     const reset = await fetch(`${base}/api/support/__sim/reset`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scenarios: ['app-login-code'] }) });
@@ -124,8 +128,24 @@ describe('coffee-sim over the protocol', () => {
       required: ['basis', 'amount'],
       properties: { basis: { enum: ['base_cashback', 'promo_cashback', 'writeoff_refund'] } },
     });
+    expect(manifest.actions.find((a) => a.name === 'accrue_points')!.audience).toEqual(['agent', 'operator']);
+    expect(manifest.actions.find((a) => a.name === 'adjust_points')!.audience).toEqual(['operator']);
     expect(manifest.playbooks.map((p) => p.key)).toEqual(['cups_6th_free', 'pickup_order', 'points_not_accrued', 'points_writeoff_refund', 'promo_issues']);
     expect(manifest.suggested_departments.map((d) => d.key)).toEqual(['loyalty', 'app', 'stores']);
     expect(manifest.instructions).toContain('6-я кружка');
+    expect(manifest.option_sets).toEqual([expect.objectContaining({ name: 'places', title: 'Кофейни' })]);
+  });
+
+  it('option set places: the world\'s coffee shops, closed ones inactive; place_id in receipts', async () => {
+    const result = await client.optionSet('places');
+    if (result.notModified) throw new Error('unexpected 304');
+    expect(result.options).toContainEqual({ value: 'kristall', label: 'ТЦ «Кристалл»', group: 'Москва', description: 'Каширское шоссе; м. Каширская', active: true });
+    expect(result.options.find((o) => o.value === 'leninsky')).toMatchObject({ active: false });
+    expect(await client.optionSet('places', result.etag)).toEqual({ notModified: true });
+    await expect(client.optionSet('cities')).rejects.toMatchObject({ code: 'unknown_option_set', status: 404 });
+
+    sim.reset(['store-bitter-coffee']);
+    const receipts = await client.callTool('get_transactions', 'maria', {});
+    expect(receipts.data).toEqual([expect.objectContaining({ place_id: 'kristall', place: 'ТЦ «Кристалл»' })]);
   });
 });

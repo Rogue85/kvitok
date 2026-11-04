@@ -1,4 +1,4 @@
-import type { FieldDefinitionDto, FieldMeta, FieldValues, TicketAnalysis } from '@kvitok/shared';
+import { activeOptions, type FieldDefinitionDto, type FieldMeta, type FieldValues, type TicketAnalysis } from '@kvitok/shared';
 import type {
   ActionProposal,
   AgentQuestion,
@@ -12,10 +12,11 @@ import type {
 } from '../generated/prisma/client';
 import type { LlmMessage, LlmTool } from '../llm/llm.types';
 import { htmlToPlainText } from '../mail/html';
-import { CHAT_TRIGGERS, type AgentTrigger } from './agent-trigger.types';
+import { CHAT_TRIGGERS, PARTIAL_TRIGGERS, type AgentTrigger } from './agent-trigger.types';
 import { IDENTIFY_CUSTOMER, MAX_TOOL_RESULT_CHARS, type IntegrationView } from './integration-runtime';
 import type { AgentConfigSnapshot } from './config-snapshot.service';
 import { corePrompt } from './core-prompt';
+import { buildFindFieldOptionsTool, FIND_FIELD_OPTIONS, optionLine, optionsPresentation } from './field-options';
 import {
   buildReadPlaybookTool,
   buildSubmitResultTool,
@@ -82,10 +83,14 @@ export function assembleContext(input: AssembleInput): AssembledContext {
   );
   const playbooks = snapshot.playbooks;
   const onDemand = input.supportsTools && snapshot.settings.playbookMode === 'on_demand' && playbooks.length > 0;
-  const chat = input.triggers.some((t) => CHAT_TRIGGERS.includes(t.type));
-  // Partial only if an analysis exists and nothing new besides operator messages (a new customer email needs a full analysis).
-  const partial = chat && ticket.analysis !== null && input.triggers.every((t) => CHAT_TRIGGERS.includes(t.type) || t.type === 'stale_rerun');
+  // An operator message or an operator's action with "update the reply": the operator waits for the result in the chat.
+  const chat = input.triggers.some((t) => PARTIAL_TRIGGERS.includes(t.type));
+  // Partial only if an analysis exists and nothing new besides the operator's input (a new customer email needs a full analysis).
+  const partial = chat && ticket.analysis !== null && input.triggers.every((t) => PARTIAL_TRIGGERS.includes(t.type) || t.type === 'stale_rerun');
   const submitTool = buildSubmitResultTool(snapshot.departments, agentFields, { partial });
+  const searchedFields = agentFields.filter((f) => optionsPresentation(f) === 'search');
+  // Without tools the options cannot be searched: list them all then.
+  const listAll = !input.supportsTools;
 
   const system: string[] = [corePrompt(snapshot.locale)];
   if (snapshot.settings.policy.trim()) {
@@ -99,7 +104,7 @@ export function assembleContext(input: AssembleInput): AssembledContext {
   }
   system.push(departmentsSection(snapshot));
   if (agentFields.length > 0) {
-    system.push(fieldsSection(agentFields));
+    system.push(fieldsSection(agentFields, listAll));
   }
   if (playbooks.length > 0) {
     system.push(
@@ -124,7 +129,7 @@ export function assembleContext(input: AssembleInput): AssembledContext {
     ticketSection(input),
     customerSection(input),
     ...integrations.map((view) => integrationSection(view, canIdentify)),
-    previousAnalysisSection(ticket),
+    previousAnalysisSection(ticket, input.snapshot),
     factsSection(integrations),
     actionsSection(input.actions ?? []),
     conversationSection(input),
@@ -141,7 +146,13 @@ export function assembleContext(input: AssembleInput): AssembledContext {
       { role: 'user', content: user },
     ],
     tools: input.supportsTools
-      ? [...(onDemand ? [buildReadPlaybookTool(playbooks.map((p) => p.key))] : []), ...(input.serviceTools ?? []), ...integrations.flatMap((i) => i.tools), submitTool]
+      ? [
+          ...(onDemand ? [buildReadPlaybookTool(playbooks.map((p) => p.key))] : []),
+          ...(searchedFields.length > 0 ? [buildFindFieldOptionsTool(searchedFields)] : []),
+          ...(input.serviceTools ?? []),
+          ...integrations.flatMap((i) => i.tools),
+          submitTool,
+        ]
       : [],
     submitTool: SUBMIT_RESULT,
     partial,
@@ -164,12 +175,26 @@ function departmentsSection(snapshot: AgentConfigSnapshot): string {
   return `## Departments\n${lines.join('\n')}`;
 }
 
-function fieldsSection(fields: FieldDefinitionDto[]): string {
+/**
+ * The fields the agent may fill in. Options of a select are listed one per line (value — label · group · hint) or,
+ * when there are too many, only counted: the agent finds them with find_field_options.
+ */
+function fieldsSection(fields: FieldDefinitionDto[], listAll: boolean): string {
   const lines = fields.map((f) => {
-    const options = f.options.length
-      ? `; options: ${f.options.map((o) => `${o.value} — ${o.label}${o.agentHint ? ` (${o.agentHint})` : ''}`).join(', ')}`
-      : '';
-    return `- \`${f.key}\` — ${f.label} (${f.type}${options})${f.agentHint ? `. ${f.agentHint}` : ''}`;
+    const head = `- \`${f.key}\` — ${f.label} (${f.type})${f.agentHint ? `. ${f.agentHint}` : ''}`;
+    const presentation = optionsPresentation(f);
+    if (presentation === null) return head;
+    const options = activeOptions(f.options);
+    const parts = [head];
+    if (f.optionSet) {
+      parts.push(`  Options come from the directory "${f.optionSet.title}"${f.optionSet.description ? `: ${f.optionSet.description}` : ''}`);
+    }
+    if (presentation === 'search' && !listAll) {
+      parts.push(`  ${options.length} options, not listed here: find them with ${FIND_FIELD_OPTIONS}.`);
+    } else {
+      parts.push('  Options (value — label · group · description):', ...options.map((o) => `  - ${optionLine(o)}`));
+    }
+    return parts.join('\n');
   });
   return `## Fields you can fill in\n${lines.join('\n')}`;
 }
@@ -198,12 +223,23 @@ function ticketSection({ ticket, snapshot }: AssembleInput): string {
   if (filled.length) {
     lines.push('Fields:');
     for (const [key, value] of filled) {
-      const label = snapshot.fields.find((f) => f.key === key)?.label ?? key;
+      const field = snapshot.fields.find((f) => f.entity === 'ticket' && f.key === key);
+      const label = field?.label ?? key;
       const source = meta[key] ? ` (filled by: ${SOURCE_LABELS[meta[key].source] ?? meta[key].source}${meta[key].locked ? ', locked' : ''})` : '';
-      lines.push(`- ${label} [${key}] = ${JSON.stringify(value)}${source}`);
+      lines.push(`- ${label} [${key}] = ${JSON.stringify(value)}${optionLabels(field, value)}${source}`);
     }
   }
   return lines.join('\n');
+}
+
+/** The labels of select values: ` (Tverskaya St, 12 · Moscow)`; archived options are marked. */
+function optionLabels(field: FieldDefinitionDto | undefined, value: unknown): string {
+  if (!field || (field.type !== 'select' && field.type !== 'multiselect')) return '';
+  const labels = (Array.isArray(value) ? value : [value]).map((v) => {
+    const option = field.options.find((o) => o.value === v);
+    return option ? `${[option.label, option.group].filter(Boolean).join(' · ')}${option.archived ? ', retired' : ''}` : null;
+  });
+  return labels.some(Boolean) ? ` (${labels.map((l) => l ?? '?').join('; ')})` : '';
 }
 
 function customerSection({ ticket, snapshot }: AssembleInput): string {
@@ -215,8 +251,8 @@ function customerSection({ ticket, snapshot }: AssembleInput): string {
     lines.push(`${identity.type}: ${identity.value}`);
   }
   for (const [key, value] of Object.entries(ticket.customer.fields as FieldValues)) {
-    const label = snapshot.fields.find((f) => f.entity === 'customer' && f.key === key)?.label ?? key;
-    lines.push(`${label}: ${JSON.stringify(value)}`);
+    const field = snapshot.fields.find((f) => f.entity === 'customer' && f.key === key);
+    lines.push(`${field?.label ?? key}: ${JSON.stringify(value)}${optionLabels(field, value)}`);
   }
   return lines.join('\n');
 }
@@ -299,33 +335,55 @@ const ACTION_STATUS: Record<string, string> = {
   rejected: 'rejected by the operator',
 };
 
+/** The status line of an action: who proposed it and, for a replaced one, what the operator did instead. */
+function actionStatus(action: ActionProposal, all: ActionProposal[]): string {
+  const replacement = action.replacedById ? all.find((a) => a.id === action.replacedById) : undefined;
+  if (action.status === 'rejected' && replacement) {
+    return `rejected — replaced by the operator's action: ${replacement.title}${replacement.preview ? `, "${replacement.preview}"` : ''}`;
+  }
+  const status = ACTION_STATUS[action.status] ?? action.status;
+  return action.source === 'operator' ? `${status}, proposed by the operator by hand` : status;
+}
+
 /** Actions on the ticket: the agent does not propose executed ones again and takes rejection reasons into account. */
 function actionsSection(actions: ActionProposal[]): string | null {
   if (actions.length === 0) return null;
   const lines = ['## Actions on the ticket'];
   for (const action of actions) {
     const params = JSON.stringify(action.normalizedParams ?? action.params);
+    const replaced = action.status === 'rejected' && action.replacedById !== null;
     const details = [
       action.preview ? `"${action.preview}"` : null,
-      action.status === 'rejected' && action.decisionComment ? `reason: "${action.decisionComment}"` : null,
+      action.source === 'operator' && action.reason ? `operator's reason: "${action.reason}"` : null,
+      action.status === 'rejected' && !replaced && action.decisionComment ? `reason: "${action.decisionComment}"` : null,
       action.status === 'failed' && action.error ? `error: ${action.error}` : null,
       action.status === 'executed' && action.result !== null ? `result: ${JSON.stringify(action.result)}` : null,
     ].filter(Boolean);
-    lines.push(`- [${ACTION_STATUS[action.status] ?? action.status}] ${action.title} (${action.action}) ${escape(params)}${details.length ? ` — ${escape(details.join('; '))}` : ''}`);
+    lines.push(`- [${escape(actionStatus(action, actions))}] ${action.title} (${action.action}) ${escape(params)}${details.length ? ` — ${escape(details.join('; '))}` : ''}`);
   }
   lines.push(
-    'Do not propose executed or rejected actions again. Proposals awaiting a decision are replaced if you propose actions anew.',
+    "Do not propose executed or rejected actions again, nor the operator's own proposals. Your proposals awaiting a decision are replaced if you propose actions anew; the operator's stay.",
   );
   return lines.join('\n');
 }
 
-function previousAnalysisSection(ticket: Ticket): string | null {
+function previousAnalysisSection(ticket: Ticket, snapshot: AgentConfigSnapshot): string | null {
   const analysis = ticket.analysis as unknown as TicketAnalysis | null;
   if (!analysis) return null;
   const lines = ['## Your previous analysis', `Department: ${analysis.department ?? 'not determined'} (confidence ${analysis.confidence})`, `Summary: ${analysis.summary}`];
   if (analysis.routingReason) lines.push(`Why this department: ${analysis.routingReason}`);
   if (analysis.findings.length) lines.push(`Findings:\n${analysis.findings.map((f) => `- ${f}`).join('\n')}`);
   if (analysis.needsHuman) lines.push('Needs a human decision: yes');
+  // Candidates wait for the operator's choice: the operator may answer "the second one".
+  const pending = Object.entries(analysis.fieldSuggestions ?? {}).filter(([, s]) => (s.candidates?.length ?? 0) > 0);
+  if (pending.length) {
+    lines.push('Field candidates waiting for the operator:');
+    for (const [key, suggestion] of pending) {
+      const field = snapshot.fields.find((f) => f.entity === 'ticket' && f.key === key);
+      const options = [suggestion.value, ...(suggestion.candidates ?? [])].filter((v) => v !== null && v !== undefined);
+      lines.push(`- ${key}: ${options.map((v) => `${JSON.stringify(v)}${optionLabels(field, v)}`).join(', ')}`);
+    }
+  }
   return lines.join('\n');
 }
 
@@ -398,6 +456,19 @@ function taskSection(input: AssembleInput, partial: boolean): string {
     );
     for (const message of operatorMessages) {
       lines.push(`<operator_message author="${escapeAttr(message.authorUser?.name ?? 'operator')}">\n${escape(truncate(message.bodyText))}\n</operator_message>`);
+    }
+  } else if (input.triggers.some((t) => t.type === 'action_executed') && !input.triggers.some((t) => t.type === 'customer_message')) {
+    const done = input.triggers
+      .filter((t) => t.type === 'action_executed' && t.actionId)
+      .map((t) => input.actions?.find((a) => a.id === t.actionId))
+      .filter((a): a is NonNullable<typeof a> => Boolean(a));
+    lines.push(
+      partial
+        ? 'The operator performed an action by hand (see "Actions on the ticket") and asked you to bring the reply in line with it. Return reply_body with the whole updated text, based on the current draft, and say briefly in message_to_operator what you changed. Pass only the sections the action affects. Do not propose this action again.'
+        : 'The operator performed an action by hand (see "Actions on the ticket"). Do a full analysis that takes it into account and update the draft reply to match what was done. Do not propose this action again.',
+    );
+    for (const action of done) {
+      lines.push(`- ${escape(action.title)}: ${action.status === 'executed' ? 'executed' : `failed${action.error ? ` (${escape(action.error)})` : ''}`}${action.preview ? ` — "${escape(action.preview)}"` : ''}`);
     }
   } else if (input.triggers.some((t) => t.type === 'customer_message')) {
     lines.push('The customer sent a new message (the last one in the conversation). Update the analysis, the fields and the draft reply.');

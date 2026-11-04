@@ -1,0 +1,24 @@
+id: store-receipt-decides
+title: Жалоба на кофейню «на Арбате» — какую, решает чек
+tags: [stores, no-action, places]
+guests:
+  - { id: oleg, name: Олег, phone: '79000000044', cashback_percent: 5, balance: 120 }
+transactions:
+  - id: oleg-t1
+    guest: oleg
+    at: 2026-10-15 09:20
+    place: novy_arbat
+    total: 290
+    items:
+      - { name: Капучино L, group: Кофе, price: 290 }
+ticket:
+  customer: oleg
+  subject: Жалоба на кофейню
+  body: Утром на Арбате взял капучино — холодный и почти без пены, а бариста даже не извинился.
+  sent_at: 2026-10-15 10:05
+expect:
+  department: stores
+  actions: []
+  forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: novy_arbat }
+  note: «На Арбате» подходит и к «Арбат, 24», и к «Новый Арбат, 15»; утренний чек гостя — в «Новом Арбате».

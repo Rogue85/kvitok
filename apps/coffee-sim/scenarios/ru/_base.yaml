@@ -4,10 +4,13 @@ timezone: '+03:00'
 now: 2026-10-15 12:00
 
 places:
-  - { id: okeania, name: ТЦ «Океания», city: Москва }
-  - { id: kristall, name: ТЦ «Кристалл», city: Москва }
-  - { id: tiara, name: ТЦ «Тиара», city: Казань }
-  - { id: arbat, name: 'Арбат, 24', city: Москва }
+  - { id: okeania, name: ТЦ «Океания», city: Москва, description: 'Кутузовский проспект; м. Славянский бульвар' }
+  - { id: kristall, name: ТЦ «Кристалл», city: Москва, description: 'Каширское шоссе; м. Каширская' }
+  - { id: tiara, name: ТЦ «Тиара», city: Казань, description: 'улица Пушкина' }
+  - { id: arbat, name: 'Арбат, 24', city: Москва, description: 'Старый Арбат, пешеходная улица; м. Смоленская' }
+  - { id: novy_arbat, name: 'Новый Арбат, 15', city: Москва, description: 'проспект Новый Арбат; м. Арбатская' }
+  - { id: kazan_park, name: ТЦ «Парк Хаус», city: Казань, description: 'проспект Хусаина Ямашева' }
+  - { id: leninsky, name: 'Ленинский проспект, 30', city: Москва, description: 'м. Ленинский проспект; закрыта в сентябре 2026', active: false }
 guest_city: Москва
 
 coupon_types:

@@ -55,6 +55,7 @@ export function transactionRow(store: SimStore, t: Transaction) {
   return {
     id: t.id,
     datetime: formatLocal(t.at, tz),
+    place_id: t.placeId,
     place: store.places.get(t.placeId)?.name ?? t.placeId,
     city: store.places.get(t.placeId)?.city ?? null,
     receipt_number: t.receiptNumber,
@@ -278,6 +279,7 @@ export function simTools(locale: SimLocale = DEFAULT_SIM_LOCALE): SimTool[] {
           .map((o) => ({
             id: o.id,
             number: o.number,
+            place_id: o.placeId,
             place: ctx.store.places.get(o.placeId)?.name ?? o.placeId,
             status: o.status,
             total: o.total,

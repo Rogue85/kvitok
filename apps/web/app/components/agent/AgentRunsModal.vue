@@ -17,7 +17,7 @@ const STATUS_COLORS: Record<string, 'neutral' | 'success' | 'warning' | 'error' 
 };
 const MODES = ['triage', 'refine'] as const;
 const STATUSES = ['queued', 'running', 'applied', 'stale', 'failed', 'cancelled'] as const;
-const TRIGGERS = ['ticket_created', 'customer_message', 'operator_message', 'question_answer', 'manual', 'stale_rerun', 'customer_linked'] as const;
+const TRIGGERS = ['ticket_created', 'customer_message', 'operator_message', 'question_answer', 'manual', 'stale_rerun', 'customer_linked', 'action_executed'] as const;
 
 function modeLabel(mode: string): string {
   const known = MODES.find((m) => m === mode);

@@ -120,7 +120,10 @@ export class ReadTools {
             agent: settings,
             llmProviders: providers.map((p) => ({ ...p, models: p.models.map((m) => m.id) })),
             departments: departments.map((d) => ({ ...d, membersAcceptingTickets: members.filter((m) => m.acceptingTickets && candidate(m, d.id)).length })),
-            fields,
+            // Options of a directory can be a thousand: the field shows their count, the directory is in integrations[].optionSets.
+            fields: fields.map(({ options, ...f }) =>
+              f.optionSet ? { ...f, optionsCount: options.filter((o) => !o.archived).length, archivedOptionsCount: options.filter((o) => o.archived).length } : { ...f, options },
+            ),
             playbooks: playbooks.map(({ body, ...p }) => ({ ...p, bodyChars: body.length })),
             routingRules: rules,
             identification: { ...identificationSettings, rules: identificationRules },
@@ -348,7 +351,8 @@ export class ReadTools {
         name: 'quality_report',
         title: 'Agent quality report',
         description:
-          'Where operators corrected the agent over a period: departments changed after the agent, rejected actions with reasons, sent replies ' +
+          'Where operators corrected the agent over a period: departments changed after the agent, rejected actions with reasons, actions done by hand ' +
+          '(instead of an agent proposal, or missed by the agent), sent replies ' +
           'compared with the agent draft (unchanged, edited, rewritten), questions, needs_human, failed runs, cost; by the current department of the ticket ' +
           'and by the playbooks the agent used, with example tickets.',
         input: z.object({

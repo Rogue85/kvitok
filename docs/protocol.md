@@ -9,7 +9,7 @@ How a project backend (an online shop, a loyalty program, an internal system) gi
 ## Principles
 
 - **The core does not know the domain.** What a customer has (receipts, orders, visits) and what can be done with them is described by the backend in its manifest.
-- **The agent only proposes.** An action is executed after an operator approves it; the backend validates the parameters itself both on validate and on execute.
+- **The agent only proposes.** An action is executed after an operator approves it; the backend validates the parameters itself both on validate and on execute. An operator may also propose an action by hand from the ticket; it goes through the same validate and execute.
 - **The core supplies the customer.** `customer_ref` comes from the ticket; the model cannot replace it. The backend must check that the requested objects (a receipt, an order) belong to this customer and respond to other customers' objects exactly as to nonexistent ones. This protects against prompt injection in emails.
 
 ## Request signing
@@ -54,8 +54,9 @@ Paths are relative to the integration's base URL.
 | `POST /context` | `{ customer_ref }` | the customer card: `{ title?, summary?, sections: [{ key, title, display, data }], refs, fields? }` |
 | `POST /tools/{name}` | `{ customer_ref \| null, args }` | `{ summary?, data, display?, refs }` |
 | `POST /actions/{name}/validate` | `{ customer_ref, params }` | `{ ok, normalized_params?, preview?, warnings[], errors[{ path?, message }] }` |
-| `POST /actions/{name}/execute` | `{ customer_ref, params }` + the `Idempotency-Key` header | `{ status: executed \| failed, result?, external_ref?, error? }` |
+| `POST /actions/{name}/execute` | `{ customer_ref, params, context? }` + the `Idempotency-Key` header | `{ status: executed \| failed, result?, external_ref?, error? }` |
 | `GET /actions/executions/{key}` | — | `{ status: executed \| failed \| pending \| unknown, action?, result?, external_ref?, error? }` |
+| `GET /option-sets/{name}` | — | the options of a directory: `{ options: [{ value, label, group?, description?, active? }] }`, an `ETag` header; `304` on `If-None-Match` with the same ETag |
 
 ### Manifest
 
@@ -86,10 +87,18 @@ Paths are relative to the integration's base URL.
     "description": "When it is appropriate and how to compute the parameters",
     "input_schema": { "type": "object", "required": ["basis", "amount"], "properties": { } },
     "requires_approval": true,
+    "audience": ["agent", "operator"],
     "examples": [{ "params": { "basis": "base_cashback", "amount": 19, "transaction_id": null, "receipt_total": 380 } }]
+  }, {
+    "name": "adjust_points",
+    "title": "Goodwill points",
+    "description": "A compensation the rules do not cover",
+    "input_schema": { "type": "object", "required": ["amount", "comment"], "properties": { "amount": { "type": "integer", "minimum": 1, "title": "Points" }, "comment": { "type": "string", "title": "Comment" } } },
+    "audience": ["operator"]
   }],
   "playbooks": [{ "key": "points_not_accrued", "title": "…", "when": "…", "body": "markdown", "suggested_department": "loyalty", "tools": ["get_transactions"], "actions": ["accrue_points"] }],
-  "suggested_departments": [{ "key": "loyalty", "title": "Loyalty", "description": "…", "examples": ["…"] }]
+  "suggested_departments": [{ "key": "loyalty", "title": "Loyalty", "description": "…", "examples": ["…"] }],
+  "option_sets": [{ "name": "places", "title": "Coffee shops", "description": "value is the shop id, the same as place_id in get_transactions" }]
 }
 ```
 
@@ -104,7 +113,25 @@ Paths are relative to the integration's base URL.
 - `requires_customer: false` marks reference data (promos, menu) available without a resolved customer; the core passes `customer_ref: null`.
 - `cache_ttl_seconds` is how long the result may be reused in later agent runs. After an operator message the agent does not fetch the same data again until it expires. `0` means do not reuse.
 - `examples` are used for documentation, a test call in the UI and conformance checks.
+- `audience` says who may start an action: `agent` — the agent proposes it, `operator` — an operator proposes it by hand from the ticket. The default is both. An action for operators only (`["operator"]`, for example a goodwill credit with your own limits) is never shown to the agent. A support core older than this field ignores it and offers such an action to the agent too; an operator still approves every action.
+- An operator proposing an action by hand fills in a form built from `input_schema`. Flat parameters make a form: strings, numbers, integers, booleans, enums and nullable ones; a property's `title` labels its field and `description` hints under it. Nested objects, arrays and `oneOf`/`anyOf` get a JSON editor instead.
 - `instructions` and `playbooks` are domain knowledge for the agent: how to read tool data and how to handle typical requests. The policy for talking to customers is set by the support team in its own interface and does not belong here.
+
+### Option sets
+
+A backend can publish directories for select fields: coffee shops, cities, products, plans. The support team binds a field to a directory; the core keeps the options in sync, the agent picks one of them, and the operator chooses from the same list.
+
+- The manifest declares a directory in `option_sets`: `name`, `title` and `description`. Write the description for the model: what an option is and **where its value appears in tool data** ("value is the shop id, the same as `place_id` in `get_transactions`"). With that, the agent copies the id from a receipt instead of matching addresses.
+- `GET /option-sets/{name}` returns all options. An option is:
+  - `value` — up to 200 characters, unique in the set and **stable**: tickets store it. A new value is a new option. Ids are fine: operators see the label;
+  - `label` — what the operator sees, up to 200 characters;
+  - `group` — optional, up to 100 characters: groups options in the UI and tells repeated labels apart (a city, a category);
+  - `description` — optional, up to 500 characters: aliases, landmarks, former names. The agent sees it, and the search covers it;
+  - `active` — `false` retires an option (a closed shop): tickets keep it, but nobody can choose it anymore. An option the backend stops returning is retired the same way.
+- At most 1,000 options in a set and 20 sets in a manifest.
+- Return an `ETag`: the core syncs the sets with the manifest and asks with `If-None-Match`.
+- An undeclared set is `404 unknown_option_set`.
+- A failed sync never empties a set: the core keeps the previous options.
 
 ### Customer resolve
 
@@ -126,6 +153,7 @@ Paths are relative to the integration's base URL.
 - `normalized_params` are the parameters that will be executed, for example a recalculated amount; the difference is explained in `warnings`.
 - `preview` is one line for the operator: what will happen.
 - **execute** must run the validate checks again: the data may have changed since the proposal. If they fail, respond `{ status: failed, error }`.
+- **Who started it.** execute carries `context`: `{ source: agent | operator, ticket?: "T-482", operator?: { email } }`. `source` is who proposed the action, `operator` is the one who pressed "Execute" (for an agent proposal, the one who approved it). Use it for your own audit; the operator's email is an employee's personal data, so keep it as you keep other such data. `context` is not part of the idempotency fingerprint: a retry with the same key and parameters is the same execution whatever its `context`. Ignore request fields you do not know: new optional ones may appear within version 1.
 - **Idempotency.**
   - The execute response is stored by `Idempotency-Key`. A repeat with the same key and the same parameters returns the previous response and executes nothing again.
   - The same key with other parameters is `409 idempotency_conflict`.
@@ -144,7 +172,7 @@ Paths are relative to the integration's base URL.
 | HTTP | code | When |
 |---|---|---|
 | 401 | `invalid_signature` | the signature is wrong, expired or missing |
-| 404 | `unknown_tool`, `unknown_action` | no such tool or action |
+| 404 | `unknown_tool`, `unknown_action`, `unknown_option_set` | no such tool, action or option set |
 | 404 | `unknown_customer` | `customer_ref` not found |
 | 404 | `not_found` | the object is not found or belongs to another customer |
 | 409 | `idempotency_conflict` | the key was already used with other parameters |
@@ -159,6 +187,7 @@ The check suite in `packages/protocol` verifies:
 - resolve, `matched_by` and that an identity matching nobody does not hide the customer;
 - the customer card;
 - tool responses;
+- option sets and their ETag;
 - error codes;
 - execute idempotency and the execution status.
 

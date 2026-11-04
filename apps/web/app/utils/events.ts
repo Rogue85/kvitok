@@ -36,6 +36,7 @@ export function eventIcon(event: TicketEventDto): string {
     identities_found: 'i-lucide-scan-search',
     customer_identification: 'i-lucide-user-search',
     identification_rejected: 'i-lucide-user-x',
+    action_proposed_by_operator: 'i-lucide-hand',
     action_approved: 'i-lucide-check',
     action_rejected: 'i-lucide-x',
     action_retried: 'i-lucide-rotate-ccw',
@@ -121,8 +122,14 @@ export function eventText(event: TicketEventDto, lookups: EventLookups): string 
       return identificationText(event);
     case 'identification_rejected':
       return t('events.identificationRejected', { identities: identitiesText(d.identities) });
-    case 'action_approved':
-      return `${t('events.actionApproved', { action })}${d.comment ? ` ${t('events.approvalComment', { comment: String(d.comment) })}` : ''}`;
+    case 'action_proposed_by_operator':
+      return t('events.actionProposedByOperator', { action });
+    case 'action_approved': {
+      const replaced = (d.replaced as Array<{ title: string }> | undefined) ?? [];
+      return `${t('events.actionApproved', { action })}${d.comment ? ` ${t('events.approvalComment', { comment: String(d.comment) })}` : ''}${
+        replaced.length ? ` ${t('events.actionReplacedOthers', { actions: replaced.map((r) => r.title).join(', ') })}` : ''
+      }`;
+    }
     case 'action_rejected':
       return `${t('events.actionRejected', { action })}${d.comment ? ` ${t('events.rejectionComment', { comment: String(d.comment) })}` : ''}`;
     case 'action_retried':

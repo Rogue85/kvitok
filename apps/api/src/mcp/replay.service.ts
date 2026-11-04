@@ -27,6 +27,8 @@ export interface ReplayComparison {
   actions: {
     before: Array<Proposal & { operatorDecision: string | null }>;
     after: Proposal[];
+    /** What operators executed by hand after the past run: a new configuration should propose these itself. */
+    operatorManual: Proposal[];
   };
   fields: { before: Record<string, unknown>; after: Record<string, unknown> };
   reply: {
@@ -68,7 +70,7 @@ export class ReplayService {
       replayOf: past.id,
     });
 
-    const [runs, departments, decisions, sent] = await Promise.all([
+    const [runs, departments, decisions, sent, manual] = await Promise.all([
       this.prisma.agentRun.findMany({
         where: { id: { in: [past.id, run.id] } },
         include: { configVersion: { select: { number: true } }, steps: { where: { kind: 'tool', error: null }, orderBy: { index: 'asc' } } },
@@ -77,6 +79,10 @@ export class ReplayService {
       this.prisma.actionProposal.findMany({ where: { runId: past.id } }),
       this.prisma.message.findFirst({
         where: { ticketId: ticket.id, authorType: 'operator', visibility: 'public', createdAt: { gt: past.createdAt } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.actionProposal.findMany({
+        where: { ticketId: ticket.id, source: 'operator', status: 'executed', createdAt: { gt: past.createdAt } },
         orderBy: { createdAt: 'asc' },
       }),
     ]);
@@ -105,6 +111,7 @@ export class ReplayService {
             decisions.find((d) => d.action === p.action && (sameParams(d.normalizedParams, p.params) || sameParams(d.params, p.params)))?.status ?? null,
         })),
         after: proposalsOf(after.steps),
+        operatorManual: manual.map((m) => ({ action: m.action, params: m.normalizedParams ?? m.params })),
       },
       fields: { before: fieldValues(beforeResult), after: fieldValues(afterResult) },
       reply: {

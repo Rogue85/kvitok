@@ -12,3 +12,4 @@ expect:
   department: app
   actions: []
   forbid_actions: [accrue_points, accrue_cups, issue_coupon, refund_order]
+  option_sets: { places: null }

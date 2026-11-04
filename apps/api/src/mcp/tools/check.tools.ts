@@ -1,7 +1,7 @@
 import { t } from '@kvitok/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import { ManifestSchema, runConformance, type Manifest } from '@kvitok/protocol';
-import { IngestMessageSchema } from '@kvitok/shared';
+import { actionFormFields, IngestMessageSchema } from '@kvitok/shared';
 import { z } from 'zod';
 import { AgentService } from '../../agent/agent.service';
 import { LlmProvidersService } from '../../agent/llm-providers.service';
@@ -68,7 +68,7 @@ export class CheckTools {
         description:
           "Re-runs the agent's last applied run of each ticket (or the given run) with the current configuration: the agent sees the ticket as it was then, " +
           'and backend results come from that run, so only the configuration differs. Compares department, confidence, needs_human, actions with ' +
-          "the operator's decisions, fields and the reply draft (also against the reply the operator actually sent). Nothing is applied. Calls the model for each ticket.",
+          "the operator's decisions and with the actions operators executed by hand afterwards, fields and the reply draft (also against the reply the operator actually sent). Nothing is applied. Calls the model for each ticket.",
         input: z.object({
           tickets: z
             .array(z.object(TicketRef).extend({ runId: z.string().optional().describe('A specific past run; by default the last applied one.') }))
@@ -233,6 +233,11 @@ export function manifestHints(manifest: Manifest, departmentKeys: Set<string>): 
     if (action.description.length < 40) hints.push(`action ${action.name}: the description is short — say when it is appropriate and how to compute the parameters.`);
     if (action.examples.length === 0) hints.push(`action ${action.name}: no examples — conformance checks need valid parameters.`);
     for (const name of undocumented(action.input_schema)) hints.push(`action ${action.name}: parameter ${name} has no description.`);
+    if (action.audience.includes('operator') && actionFormFields(action.input_schema) === null) {
+      hints.push(
+        `action ${action.name}: input_schema has nested objects, arrays or oneOf/anyOf — operators proposing it by hand get a JSON editor instead of a form. Flat parameters (strings, numbers, booleans, enums, nullable) make a form.`,
+      );
+    }
   }
   const suggested = new Set(manifest.suggested_departments.map((d) => d.key));
   for (const playbook of manifest.playbooks) {

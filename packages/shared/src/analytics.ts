@@ -92,6 +92,9 @@ export interface AnalyticsDto {
     departmentOverrides: number;
     questions: number;
     replies: { sent: number; withoutAgentDraft: number; unchanged: number; edited: number; rewritten: number };
+    /** The agent's proposals by status. */
     actions: Record<string, number>;
+    /** Actions operators executed by hand: in all, instead of an agent proposal, and ones the agent missed. */
+    manualActions: { executed: number; replaced: number; missed: number };
   };
 }

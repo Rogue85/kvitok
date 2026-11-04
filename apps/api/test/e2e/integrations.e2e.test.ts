@@ -6,15 +6,16 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigSnapshotService } from '../../src/agent/config-snapshot.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { createTestApp, resetDb, setupWorkspace } from '../helpers';
+import { createApiChannel, createTestApp, ingest, resetDb, setupWorkspace } from '../helpers';
 
 const SIM_SECRET = 'coffee-sim-test-secret';
 const BACKEND_SECRET = 'backend-test-secret-0001';
 
-/** A backend with a changeable manifest: checks the signature, returns ETag and 304. */
+/** A backend with a changeable manifest and option sets: checks the signature, returns ETag and 304. */
 function manifestBackend() {
   let manifest: ManifestInput = { protocol_version: 1, name: 'shop', title: 'Магазин', playbooks: [] };
   let version = 1;
+  const sets = new Map<string, { options: unknown[]; version: number } | 'fail'>();
   const server: Server = createServer((req, res) => {
     const verified = verifySignature({
       secret: BACKEND_SECRET,
@@ -26,6 +27,25 @@ function manifestBackend() {
     });
     if (!verified.ok) {
       res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { code: 'invalid_signature', message: verified.reason } }));
+      return;
+    }
+    const setName = /^\/option-sets\/([a-z_]+)$/.exec(req.url!)?.[1];
+    if (setName !== undefined) {
+      const set = sets.get(setName);
+      if (set === 'fail') {
+        res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { code: 'internal', message: 'db down' } }));
+        return;
+      }
+      if (!set) {
+        res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { code: 'unknown_option_set', message: setName } }));
+        return;
+      }
+      const setEtag = `"${setName}-${set.version}"`;
+      if (req.headers['if-none-match'] === setEtag) {
+        res.writeHead(304, { etag: setEtag }).end();
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'application/json', etag: setEtag }).end(JSON.stringify({ options: set.options }));
       return;
     }
     const etag = `"v${version}"`;
@@ -40,6 +60,10 @@ function manifestBackend() {
     set(next: ManifestInput) {
       manifest = next;
       version += 1;
+    },
+    setOptions(name: string, options: unknown[] | 'fail') {
+      const previous = sets.get(name);
+      sets.set(name, options === 'fail' ? 'fail' : { options, version: (previous && previous !== 'fail' ? previous.version : 0) + 1 });
     },
   };
 }
@@ -115,10 +139,12 @@ describe('integrations', () => {
     const { integration } = (await http.post(`/workspaces/${workspaceId}/integrations`, { name: 'Кофейня', baseUrl: simUrl, secret: SIM_SECRET })).json();
     const url = `/workspaces/${workspaceId}/integrations/${integration.id}`;
 
-    expect((await http.post(`${url}/sync`)).json().sync).toEqual({ status: 'not_modified' });
+    const unchanged = { name: 'places', status: 'not_modified', added: 0, changed: 0, archived: 0, restored: 0 };
+    expect((await http.post(`${url}/sync`)).json().sync).toEqual({ status: 'not_modified', optionSets: [unchanged] });
     expect((await http.post(`${url}/sync`, { force: true })).json().sync).toEqual({
       status: 'updated',
       playbooks: { added: [], updated: [], removed: [], skipped: [] },
+      optionSets: [unchanged],
     });
 
     await http.patch(url, { secret: 'wrong-secret-wrong-secret' });
@@ -193,6 +219,66 @@ describe('integrations', () => {
     expect(disabled.snapshot.integrations).toEqual([]);
     expect(disabled.snapshot.playbooks).toEqual([]);
     expect(disabled.version.hash).toBe(before.version.hash);
+  });
+
+  it('option sets: synced with the manifest, a field takes their options; missing options are archived, an error keeps the list, removal freezes the options', async () => {
+    const { workspaceId, http } = await setupWorkspace(app);
+    backend.set({ protocol_version: 1, name: 'shop', title: 'Магазин', option_sets: [{ name: 'places', title: 'Кофейни', description: 'value — place_id' }] });
+    backend.setOptions('places', [
+      { value: '512', label: 'Тверская, 12', group: 'Москва', description: 'м. Пушкинская' },
+      { value: '513', label: 'ТЦ «Кристалл»', group: 'Москва' },
+      { value: '600', label: 'ТЦ «Тиара»', group: 'Казань', active: false },
+    ]);
+    const created = (await http.post(`/workspaces/${workspaceId}/integrations`, { name: 'Магазин', baseUrl: backendUrl, secret: BACKEND_SECRET })).json();
+    expect(created.sync.optionSets).toEqual([{ name: 'places', status: 'updated', added: 3, changed: 0, archived: 0, restored: 0 }]);
+    const [set] = created.integration.optionSets;
+    expect(set).toMatchObject({ name: 'places', title: 'Кофейни', integrationName: 'Магазин', size: 3, activeSize: 2, removed: false, lastSyncError: null, fieldKeys: [] });
+
+    // A bound field takes the set's options; its own list is not accepted, only lists can be bound.
+    expect((await http.post(`/workspaces/${workspaceId}/fields`, { entity: 'ticket', key: 'note', label: 'Заметка', type: 'text', optionSetId: set.id })).statusCode).toBe(422);
+    const field = (await http.post(`/workspaces/${workspaceId}/fields`, { entity: 'ticket', key: 'coffee_shop', label: 'Кофейня', type: 'select', optionSetId: set.id, fillMode: 'agent_suggest' })).json();
+    expect(field).toMatchObject({ optionSet: { id: set.id, name: 'places', removed: false }, agentOptionsMode: 'auto' });
+    expect(field.options).toEqual([
+      { value: '512', label: 'Тверская, 12', group: 'Москва', agentHint: 'м. Пушкинская' },
+      { value: '513', label: 'ТЦ «Кристалл»', group: 'Москва' },
+      { value: '600', label: 'ТЦ «Тиара»', group: 'Казань', archived: true },
+    ]);
+
+    // An archived option cannot be chosen; an active one can.
+    const channel = await createApiChannel(http, workspaceId);
+    const ticketId = (await ingest(app, channel, { body: 'Горький кофе' })).json().ticket_id;
+    expect((await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { fields: { coffee_shop: '600' } })).statusCode).toBe(422);
+    expect((await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { fields: { coffee_shop: '513' } })).statusCode).toBe(200);
+
+    // The backend drops 513 and renames 512: 513 is archived, the ticket keeps it and stays editable.
+    backend.setOptions('places', [{ value: '512', label: 'Тверская ул., 12', group: 'Москва' }, { value: '600', label: 'ТЦ «Тиара»', group: 'Казань' }]);
+    const resynced = (await http.post(`/workspaces/${workspaceId}/integrations/${created.integration.id}/sync`)).json();
+    expect(resynced.sync.optionSets).toEqual([{ name: 'places', status: 'updated', added: 0, changed: 1, archived: 1, restored: 1 }]);
+    const fields = (await http.get(`/workspaces/${workspaceId}/fields?entity=ticket`)).json();
+    expect(fields.find((f: { key: string }) => f.key === 'coffee_shop').options.map((o: { value: string; archived?: boolean }) => [o.value, o.archived ?? false])).toEqual([
+      ['512', false],
+      ['600', false],
+      ['513', true],
+    ]);
+    expect((await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { tags: ['x'], fields: { coffee_shop: '513' } })).statusCode).toBe(200);
+
+    // A failed sync keeps the options and shows the error.
+    backend.setOptions('places', 'fail');
+    const failed = (await http.post(`/workspaces/${workspaceId}/integrations/${created.integration.id}/sync`, { force: true })).json();
+    expect(failed.sync.optionSets[0]).toMatchObject({ status: 'error', error: expect.stringMatching(/^internal/) });
+    expect(failed.integration.optionSets[0]).toMatchObject({ size: 3, lastSyncError: expect.stringMatching(/^internal/), fieldKeys: ['coffee_shop'] });
+
+    // The manifest drops the set: the field keeps its options, the set is marked removed.
+    backend.set({ protocol_version: 1, name: 'shop', title: 'Магазин' });
+    const dropped = (await http.post(`/workspaces/${workspaceId}/integrations/${created.integration.id}/sync`)).json();
+    expect(dropped.integration.optionSets[0]).toMatchObject({ removed: true, size: 3 });
+
+    // Removing the integration freezes the options into the field.
+    expect((await http.delete(`/workspaces/${workspaceId}/integrations/${created.integration.id}`)).statusCode).toBe(204);
+    const frozen = (await http.get(`/workspaces/${workspaceId}/fields?entity=ticket`)).json().find((f: { key: string }) => f.key === 'coffee_shop');
+    expect(frozen).toMatchObject({ optionSet: null });
+    expect(frozen.options.map((o: { value: string }) => o.value)).toEqual(['512', '600', '513']);
+    expect((await http.patch(`/workspaces/${workspaceId}/tickets/${ticketId}`, { fields: { coffee_shop: '512' } })).statusCode).toBe(200);
   });
 
   it('an operator sees integrations but does not change them', async () => {

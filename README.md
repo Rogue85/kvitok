@@ -30,7 +30,7 @@ Kvitok knows nothing about your business. A backend describes its data and actio
 - [Getting started](#getting-started). Run it in Docker with a fake LLM and a coffee shop simulator, or let Claude Code connect your project.
 - [Evaluating the agent](#evaluating-the-agent). `pnpm eval` runs test scenarios against a real model and reports which passed and what it cost.
 - [Working with an external agent](#working-with-an-external-agent). Claude Code and other agents can configure and tune a workspace over MCP.
-- [Status](#status). Early development: version 0.1, not yet proven in production.
+- [Status](#status). Early development, not yet proven in production.
 
 ## Why
 
@@ -93,7 +93,7 @@ The model is anything behind an OpenAI-compatible endpoint with tool calling: Op
 
 <img src="docs/screenshots/agent-settings.webp" alt="Agent settings: the model, the support policy written by the support team and the list of LLM providers">
 
-Routing rules run before and after the agent. They match the channel, the sender and their domain, the subject and body (regular expressions included), source metadata, ticket and customer fields, and the hour and weekday. After the agent they can also use its department, its confidence and whether it asked for a human. Tickets below a confidence threshold go to a triage queue, and a department set by an operator stays fixed. Operators and viewers can be limited to their departments: they see and work only with those tickets, in the interface, in notifications and over MCP.
+Routing rules run before and after the agent. They match the channel, the sender and their domain, the subject and body (regular expressions included), source metadata, ticket and customer fields, and the hour and weekday. After the agent they can also use its department, its confidence and whether it asked for a human. Tickets below a confidence threshold go to a triage queue, and a department set by an operator stays fixed. A department assigns its tickets by hand or gives each one to the next member who accepts tickets. Operators and viewers can be limited to their departments: they see and work only with those tickets, in the interface, in notifications and over MCP.
 
 <img src="docs/screenshots/rules.webp" alt="Routing rules before and after the agent">
 
@@ -152,13 +152,13 @@ cp apps/api/.env.example apps/api/.env
 docker compose up -d
 ```
 
-The first start installs dependencies and applies migrations, which takes a couple of minutes. Then create a demo workspace and an admin user:
+The first start installs dependencies and applies migrations, which takes a couple of minutes. Then open http://localhost:3000. On the first visit a setup page asks for the superadmin's account and the first workspace and signs you in. The API is at http://localhost:3001.
+
+To skip the setup page, seed a "Demo" workspace and the superadmin `admin@example.com` / `admin12345`:
 
 ```bash
 docker compose exec api pnpm --filter @kvitok/api db:seed
 ```
-
-Open http://localhost:3000 and sign in as `admin@example.com` / `admin12345`. The API is at http://localhost:3001. Without `db:seed`, the first visit opens a setup page that creates the first superadmin and workspace.
 
 ### Run it on a server
 
@@ -210,9 +210,11 @@ Kvitok serves an MCP endpoint at `/api/mcp`. With a personal access token, Claud
 
 ## Status
 
-Kvitok is in early development. The first release is 0.1.0 (see the [changelog](CHANGELOG.md)); it has not run in production yet. Working today: email and API channels, routing rules, custom fields, the agent with read tools and validated actions, the ticket chat with the agent, integrations through the protocol, agent evaluation, an MCP server for external agents and the English and Russian interface.
+Kvitok is in early development and has not run in production yet. The [changelog](CHANGELOG.md) lists the releases and what each one changed.
 
-The agent's prompt is in English. The agent drafts replies in the customer's language and writes summaries, findings and messages for the operator in the installation language. Next up are operator notifications (web push and Telegram), then an automatic mode for safe cases, SLA, templates and macros, and a website widget and a Telegram bot as sources.
+Working today: email and API channels, routing rules, custom fields, the agent with read tools and validated actions, the ticket chat with the agent, integrations through the protocol, agent evaluation, an MCP server for external agents and the English and Russian interface. The ticket queue has filters, bulk changes and saved views. A ticket can have several assignees, and a department can hand its tickets out in turn. An admin can limit operators to their departments. Web push tells operators about new tickets, customer messages and the agent's questions. Analytics covers the agent's cost and the team's work, and the interface works on phones.
+
+The agent's prompt is in English. The agent drafts replies in the customer's language and writes summaries, findings and messages for the operator in the installation language. Next up are an automatic mode for safe cases, SLA, templates and macros, a website widget and a Telegram bot as sources, and notifications in Telegram and other messengers.
 
 ## Built with
 

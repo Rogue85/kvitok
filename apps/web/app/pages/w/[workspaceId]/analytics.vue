@@ -38,7 +38,7 @@ function costRows(rows: AnalyticsCostRowDto[], label: (key: string | null) => st
     meta: `${tp('ticket.cost.runs', row.runs)} · ${tp('analytics.ticketCount', row.tickets)}`,
   }));
 }
-const TRIGGERS = ['ticket_created', 'customer_message', 'operator_message', 'question_answer', 'manual', 'stale_rerun', 'customer_linked'] as const;
+const TRIGGERS = ['ticket_created', 'customer_message', 'operator_message', 'question_answer', 'manual', 'stale_rerun', 'customer_linked', 'action_executed'] as const;
 function triggerLabel(key: string | null): string {
   const known = TRIGGERS.find((tr) => tr === key);
   return known ? t(`agentRuns.trigger.${known}`) : (key ?? '—');
@@ -100,6 +100,17 @@ const ACTION_STATUSES = ['proposed', 'approved', 'executing', 'executed', 'faile
 const actions = computed<BreakdownRow[]>(() => {
   const counts = report.value?.quality.actions ?? {};
   return ACTION_STATUSES.filter((s) => counts[s]).map((s) => ({ key: s, label: t(`action.status.${s}`), value: counts[s]!, display: String(counts[s]) }));
+});
+/** Executed actions: proposed by the agent or done by hand, and where the agent was corrected or missed one. */
+const executedActions = computed<BreakdownRow[]>(() => {
+  const quality = report.value?.quality;
+  if (!quality) return [];
+  const byAgent = quality.actions.executed ?? 0;
+  const { executed, replaced, missed } = quality.manualActions;
+  const total = byAgent + executed;
+  if (total === 0) return [];
+  const row = (key: 'byAgent' | 'manual' | 'replaced' | 'missed', value: number, of: number) => ({ key, label: t(`analytics.quality.executed.${key}`), value, display: String(value), meta: share(value, of) });
+  return [row('byAgent', byAgent, total), row('manual', executed, total), row('replaced', replaced, executed), row('missed', missed, executed)];
 });
 </script>
 
@@ -278,6 +289,13 @@ const actions = computed<BreakdownRow[]>(() => {
             <UCard>
               <template #header><h3 class="font-medium">{{ t('analytics.quality.actions') }}</h3></template>
               <AnalyticsBreakdownList :rows="actions" :empty="t('analytics.empty')" />
+            </UCard>
+            <UCard>
+              <template #header>
+                <h3 class="font-medium">{{ t('analytics.quality.executedActions') }}</h3>
+                <p class="text-xs text-(--ui-text-muted)">{{ t('analytics.quality.executedActionsHint') }}</p>
+              </template>
+              <AnalyticsBreakdownList :rows="executedActions" :empty="t('analytics.empty')" />
             </UCard>
           </div>
         </section>

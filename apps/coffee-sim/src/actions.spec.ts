@@ -104,6 +104,20 @@ describe('refund_order', () => {
   });
 });
 
+describe('adjust_points', () => {
+  it('is for operators only, keeps to the limit and warns about a recent goodwill credit', () => {
+    const { store, run, execute } = setup();
+    expect(ACTIONS.find((a) => a.name === 'adjust_points')!.audience).toEqual(['operator']);
+    expect(run('adjust_points', 'anna', { amount: 301, comment: 'перепутали заказ' }).errors[0]!.message).toMatch(/не больше 300/);
+    const first = run('adjust_points', 'anna', { amount: 50, comment: 'перепутали заказ' });
+    expect(first).toMatchObject({ ok: true, warnings: [], preview: 'Начислить 50 баллов компенсации — Анна' });
+    const before = store.guests.get('anna')!.balance;
+    execute('adjust_points', 'anna', { amount: 50, comment: 'перепутали заказ' });
+    expect(store.guests.get('anna')!.balance).toBe(before + 50);
+    expect(run('adjust_points', 'anna', { amount: 20, comment: 'ещё раз' }).warnings[0]).toMatch(/уже начисляли компенсацию/);
+  });
+});
+
 describe('English texts', () => {
   it('previews and errors come in the simulator language', () => {
     const world = loadWorld({ locale: 'en' });

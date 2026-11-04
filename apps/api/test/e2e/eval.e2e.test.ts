@@ -69,10 +69,15 @@ describe('agent evaluation on scenarios', () => {
     const [app_, receipt] = report.scores;
     expect(app_).toMatchObject({ departmentOk: false, passed: false, outcome: { department: 'loyalty', agentDepartment: 'loyalty' } });
     expect(receipt).toMatchObject({ passed: true, outcome: { tools: ['resolve_customer', 'get_customer_context', 'propose_accrue_points', 'submit_result'] } });
+    // app-login-code expects the coffee shop field to stay empty: the evaluation creates a field bound to the directory.
+    expect(app_!.optionSets).toEqual([{ set: 'places', expected: null, value: null, candidates: [], verdict: 'correct' }]);
+    expect(report.summary.optionSets).toMatchObject({ total: 1, correct: 1 });
 
     const workspace = await prisma.workspace.findUniqueOrThrow({ where: { slug: 'eval' }, include: { agentSettings: true } });
     expect(workspace.agentSettings).toMatchObject({ enabled: false, model: 'm' });
     expect(await prisma.ticket.count({ where: { workspaceId: workspace.id } })).toBe(2);
+    const field = await prisma.fieldDefinition.findFirstOrThrow({ where: { workspaceId: workspace.id, key: 'places' }, include: { optionSet: true } });
+    expect(field).toMatchObject({ type: 'select', fillMode: 'agent_suggest', optionSet: { name: 'places' } });
   });
 
   it('takes the configuration from --from: provider, policy, departments, members; the evaluation workspace is recreated; the budget stops the run', async () => {

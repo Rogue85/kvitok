@@ -32,7 +32,8 @@ model User {
   memberships       Membership[]
   assigned          TicketAssignee[]
   messages          Message[]
-  decidedActions    ActionProposal[]
+  decidedActions    ActionProposal[] @relation("ActionDecidedBy")
+  proposedActions   ActionProposal[] @relation("ActionCreatedBy")
   ticketViews       TicketView[]
   pushSubscriptions PushSubscription[]
 
@@ -156,6 +157,7 @@ model Workspace {
   customers           Customer[]
   tickets             Ticket[]
   fieldDefinitions    FieldDefinition[]
+  optionSets          OptionSet[]
   ticketViews         TicketView[]
 
   @@map("workspaces")
@@ -283,6 +285,13 @@ enum FieldFillMode {
   manual
   agent_suggest
   agent_auto
+}
+
+/// How the agent sees the options of a select field: listed in the prompt, or found with find_field_options.
+enum FieldAgentOptionsMode {
+  auto
+  list
+  search
 }
 
 model Department {
@@ -660,12 +669,45 @@ model FieldDefinition {
   display            String[]      @default(["sidebar"])
   passToIntegration  Boolean       @default(false) @map("pass_to_integration")
   position           Int           @default(0)
+  /// A select bound to a backend directory: its options come from the set, `options` is unused.
+  optionSetId        String?       @map("option_set_id")
+  optionSet          OptionSet?    @relation(fields: [optionSetId], references: [id], onDelete: SetNull)
+  agentOptionsMode   FieldAgentOptionsMode @default(auto) @map("agent_options_mode")
   archivedAt         DateTime?     @map("archived_at") @db.Timestamptz
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   @@unique([workspaceId, entity, key])
+  @@index([optionSetId])
   @@map("field_definitions")
+}
+
+/// A directory an integration publishes for select fields (coffee shops, cities). Synced with the manifest.
+model OptionSet {
+  id            String            @id
+  workspaceId   String            @map("workspace_id")
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  integrationId String            @map("integration_id")
+  integration   Integration       @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  name          String
+  title         String
+  description   String            @default("")
+  /// [{ value, label, group?, agentHint?, archived? }] in the backend's order; archived ones at the end, never deleted.
+  options       Json              @default("[]")
+  etag          String?
+  /// sha256 of the options: changes only when the content does.
+  hash          String            @default("")
+  syncedAt      DateTime?         @map("synced_at") @db.Timestamptz
+  lastSyncError String?           @map("last_sync_error")
+  /// The manifest no longer declares the set: bound fields keep its last options.
+  removedAt     DateTime?         @map("removed_at") @db.Timestamptz
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+  fields        FieldDefinition[]
+
+  @@unique([integrationId, name])
+  @@index([workspaceId])
+  @@map("option_sets")
 }
 
 enum AgentRunMode {
@@ -803,6 +845,7 @@ model Integration {
   playbooks      Playbook[]
   customerLinks  CustomerLink[]
   actions        ActionProposal[]
+  optionSets     OptionSet[]
 
   @@index([workspaceId])
   @@map("integrations")
@@ -1025,8 +1068,17 @@ model ActionProposal {
   workspaceId      String      @map("workspace_id")
   ticketId         String      @map("ticket_id")
   ticket           Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  /// The run that proposed the action.
+  /// The run that proposed the action; null for an operator's manual action.
   runId            String?     @map("run_id")
+  /// agent | operator — who proposed the action.
+  source           String      @default("agent")
+  /// The operator who proposed a manual action.
+  createdById      String?     @map("created_by_id")
+  createdBy        User?       @relation("ActionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// The operator's action that replaced this proposal (executed instead of it, or an edited manual card).
+  replacedById     String?     @map("replaced_by_id")
+  /// After a manual action finishes, run the agent to update the reply.
+  refreshDraft     Boolean     @default(false) @map("refresh_draft")
   integrationId    String      @map("integration_id")
   integration      Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   /// Action name in the manifest and its title at the time of the proposal.
@@ -1043,7 +1095,7 @@ model ActionProposal {
   /// proposed | approved | executing | executed | failed | rejected | superseded
   status           String      @default("proposed")
   decidedById      String?     @map("decided_by_id")
-  decidedBy        User?       @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedBy        User?       @relation("ActionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
   decidedAt        DateTime?   @map("decided_at") @db.Timestamptz
   decisionComment  String?     @map("decision_comment")
   /// Idempotency key of execute: one per proposal, so a retry is safe.

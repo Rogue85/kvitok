@@ -95,11 +95,14 @@ export interface PlaybookDto {
 /* Analysis result */
 
 export interface FieldSuggestion {
+  /** null when the agent gives only candidates. */
   value: unknown;
   confidence: number;
   evidence: string | null;
+  /** A select: several options fit and nothing decided between them — the operator picks one. */
+  candidates?: string[];
   /** Why it was not applied automatically. */
-  reason: 'suggest_mode' | 'low_confidence' | 'locked' | 'filled_by_other_source';
+  reason: 'suggest_mode' | 'low_confidence' | 'locked' | 'filled_by_other_source' | 'ambiguous';
 }
 
 export interface TicketAnalysis {
@@ -236,7 +239,8 @@ export const AnswerQuestionSchema = z.object({
 });
 
 export const AcceptSuggestionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('field'), key: z.string() }),
+  /** value — one of the suggestion's candidates; by default the suggested value. */
+  z.object({ kind: z.literal('field'), key: z.string(), value: z.string().optional() }),
   z.object({ kind: z.literal('department') }),
 ]);
 export type AcceptSuggestionInput = z.infer<typeof AcceptSuggestionSchema>;
