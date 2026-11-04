@@ -75,6 +75,8 @@ function execute(): void {
   else void decide('approve');
 }
 
+/** "Edit" only for an action operators may start by hand: an agent-only one can be approved or rejected, not redone. */
+const editableByHand = computed(() => form?.canStart(props.action.integrationId, props.action.action) ?? false);
 /** "Edit": the form with this card's parameters; a manual card is replaced by the new one, an agent's stays until execution. */
 function edit(): void {
   form?.open({
@@ -142,14 +144,14 @@ function edit(): void {
           <UTooltip :text="locked ? t('action.confirmCustomerFirst') : undefined" :disabled="!locked">
             <UButton size="xs" icon="i-lucide-play" :loading="busy" :disabled="locked" @click="execute">{{ t('action.execute') }}</UButton>
           </UTooltip>
-          <UButton v-if="form" size="xs" color="neutral" variant="ghost" icon="i-lucide-pencil" @click="edit">{{ t('action.edit') }}</UButton>
+          <UButton v-if="editableByHand" size="xs" color="neutral" variant="ghost" icon="i-lucide-pencil" @click="edit">{{ t('action.edit') }}</UButton>
           <UButton size="xs" color="neutral" variant="ghost" :loading="busy" @click="decide('reject')">{{ t('action.cancel') }}</UButton>
         </template>
         <template v-else-if="!rejecting">
           <UTooltip :text="locked ? t('action.confirmCustomerFirst') : undefined" :disabled="!locked">
             <UButton size="xs" icon="i-lucide-check" :loading="busy" :disabled="locked" @click="decide('approve')">{{ t('action.approve') }}</UButton>
           </UTooltip>
-          <UButton v-if="form" size="xs" color="neutral" variant="ghost" icon="i-lucide-pencil" @click="edit">{{ t('action.edit') }}</UButton>
+          <UButton v-if="editableByHand" size="xs" color="neutral" variant="ghost" icon="i-lucide-pencil" @click="edit">{{ t('action.edit') }}</UButton>
           <UButton size="xs" color="neutral" variant="ghost" @click="rejecting = true">{{ t('action.reject') }}</UButton>
         </template>
         <template v-else>

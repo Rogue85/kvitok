@@ -2,6 +2,7 @@
 import type { ActionFormPrefill } from '~/composables/useActionForm';
 import {
   TICKET_STATUSES,
+  type ActionCatalogIntegration,
   type AgentAnalyzedEventData,
   type CustomerLinkDto,
   type MessageDto,
@@ -49,12 +50,19 @@ const { data: links, refresh: refreshLinks } = await useAsyncData(
 /* Manual actions: the form opens from the chat input and from the action cards. */
 const actionFormOpen = ref(false);
 const actionPrefill = ref<ActionFormPrefill | null>(null);
+/** What operators may start by hand: "Edit" on an agent's card only for these. */
+const { data: actionCatalog, refresh: refreshCatalog } = await useAsyncData(
+  () => `action-catalog:${ticketId.value}`,
+  () => (can('operator') ? api<ActionCatalogIntegration[]>(`${base.value}/actions/catalog`).catch(() => []) : Promise.resolve([])),
+  { watch: [ticketId], default: () => [] },
+);
 provideActionForm({
   open: (prefill) => {
     actionPrefill.value = prefill;
     actionFormOpen.value = true;
   },
   actions: computed(() => agent.value?.actions ?? []),
+  canStart: (integrationId, action) => actionCatalog.value.some((i) => i.integrationId === integrationId && i.actions.some((a) => a.name === action)),
 });
 /** An operator's manual action proposed in this event: shown as its card. */
 function manualActionOf(event: { data: Record<string, unknown> }) {
@@ -75,6 +83,7 @@ const refreshAll = debounce(() => {
   void refreshTimeline();
   void refreshAgent();
   void refreshLinks();
+  void refreshCatalog();
 }, 300);
 /** The ticket left the user's sight: why, shown instead of the ticket. */
 const movedAway = ref<string | null>(null);

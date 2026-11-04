@@ -16,6 +16,8 @@ export interface ActionFormPrefill {
 export interface ActionFormContext {
   open: (prefill: ActionFormPrefill) => void;
   actions: Ref<ActionProposalDto[]>;
+  /** An operator may start this action by hand: it is in the catalog (an agent-only action is not). */
+  canStart: (integrationId: string, action: string) => boolean;
 }
 
 const KEY: InjectionKey<ActionFormContext> = Symbol('action-form');
