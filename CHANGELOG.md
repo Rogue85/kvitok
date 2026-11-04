@@ -4,6 +4,8 @@ Notable changes for people who run Kvitok or connect a backend to it. The format
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-04
+
 ### Added
 
 - A backend can publish directories for list fields: coffee shops, cities, products, plans. It declares them in `option_sets` of its manifest and serves each at `GET /option-sets/{name}` (`{ options: [{ value, label, group?, description?, active? }] }` with an `ETag`); an unknown one is `404 unknown_option_set`. The change is additive, `protocol_version` stays 1, and the conformance suite checks the new endpoint. See "Option sets" in `docs/protocol.md`.
