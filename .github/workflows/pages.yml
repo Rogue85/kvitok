@@ -1,5 +1,6 @@
-# The project website on GitHub Pages: site/ plus the brand, diagrams and screenshots from docs/.
-# Rebuilt when any of them changes on main, and on a release, which changes the version shown.
+# The project website on GitHub Pages: site/ plus the brand, diagrams and screenshots from docs/, and
+# llms-full.txt built from the README and the docs. Rebuilt when any of them changes on main, and on a
+# release, which changes the version shown.
 name: Website
 
 on:
@@ -7,6 +8,8 @@ on:
     branches: [main]
     paths:
       - site/**
+      - README.md
+      - docs/*.md
       - docs/brand/**
       - docs/diagrams/**
       - docs/screenshots/**

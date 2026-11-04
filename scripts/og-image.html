@@ -1,0 +1,113 @@
+<!doctype html>
+<!--
+  The social preview of the website (site/og-image.png, 1200×630). Regenerate it after changing this
+  file or the ticket screenshot:
+
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
+    --window-size=1200,630 --virtual-time-budget=5000 --screenshot=site/og-image.png \
+    "file://$(pwd)/scripts/og-image.html"
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@600&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background: #fbfaf8;
+        color: #17161c;
+        font-family: 'Onest', system-ui, sans-serif;
+      }
+      .glow {
+        position: absolute;
+        right: -160px;
+        top: -200px;
+        width: 760px;
+        height: 760px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgb(139 92 246 / 0.18), rgb(59 130 246 / 0.1) 45%, transparent 70%);
+      }
+      .text {
+        position: absolute;
+        left: 72px;
+        top: 72px;
+        width: 520px;
+      }
+      .logo {
+        height: 40px;
+      }
+      h1 {
+        margin: 52px 0 24px;
+        font-family: 'Unbounded', sans-serif;
+        font-weight: 600;
+        font-size: 50px;
+        line-height: 1.12;
+        letter-spacing: -0.03em;
+      }
+      .ai {
+        background: linear-gradient(100deg, #8b5cf6, #3b82f6 55%, #ec4899);
+        -webkit-background-clip: text;
+        color: transparent;
+      }
+      p {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.45;
+        color: #57534e;
+      }
+      .tags {
+        position: absolute;
+        left: 72px;
+        bottom: 64px;
+        display: flex;
+        gap: 10px;
+      }
+      .tags span {
+        padding: 6px 16px;
+        border: 1px solid #e7e5e4;
+        border-radius: 999px;
+        background: #fff;
+        font-size: 19px;
+        font-weight: 500;
+        color: #57534e;
+      }
+      .tags b {
+        color: #c93c0c;
+        font-weight: 600;
+      }
+      .shot {
+        position: absolute;
+        left: 650px;
+        top: 86px;
+        width: 760px;
+        border-radius: 18px;
+        box-shadow: 0 2px 6px rgb(23 22 28 / 0.08), 0 24px 64px rgb(23 22 28 / 0.18);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="text">
+      <img class="logo" src="../docs/brand/kvitok-wordmark.svg" alt="" />
+      <h1>Open-source helpdesk with an <span class="ai">AI agent</span></h1>
+      <p>The agent reads your backend and proposes. A person approves. Your backend executes.</p>
+    </div>
+    <div class="tags">
+      <span><b>Self-hosted</b></span>
+      <span>Any LLM</span>
+      <span>MCP</span>
+      <span>AGPL-3.0</span>
+    </div>
+    <img class="shot" src="../docs/screenshots/ticket.webp" alt="" />
+  </body>
+</html>

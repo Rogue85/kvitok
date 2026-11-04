@@ -1,0 +1,26 @@
+# Kvitok
+
+> Kvitok is an open-source, self-hosted customer support system (helpdesk) with an AI agent. Requests come in by email or over an API. The agent reads the customer's data in your backend through a small signed HTTP protocol, picks a department, drafts a reply and proposes actions such as crediting points, issuing a coupon or cancelling an order. An operator talks it over with the agent in the ticket and approves each action; your backend validates it again and executes it once per idempotency key.
+
+Kvitok fits teams whose support requests change data in their own systems: loyalty programs, online shops, subscriptions, internal tools. It is licensed under AGPL-3.0; the protocol package and the reference backend are MIT. It runs from one Docker image with PostgreSQL and Redis and works with any OpenAI-compatible model with tool calling (OpenAI, OpenRouter, LiteLLM, vLLM, Ollama). An MCP server lets Claude Code, Cursor or another MCP client connect a backend, configure a workspace and tune the agent. Kvitok is in early development and has not run in production yet; it has no chat widget, help center or SLAs, and every action waits for a person.
+
+Compared with Zendesk AI agents, Intercom Fin and Freshdesk Freddy AI, Kvitok is self-hosted, has no fee per resolution and keeps a person in the loop for every action. Compared with Chatwoot and Zammad, it centers on an agent that investigates in your backend and proposes typed, validated actions.
+
+## Docs
+
+- [README](https://github.com/Rogue85/kvitok/blob/main/README.md): what Kvitok does, how it works, getting started
+- [Support Action Protocol](https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md): the endpoints a backend implements, signing, the manifest, actions, option sets
+- [MCP server](https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md): configuring and tuning Kvitok from an external agent, the Claude Code plugin
+- [Deployment](https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md): running in production from the Docker image
+- [Development](https://github.com/Rogue85/kvitok/blob/main/docs/development.md): the development stack, the coffee shop simulator, agent evaluation
+- [Changelog](https://github.com/Rogue85/kvitok/blob/main/CHANGELOG.md): what each release changed
+
+## Comparison
+
+- [Kvitok compared with other AI helpdesks](https://kvitok.nojake.com/compare/): Zendesk, Intercom Fin, Freshdesk, Chatwoot and Zammad
+- [Kvitok in Russian](https://kvitok.nojake.com/ru/): the home page in Russian
+
+## Optional
+
+- [Full documentation in one file](https://kvitok.nojake.com/llms-full.txt)
+- [Source code](https://github.com/Rogue85/kvitok)

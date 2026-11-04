@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kvitok · Хелпдеск с ИИ-агентом: open source, на своём сервере</title>
+    <meta name="description" content="Система поддержки с открытым кодом и ИИ-агентом: читает данные в вашем бэкенде, пишет черновики ответов и предлагает действия, которые одобряет оператор. Любая LLM, MCP." />
+    <link rel="canonical" href="https://kvitok.nojake.com/ru/" />
+    <link rel="alternate" hreflang="en" href="https://kvitok.nojake.com/" />
+    <link rel="alternate" hreflang="ru" href="https://kvitok.nojake.com/ru/" />
+    <link rel="alternate" hreflang="x-default" href="https://kvitok.nojake.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kvitok" />
+    <meta property="og:url" content="https://kvitok.nojake.com/ru/" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:title" content="Kvitok · Хелпдеск с ИИ-агентом и открытым кодом" />
+    <meta property="og:description" content="Агент читает ваш бэкенд, пишет черновики и предлагает действия. Человек одобряет, бэкенд выполняет. На своём сервере, с любой LLM." />
+    <meta property="og:image" content="https://kvitok.nojake.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Kvitok: хелпдеск с ИИ-агентом и открытым кодом, рядом тикет, в котором агент предлагает два действия" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="alternate" type="text/plain" href="https://kvitok.nojake.com/llms.txt" title="LLM-friendly summary" />
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Kvitok",
+      "url": "https://kvitok.nojake.com/ru/",
+      "description": "Kvitok — система поддержки клиентов (хелпдеск) с ИИ-агентом и открытым кодом, которая работает на вашем сервере. Агент читает данные клиента в вашем бэкенде, пишет черновик ответа и предлагает действия; оператор их одобряет, бэкенд выполняет.",
+      "inLanguage": "ru",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Helpdesk software",
+      "operatingSystem": "Linux (Docker)",
+      "softwareVersion": "{{version}}",
+      "image": "https://kvitok.nojake.com/og-image.png",
+      "screenshot": "https://kvitok.nojake.com/assets/screenshots/ticket.webp",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Egor Lazarev"
+      },
+      "sameAs": [
+        "https://github.com/Rogue85/kvitok"
+      ]
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "Kvitok",
+      "codeRepository": "https://github.com/Rogue85/kvitok",
+      "programmingLanguage": "TypeScript",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "runtimePlatform": "Node.js"
+    }
+  ]
+}
+    </script>
+    <link rel="icon" href="../assets/brand/kvitok-icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../style.css" />
+    <script>
+      // Before the first paint, so a saved theme does not flash.
+      try {
+        const theme = localStorage.getItem('kvitok-theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <!-- Shared gradients and arrowheads for the inline diagrams. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="k-ai" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" class="s1" />
+          <stop offset="0.5" class="s2" />
+          <stop offset="1" class="s3" />
+        </linearGradient>
+        <linearGradient id="k-ai-fill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" class="t1" />
+          <stop offset="0.5" class="t2" />
+          <stop offset="1" class="t3" />
+        </linearGradient>
+        <marker id="k-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0 1 L10 5 L0 9 z" class="d-head" />
+        </marker>
+      </defs>
+    </svg>
+
+    <header class="header">
+      <div class="wrap">
+        <a class="logo" href="#top" aria-label="Kvitok">
+          <svg viewBox="60 -816 3690 832" aria-hidden="true">
+            <path
+              id="k-wordmark"
+              fill="currentColor"
+              d="M245 -151 194 -168 521 -570H720L227 0H60V-770H245ZM359 -279 497 -380 735 0H524ZM1112 -87 1047 -88 1253 -570H1451L1182 0H971L702 -570H907ZM1484 -578 1576 -559 1669 -578V0H1484ZM1577 -630Q1528 -630 1497 -655.5Q1466 -681 1466 -723Q1466 -766 1497 -791Q1528 -816 1577 -816Q1627 -816 1657 -791Q1687 -766 1687 -723Q1687 -681 1657 -655.5Q1627 -630 1577 -630ZM1704 -432V-513L1822 -556L1902 -722H2008V-570H2254V-432H2008V-244Q2008 -180 2034 -154.5Q2060 -129 2127 -129Q2170 -129 2202.5 -136.5Q2235 -144 2264 -157V-16Q2234 -4 2185.5 6Q2137 16 2085 16Q1994 16 1935.5 -13Q1877 -42 1849.5 -94.5Q1822 -147 1822 -218V-432ZM2652 16Q2544 16 2463 -22Q2382 -60 2337 -128Q2292 -196 2292 -285Q2292 -375 2337 -442.5Q2382 -510 2463.5 -548Q2545 -586 2652 -586Q2760 -586 2841.5 -548Q2923 -510 2968 -442.5Q3013 -375 3013 -285Q3013 -195 2968 -127.5Q2923 -60 2841.5 -22Q2760 16 2652 16ZM2652 -124Q2707 -124 2745.5 -143.5Q2784 -163 2804.5 -199Q2825 -235 2825 -285Q2825 -335 2804.5 -371Q2784 -407 2745.5 -426.5Q2707 -446 2652 -446Q2599 -446 2560 -426.5Q2521 -407 2500 -371Q2479 -335 2479 -285Q2479 -235 2500 -199Q2521 -163 2560 -143.5Q2599 -124 2652 -124ZM3260 -151 3209 -168 3536 -570H3735L3242 0H3075V-770H3260ZM3374 -279 3512 -380 3750 0H3539Z"
+            />
+          </svg>
+        </a>
+        <nav class="nav" aria-label="Разделы">
+          <a href="#how">Как работает</a>
+          <a href="#onboarding">Подключение</a>
+          <a href="#protocol">Протокол</a>
+          <a href="#architecture">Архитектура</a>
+          <a href="#start">Начать</a>
+          <a href="../compare/" hreflang="en">Сравнение</a>
+        </nav>
+        <div class="header-links">
+          <a href="../" hreflang="en" lang="en" title="English version">EN</a>
+          <a class="hide-sm" href="https://github.com/Rogue85/kvitok/tree/main/docs">Документация</a>
+          <button class="icon-button" type="button" id="theme" aria-label="Сменить тему">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+          </button>
+          <a class="icon-button" href="https://github.com/Rogue85/kvitok" aria-label="Kvitok на GitHub">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="hero wrap">
+        <span class="badge"><b>v{{version}}</b> Открытый код · ранняя разработка</span>
+        <h1>Поддержка, где <span class="ai-text">ИИ‑агент</span> доводит дело до конца</h1>
+        <p class="lead">
+          Kvitok — хелпдеск с ИИ-агентом и открытым кодом, который работает на вашем сервере. Обращения приходят на почту или через API. Агент читает данные клиента в вашем бэкенде, пишет черновик ответа и предлагает действия: начислить баллы, выдать купон. Оператор их одобряет, а выполняет ваш бэкенд.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#start">Начать</a>
+          <a class="button" href="https://github.com/Rogue85/kvitok">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+            Открыть на GitHub
+          </a>
+        </div>
+        <div class="demo">
+          <div class="dm-nav">
+            <ol class="dm-steps">
+              <li>
+                <button type="button" data-step="0">
+                  <b>Клиент пишет</b>
+                  <span>На почту, через форму в приложении или API.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="1500" class="box">
+                  <b>Kvitok находит клиента</b>
+                  <span>Ваш бэкенд находит её по телефону и отдаёт карточку.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="3200" class="ai">
+                  <b>Агент разбирается</b>
+                  <span>Читает чеки через ваши инструменты и предлагает действие, которое бэкенд уже проверил.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="11200" class="human">
+                  <b>Оператор говорит с агентом</b>
+                  <span>Обычными словами. Агент меняет только то, о чём сообщение.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="14800" class="human">
+                  <b>Один клик, и бэкенд выполняет</b>
+                  <span>Действие проверяется ещё раз и выполняется один раз. Агент обновляет ответ.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="19600" class="human">
+                  <b>Ответ уходит</b>
+                  <span>Через тот канал, откуда пришло обращение.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+            </ol>
+            <p class="dm-caption"></p>
+            <button type="button" class="dm-toggle" aria-pressed="false" data-pause="Пауза" data-play="Смотреть">
+              <svg class="dm-icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+              <svg class="dm-icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" /></svg>
+              <span>Пауза</span>
+            </button>
+          </div>
+
+          <div class="dm-window" aria-hidden="true">
+            <div class="dm-top">
+              <span class="dm-dots"><i></i><i></i><i></i></span>
+              <b class="dm-title">#1042 · Не пришли баллы</b>
+              <em class="dm-chip" data-hide="21600">Новый</em>
+              <em class="dm-chip ok" data-show="21600">Решён</em>
+            </div>
+            <div class="dm-strip">
+              <span class="dm-skel" data-on="filled@1700">Анна · Silver 7%</span>
+              <span class="dm-skel" data-on="filled@1700,bump@17200-18600">Баллы: <span data-count="1280,1324,17200,800">1 280</span></span>
+              <span class="dm-skel agent" data-on="filled@6400">Лояльность · 92%</span>
+            </div>
+            <div class="dm-body">
+              <div class="dm-main">
+                <div class="dm-thread">
+                  <div class="dm-msg" data-show="300">
+                    <div class="dm-who"><span class="dm-avatar">А</span><b>Анна</b><small>Форма в приложении · 10:42</small></div>
+                    <p>Здравствуйте! Вчера купила латте и круассан на 640 ₽, а баллы не пришли. Мой телефон +7 900 000-00-01.</p>
+                  </div>
+                  <div class="dm-event" data-show="1500">Найдена в вашем бэкенде по телефону</div>
+                  <div class="dm-msg dm-agent" data-show="3200">
+                    <div class="dm-who">
+                      <span class="dm-avatar ai">✦</span><b>Агент</b>
+                      <small class="dm-thinking" data-hide="5600">читает ваш бэкенд…</small>
+                    </div>
+                    <div class="dm-tools">
+                      <span class="dm-tool" data-show="3500" data-on="done@4400"><code>get_transactions</code></span>
+                      <span class="dm-tool" data-show="4500" data-on="done@5300"><code>get_loyalty_tier</code></span>
+                    </div>
+                    <p data-show="5600" data-type="5600,1600">Чек 4112 на 640 ₽ прошёл без баллов. На уровне Silver начисляется 7%, не хватает 44 баллов.</p>
+                  </div>
+                  <div class="dm-msg dm-operator" data-show="11400">
+                    <div class="dm-who"><span class="dm-avatar op">М</span><b>Мария</b><small>агенту</small></div>
+                    <p data-type="11400,1200">Сделай теплее, она наша постоянная гостья.</p>
+                  </div>
+                  <div class="dm-msg dm-agent" data-show="13200">
+                    <div class="dm-who"><span class="dm-avatar ai">✦</span><b>Агент</b></div>
+                    <p data-type="13200,800">Переписал приветствие. Действие не менял.</p>
+                  </div>
+                  <div class="dm-event" data-show="18000">Бэкенд выполнил <code>credit_points</code>: +44 балла</div>
+                  <div class="dm-msg dm-agent" data-show="18400">
+                    <div class="dm-who"><span class="dm-avatar ai">✦</span><b>Агент</b></div>
+                    <p data-type="18400,700">Баллы на карте. Обновил ответ.</p>
+                  </div>
+                  <div class="dm-msg dm-out" data-show="21100">
+                    <div class="dm-who"><span class="dm-avatar op">М</span><b>Мария → Анна</b><small>отправлено на почту</small></div>
+                    <p>Анна, здравствуйте! Спасибо, что так часто к нам заходите, и простите за неудобство. Чек 4112 прошёл без баллов, 44 балла уже на вашей карте.</p>
+                  </div>
+                </div>
+
+                <div class="dm-dock">
+                  <div class="dm-action" data-show="7400" data-hide="18000" data-on="busy@16300-17200,done@17200">
+                    <div class="dm-action-head">
+                      <span class="dm-avatar ai sm">✦</span><b>Начислить баллы</b><code>credit_points</code>
+                      <span class="dm-busy">Выполняется…</span>
+                      <span class="dm-done">Выполнено</span>
+                    </div>
+                    <div class="dm-params"><span>Баллы <b>44</b></span><span>Чек <b>4112</b></span></div>
+                    <p class="dm-preview" data-show="8100">Бэкенд проверил: баланс 1 280 → 1 324</p>
+                    <div class="dm-buttons">
+                      <span class="dm-btn primary" data-target="approve" data-on="pressed@16300-16560">Одобрить</span>
+                      <span class="dm-btn">Изменить</span>
+                      <span class="dm-btn">Отклонить</span>
+                    </div>
+                  </div>
+                  <div class="dm-composer">
+                    <div class="dm-tabs"><span class="on">Ответ клиенту</span><span>Агенту</span></div>
+                    <div class="dm-draft">
+                      <p class="dm-placeholder" data-hide="8800">Напишите ответ…</p>
+                      <p data-show="8800" data-hide="13900" data-type="8800,2000">Анна, здравствуйте! Простите за неудобство: чек 4112 прошёл без баллов. Сегодня начислим 44 балла на вашу карту.</p>
+                      <p data-show="13900" data-hide="19200">Анна, здравствуйте! <mark>Спасибо, что так часто к нам заходите, и</mark> простите за неудобство. Чек 4112 прошёл без баллов, сегодня начислим 44 балла на вашу карту.</p>
+                      <p data-show="19200" data-hide="21100">Анна, здравствуйте! Спасибо, что так часто к нам заходите, и простите за неудобство. Чек 4112 прошёл без баллов, <mark>44 балла уже на вашей карте.</mark></p>
+                      <p class="dm-placeholder" data-show="21100">Напишите ответ…</p>
+                    </div>
+                    <div class="dm-foot">
+                      <small data-show="8800" data-hide="21100">Черновик агента</small>
+                      <span class="dm-btn primary" data-target="send" data-on="pressed@21000-21260">Отправить</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="dm-side">
+                <p class="dm-side-title">Клиент · из вашего бэкенда</p>
+                <div class="dm-field"><span>Имя</span><b class="dm-skel" data-on="filled@1700">Анна Петрова</b></div>
+                <div class="dm-field"><span>Уровень</span><b class="dm-skel" data-on="filled@1700">Silver · 7%</b></div>
+                <div class="dm-field">
+                  <span>Баллы</span>
+                  <b class="dm-skel" data-on="filled@1700,bump@17200-18600"><span data-count="1280,1324,17200,800">1 280</span></b>
+                </div>
+                <p class="dm-side-title">Тикет</p>
+                <div class="dm-field"><span>Отдел</span><b class="dm-skel agent" data-on="filled@6400">Лояльность <small>92%</small></b></div>
+                <div class="dm-field"><span>Канал</span><b>Форма в приложении</b></div>
+                <div class="dm-field"><span>Исполнитель</span><b>Мария</b></div>
+              </aside>
+            </div>
+            <div class="dm-cursor">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.2v15.6l4.3-4 2.8 6.3 2.6-1.1-2.8-6.2 5.9-.4Z" /></svg>
+            </div>
+          </div>
+        </div>
+        <p class="caption">
+          Упрощённый повтор тикета из симулятора кофейни. Скриншоты настоящего интерфейса (на английском) есть <a href="#how">ниже</a>.
+        </p>
+      </div>
+
+      <section class="alt" id="features">
+        <div class="wrap">
+          <p class="eyebrow">Зачем Kvitok</p>
+          <h2>Полный цикл поддержки вместо одноразового скрипта</h2>
+          <p class="section-lead">
+            ИИ в поддержке часто выглядит так: задача один раз отправляет обращение в модель и публикует её догадку в чат. Потом оператор повторяет действия руками, а клиент так и не получает ответа. Kvitok закрывает весь путь от обращения до выполненного действия и ответа клиенту.
+          </p>
+          <div class="grid four">
+            <div class="card">
+              <span class="mark ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></span>
+              <h3>Весь цикл</h3>
+              <p>Агент работает над тикетом, пока тот открыт. Одобренные действия выполняются в вашем бэкенде, ответ уходит через тот канал, откуда пришло обращение.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15h10M7 9h10" /><rect x="3" y="4" width="18" height="16" rx="3" /></svg></span>
+              <h3>Любой бэкенд</h3>
+              <p>Kvitok ничего не знает о вашем бизнесе. Бэкенд описывает свои данные и действия через небольшой подписанный HTTP-протокол, у каждого проекта своё пространство.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /></svg></span>
+              <h3>Чат с агентом</h3>
+              <p>Тикет устроен как чат. Оператор пишет «лучше предложи купон», и агент меняет только то, чего касается сообщение.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg></span>
+              <h3>Агент только предлагает</h3>
+              <p>Каждое действие одобряет человек. Бэкенд проверяет его при предложении и ещё раз перед выполнением, а выполняет один раз на ключ идемпотентности.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" /></svg></span>
+              <h3>Ваша модель, известная цена</h3>
+              <p>Любой OpenAI-совместимый эндпоинт с вызовом инструментов. У каждого запуска есть цена с разбивкой по тикетам, отделам, моделям и дням.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg></span>
+              <h3>Правила вокруг агента</h3>
+              <p>Детерминированная маршрутизация до и после агента. Тикеты с низкой уверенностью уходят в разбор, а отдел, выбранный человеком, агент не меняет.</p>
+            </div>
+            <div class="card">
+              <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></span>
+              <h3>Качество в цифрах</h3>
+              <p><code>pnpm eval</code> прогоняет тестовые сценарии на настоящей модели и показывает, какие прошли и сколько это стоило.</p>
+            </div>
+            <div class="card">
+              <span class="mark ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /></svg></span>
+              <h3>Настраивает ваш агент</h3>
+              <p>Через MCP-сервер Claude Code, Cursor или другой MCP-клиент подключает ваш проект и донастраивает агента поддержки.</p>
+            </div>
+          </div>
+          <p class="more">
+            Чем Kvitok отличается от Zendesk, Intercom Fin, Freshdesk, Chatwoot и Zammad? <a href="../compare/" hreflang="en">Сравнение (на английском) →</a>
+          </p>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="wrap">
+          <p class="eyebrow">Как это работает</p>
+          <h2>От первого письма до баллов на карте</h2>
+          <p class="section-lead">
+            Правила направляют обращение, агент читает ваш бэкенд и предлагает ответ и действия, оператор поправляет его в чате и одобряет. Цвет показывает, кто что делает.
+          </p>
+          <div class="legend">
+            <span><i class="l-ai"></i> агент</span>
+            <span><i class="l-human"></i> человек</span>
+            <span><i class="l-box"></i> Kvitok или ваш бэкенд</span>
+          </div>
+          <div class="diagram diagram-frame">
+            <img class="only-light" src="../assets/diagrams/how-it-works.svg" width="1112" height="448" alt="Обращение в шесть шагов на четырёх дорожках: клиент пишет; Kvitok находит его в вашем бэкенде и применяет правила маршрутизации; агент вызывает инструменты чтения и предлагает черновик и действия, которые проверяет бэкенд; оператор разбирает тикет в чате с агентом, тот правит черновик; оператор одобряет, бэкенд выполняет действия, клиент получает ответ" />
+            <img class="only-dark" src="../assets/diagrams/how-it-works-dark.svg" width="1112" height="448" alt="Обращение в шесть шагов на четырёх дорожках: клиент пишет; Kvitok находит его в вашем бэкенде и применяет правила маршрутизации; агент вызывает инструменты чтения и предлагает черновик и действия, которые проверяет бэкенд; оператор разбирает тикет в чате с агентом, тот правит черновик; оператор одобряет, бэкенд выполняет действия, клиент получает ответ" />
+          </div>
+
+          <div class="shot wide">
+            <img class="only-light" src="../assets/screenshots/ticket.webp" width="2400" height="1750" loading="lazy" alt="Тикет в Kvitok: сообщение клиента, разбор агента и два предложенных действия, которые ждут оператора" />
+            <img class="only-dark" src="../assets/screenshots/ticket-dark.webp" width="2400" height="1750" loading="lazy" alt="Тикет в Kvitok: сообщение клиента, разбор агента и два предложенных действия, которые ждут оператора" />
+          </div>
+          <p class="caption">
+            Гостья не получила за покупку ни баллов, ни промо-чашки. Kvitok нашёл её в бэкенде и заполнил уровень и баланс, агент нашёл чек, разобрался, чего не хватает, и предложил два действия. Каждое ждёт оператора.
+          </p>
+
+          <div class="split" style="margin-top: 72px">
+            <div>
+              <h3>Пример: 44 потерянных балла</h3>
+              <p>Гость пишет через форму в приложении, что баллы за чек на 640 рублей так и не пришли.</p>
+              <p>
+                Агент находит гостя по телефону, загружает чеки и видит, что за чек 4112 ничего не начислено. Он предлагает начислить 44 балла по уровню гостя в 7%, бэкенд проверяет действие, агент пишет черновик ответа.
+              </p>
+              <p class="quote">«Баллы начислены. Обнови ответ: напиши, что они уже на карте.»</p>
+              <p>
+                Оператор одобряет, бэкенд начисляет баллы, и после ещё одного сообщения агент переписывает только черновик. Ответ уходит на почту, тикет решён.
+              </p>
+            </div>
+            <div class="shot">
+              <img src="../assets/screenshots/agent-chat.webp" loading="lazy" alt="Сообщение оператора агенту о звонке и ответ агента: цифры совпадают с предложением, изменился только черновик" />
+              <img src="../assets/screenshots/approved-and-sent.webp" loading="lazy" alt="Действие, одобренное оператором и выполненное бэкендом, просьба оператора обновить ответ, ответ агента и письмо гостю" />
+            </div>
+          </div>
+
+          <div class="split flip">
+            <div>
+              <h3>Очередь после первого прохода агента</h3>
+              <p>
+                Каждый тикет получает отдел и оценку уверенности. Если агент сомневается, тикет ждёт решения человека в разборе.
+              </p>
+            </div>
+            <div class="shot">
+              <img class="only-light" src="../assets/screenshots/queue.webp" loading="lazy" alt="Очередь тикетов с отделами, которые выставил агент" />
+              <img class="only-dark" src="../assets/screenshots/queue-dark.webp" loading="lazy" alt="Очередь тикетов с отделами, которые выставил агент" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="onboarding">
+        <div class="wrap">
+          <p class="eyebrow ai">Подключение</p>
+          <h2>Ваш агент для кода подключает проект</h2>
+          <p class="section-lead">
+            У Kvitok есть MCP-эндпоинт. Откройте репозиторий бэкенда в агенте, который умеет MCP, подключите его к Kvitok и попросите настроить Kvitok для проекта. Агент работает в двух местах сразу: пишет модуль протокола в вашем коде и настраивает пространство в Kvitok.
+          </p>
+          <div class="clients">
+            <span>Claude Code</span>
+            <span>Cursor</span>
+            <span>Claude Desktop</span>
+            <span>любой MCP-клиент с HTTP-заголовками</span>
+          </div>
+
+          <div class="diagram diagram-frame">
+            <svg viewBox="0 0 1000 350" role="img" aria-label="Подключение: вы проверяете план; агент для кода читает репозиторий бэкенда, добавляет модуль протокола и манифест, а через MCP создаёт и настраивает пространство в Kvitok; затем Kvitok вызывает новые эндпоинты бэкенда по подписанному HTTP">
+              <rect x="20" y="60" width="300" height="220" rx="14" class="d-lane" />
+              <text x="40" y="90" class="d-title">Репозиторий бэкенда</text>
+              <rect x="40" y="104" width="260" height="32" rx="8" class="d-box" />
+              <text x="56" y="125" class="d-chip">Текущая поддержка и данные</text>
+              <rect x="40" y="144" width="260" height="32" rx="8" class="d-box" />
+              <text x="56" y="165" class="d-chip">Загрузчики и сервисы действий</text>
+              <rect x="40" y="184" width="260" height="32" rx="8" class="d-ai" />
+              <text x="56" y="205" class="d-chip">+ Модуль протокола с подписью</text>
+              <rect x="40" y="224" width="260" height="32" rx="8" class="d-ai" />
+              <text x="56" y="245" class="d-chip">+ Манифест и плейбуки (.md)</text>
+
+              <rect x="680" y="60" width="300" height="220" rx="14" class="d-lane" />
+              <text x="700" y="90" class="d-title">Kvitok</text>
+              <rect x="700" y="104" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="125" class="d-chip">Новое пространство</text>
+              <rect x="700" y="144" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="165" class="d-chip">Бэкенд подключён и проверен</text>
+              <rect x="700" y="184" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="205" class="d-chip">Отделы, поля, правила, политика</text>
+              <rect x="700" y="224" width="260" height="32" rx="8" class="d-ai" />
+              <text x="716" y="245" class="d-chip">Тестовые тикеты и запуски</text>
+
+              <rect x="400" y="10" width="200" height="56" rx="10" class="d-human" />
+              <text x="500" y="34" text-anchor="middle" class="d-title">Вы</text>
+              <text x="500" y="52" text-anchor="middle" class="d-sub">проверяете план и результат</text>
+              <path d="M500 68 V128" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+
+              <rect x="380" y="130" width="240" height="66" rx="10" class="d-ai" />
+              <text x="500" y="158" text-anchor="middle" class="d-title">Агент для кода</text>
+              <text x="500" y="178" text-anchor="middle" class="d-sub">Claude Code, Cursor и другие</text>
+              <path d="M380 163 H322" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="351" y="154" text-anchor="middle" class="d-sub">код</text>
+              <path d="M620 163 H678" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="649" y="154" text-anchor="middle" class="d-sub">MCP</text>
+
+              <path d="M830 282 V320 H170 V284" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              <text x="500" y="312" text-anchor="middle" class="d-sub">Kvitok вызывает новые эндпоинты по подписанному HTTP</text>
+            </svg>
+          </div>
+
+          <ol class="steps">
+            <li>
+              <h3>Изучает проект</h3>
+              <p>Откуда приходят обращения, как узнают клиентов, на что смотрят операторы, какие действия выполняет поддержка.</p>
+              <span class="where">В вашем репозитории</span>
+            </li>
+            <li class="human">
+              <h3>Показывает план</h3>
+              <p>Что попадёт в манифест бэкенда, что в политику поддержки, какие отделы, поля и правила создать.</p>
+              <span class="where">Ничего не меняется без вашего согласия</span>
+            </li>
+            <li>
+              <h3>Реализует протокол</h3>
+              <p>Модуль с подписанными эндпоинтами на ваших загрузчиках и сервисах, свои тесты, затем набор проверок совместимости.</p>
+              <span class="where">В вашем репозитории</span>
+            </li>
+            <li>
+              <h3>Настраивает Kvitok</h3>
+              <p>Пространство для проекта, интеграцию, отделы с примерами, поля, правила маршрутизации и политику.</p>
+              <span class="where">Через MCP</span>
+            </li>
+            <li>
+              <h3>Проверяет на тестовых данных</h3>
+              <p>Пишет тестовые обращения, в том числе размытые и с промпт-инъекциями, отправляет их и смотрит, как агент справился.</p>
+              <span class="where">Через MCP, на клиентах со стенда</span>
+            </li>
+            <li class="human">
+              <h3>Передаёт вам</h3>
+              <p>Ключ модели вы добавляете сами, и он не проходит через агента. Потом раздаёте секреты каналов и включаете реальный поток.</p>
+              <span class="where">В интерфейсе Kvitok</span>
+            </li>
+          </ol>
+
+          <div class="grid two" style="margin-top: 56px">
+            <div>
+              <h3>Дальше донастраивайте</h3>
+              <p style="color: var(--muted)">
+                Спросите того же агента, почему агент поддержки ошибся в каких-то тикетах. Он посмотрит, где его поправляли операторы, изменит инструкции и переиграет прошлые тикеты с новой конфигурацией на тех данных бэкенда, которые видели эти тикеты. Каждое изменение попадает в журнал под токеном, который его сделал.
+              </p>
+            </div>
+            <div class="diagram" style="margin: 0">
+              <svg viewBox="0 0 520 210" role="img" aria-label="Цикл настройки: отчёт о качестве показывает, что поправили операторы; агент находит причину, меняет инструкции и переигрывает прошлые тикеты, пока результат не совпадёт с действиями операторов" style="min-width: 0">
+                <rect x="10" y="10" width="230" height="60" rx="10" class="d-box" />
+                <text x="125" y="36" text-anchor="middle" class="d-mono">quality_report</text>
+                <text x="125" y="55" text-anchor="middle" class="d-sub">что поправили операторы</text>
+                <rect x="280" y="10" width="230" height="60" rx="10" class="d-ai" />
+                <text x="395" y="36" text-anchor="middle" class="d-title">Найти причину</text>
+                <text x="395" y="55" text-anchor="middle" class="d-sub">тикеты и запуски агента</text>
+                <rect x="280" y="120" width="230" height="60" rx="10" class="d-ai" />
+                <text x="395" y="146" text-anchor="middle" class="d-title">Изменить инструкции</text>
+                <text x="395" y="165" text-anchor="middle" class="d-sub">политика, плейбуки, манифест</text>
+                <rect x="10" y="120" width="230" height="60" rx="10" class="d-box" />
+                <text x="125" y="146" text-anchor="middle" class="d-mono">replay</text>
+                <text x="125" y="165" text-anchor="middle" class="d-sub">переиграть прошлые тикеты</text>
+                <path d="M240 40 H278" class="d-line" marker-end="url(#k-arrow)" />
+                <path d="M395 70 V118" class="d-line" marker-end="url(#k-arrow)" />
+                <path d="M280 150 H242" class="d-line" marker-end="url(#k-arrow)" />
+                <path d="M125 120 V72" class="d-line d-dash" marker-end="url(#k-arrow)" />
+                <text x="135" y="100" class="d-sub">повторить</text>
+              </svg>
+            </div>
+          </div>
+
+          <p class="note">
+            Изменения через MCP применяются сразу, и каждое записывается со значениями до и после. Сообщения клиентов попадают к внешнему агенту как данные, а не как инструкции. Для разбора тикетов с прода выдавайте токену только право <code>read</code>. Подробнее в <a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">docs/mcp.md</a>.
+          </p>
+        </div>
+      </section>
+
+      <section id="configure">
+        <div class="wrap">
+          <p class="eyebrow">Настройка</p>
+          <h2>Каждая команда отвечает за свою часть агента</h2>
+          <p class="section-lead">
+            Каждое изменение создаёт новую версию, и каждый запуск агента запоминает версию, с которой работал.
+          </p>
+          <div class="grid three">
+            <div class="card">
+              <h3>Команда бэкенда</h3>
+              <p>
+                Публикует манифест с инструментами чтения, действиями, плейбуками, отделами и знаниями о предметной области, а также справочники для списочных полей, например магазины или тарифы. Часть действий можно оставить только операторам. Манифест лежит в git рядом с кодом, и агент подхватывает новую версию без изменений в Kvitok.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Команда поддержки</h3>
+              <p>
+                Пишет политику в интерфейсе: тон, что нельзя обещать, когда передавать человеку. Настраивает отделы, поля тикетов и клиентов, правила маршрутизации.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Администратор</h3>
+              <p>
+                Выбирает провайдера, модель и её цены для каждого пространства: OpenAI, OpenRouter, прокси LiteLLM, vLLM или Ollama. Подключает почтовые ящики и API-каналы.
+              </p>
+            </div>
+          </div>
+          <div class="split" style="margin-top: 56px">
+            <div>
+              <h3>Правила до и после агента</h3>
+              <p>
+                Правила смотрят на канал, отправителя и его домен, тему и текст, метаданные источника, поля, час и день недели. После агента им доступны ещё его отдел, уверенность и то, просил ли он человека.
+              </p>
+            </div>
+            <div class="shot">
+              <img src="../assets/screenshots/rules.webp" loading="lazy" alt="Правила маршрутизации до и после агента" />
+            </div>
+          </div>
+
+          <h3 class="block-title">Для команды поддержки</h3>
+          <div class="grid four">
+            <div class="card">
+              <h3>Исполнители и очередь</h3>
+              <p>У тикета может быть несколько исполнителей. Отдел может раздавать новые тикеты по очереди тем, кто их принимает.</p>
+            </div>
+            <div class="card">
+              <h3>Доступ по отделам</h3>
+              <p>Операторов и наблюдателей можно ограничить их отделами: в очереди, аналитике, уведомлениях и через MCP.</p>
+            </div>
+            <div class="card">
+              <h3>Действия вручную</h3>
+              <p>Если агент ничего не предложил или ошибся, оператор запускает действие из формы, которую проверяет ваш бэкенд.</p>
+            </div>
+            <div class="card">
+              <h3>На любом устройстве</h3>
+              <p>Web push о новых тикетах, сообщениях клиентов и вопросах агента. Интерфейс работает на телефонах.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="protocol">
+        <div class="wrap">
+          <p class="eyebrow">Support Action Protocol</p>
+          <h2>Несколько подписанных эндпоинтов в вашем бэкенде</h2>
+          <p class="section-lead">
+            Kvitok обращается к вашему бэкенду от имени агента и оператора. Каждый запрос подписан HMAC-SHA256 по времени, методу, пути и телу. Пакет протокола и эталонный бэкенд под лицензией MIT, их код можно переносить в закрытый бэкенд.
+          </p>
+          <div class="diagram diagram-frame">
+            <svg viewBox="0 0 1000 640" role="img" aria-label="Когда Kvitok вызывает каждый эндпоинт: манифест и справочники для списочных полей при подключении и синхронизации; поиск клиента, когда приходит тикет; карточку, инструменты и проверку действий, пока работает агент; выполнение с ключом идемпотентности после одобрения оператора; статус выполнения, если результат неясен">
+              <rect x="10" y="74" width="980" height="136" rx="10" class="d-lane" />
+              <rect x="10" y="214" width="980" height="66" rx="10" class="d-lane" />
+              <rect x="10" y="284" width="980" height="206" rx="10" class="d-ai-lane" />
+              <rect x="10" y="494" width="980" height="66" rx="10" class="d-human-lane" />
+              <rect x="10" y="564" width="980" height="66" rx="10" class="d-lane" />
+
+              <text x="30" y="147" class="d-title">Подключение</text>
+              <text x="30" y="252" class="d-title">Пришёл тикет</text>
+              <text x="30" y="382" class="d-title">Работает агент</text>
+              <text x="30" y="400" class="d-sub">над тикетом</text>
+              <text x="30" y="532" class="d-title">Оператор одобряет</text>
+              <text x="30" y="594" class="d-title">Результат неясен</text>
+              <text x="30" y="612" class="d-sub">после таймаута</text>
+
+              <rect x="260" y="10" width="180" height="46" rx="10" class="d-box" />
+              <text x="350" y="38" text-anchor="middle" class="d-display">Kvitok</text>
+              <rect x="720" y="10" width="180" height="46" rx="10" class="d-box" />
+              <text x="810" y="38" text-anchor="middle" class="d-title">Ваш бэкенд</text>
+              <path d="M350 56 V630 M810 56 V630" class="d-life" />
+
+              <g>
+                <text x="580" y="92" text-anchor="middle" class="d-mono">GET /manifest</text>
+                <path d="M352 100 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="124" text-anchor="middle" class="d-sub">инструменты, действия, плейбуки, отделы, справочники · ETag</text>
+                <path d="M808 132 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="162" text-anchor="middle" class="d-mono">GET /option-sets/{name}</text>
+                <path d="M352 170 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="194" text-anchor="middle" class="d-sub">значения списочных полей: магазины, города, тарифы</text>
+                <path d="M808 202 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="232" text-anchor="middle" class="d-mono">POST /customers/resolve</text>
+                <path d="M352 240 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="264" text-anchor="middle" class="d-sub">found · not_found · ambiguous</text>
+                <path d="M808 272 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="302" text-anchor="middle" class="d-mono">POST /context</text>
+                <path d="M352 310 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="334" text-anchor="middle" class="d-sub">карточка клиента</text>
+                <path d="M808 342 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="372" text-anchor="middle" class="d-mono">POST /tools/{name}</text>
+                <path d="M352 380 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="404" text-anchor="middle" class="d-sub">данные для агента со ссылками</text>
+                <path d="M808 412 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="442" text-anchor="middle" class="d-mono">POST /actions/{name}/validate</text>
+                <path d="M352 450 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="474" text-anchor="middle" class="d-sub">предпросмотр или ошибки, которые агент исправит</text>
+                <path d="M808 482 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="512" text-anchor="middle" class="d-mono">POST /actions/{name}/execute · Idempotency-Key</text>
+                <path d="M352 520 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="544" text-anchor="middle" class="d-sub">повторная проверка, одно выполнение на ключ</text>
+                <path d="M808 552 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="582" text-anchor="middle" class="d-mono">GET /actions/executions/{key}</text>
+                <path d="M352 590 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="614" text-anchor="middle" class="d-sub">executed · failed · pending · unknown</text>
+                <path d="M808 622 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+            </svg>
+          </div>
+
+          <div class="grid two">
+            <div>
+              <h3>Клиента подставляет ядро</h3>
+              <p style="color: var(--muted)">
+                <code>customer_ref</code> берётся из тикета, и модель не может его подменить. Бэкенд проверяет, что запрошенный чек или заказ принадлежит этому клиенту, а на чужие отвечает так, будто их нет. Промпт-инъекция в письме не доберётся до данных другого клиента.
+              </p>
+              <h3 style="margin-top: 28px">Проверьте до подключения</h3>
+              <p style="color: var(--muted)">
+                <code>packages/protocol</code> содержит схемы, подпись запросов, клиент и набор проверок совместимости, который можно запустить против стенда. Симулятор кофейни в <code>apps/coffee-sim</code> служит полной эталонной реализацией.
+              </p>
+              <p style="margin-top: 20px">
+                <a href="https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md">Спецификация протокола (на английском) →</a>
+              </p>
+            </div>
+            <div class="shot" style="margin: 0; align-self: start">
+              <img src="../assets/screenshots/integration.webp" loading="lazy" alt="Подключённый бэкенд: инструменты, действия, знания для агента и предложенные отделы, всё из манифеста" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="safety">
+        <div class="wrap">
+          <p class="eyebrow">Безопасность</p>
+          <h2>Агент никогда не действует сам</h2>
+          <p class="section-lead">
+            Он предлагает действия, человек их одобряет, а бэкенд перед выполнением ещё раз проверяет параметры.
+          </p>
+          <div class="diagram diagram-frame">
+            <img class="only-light" src="../assets/diagrams/safety.svg" width="1112" height="172" loading="lazy" alt="Жизнь действия: агент предлагает; бэкенд проверяет и возвращает предпросмотр или ошибку, которую агент исправляет; оператор одобряет; бэкенд снова проверяет по текущему состоянию и выполняет один раз по ключу идемпотентности" />
+            <img class="only-dark" src="../assets/diagrams/safety-dark.svg" width="1112" height="172" loading="lazy" alt="Жизнь действия: агент предлагает; бэкенд проверяет и возвращает предпросмотр или ошибку, которую агент исправляет; оператор одобряет; бэкенд снова проверяет по текущему состоянию и выполняет один раз по ключу идемпотентности" />
+          </div>
+          <div class="split">
+            <div>
+              <h3>Текст клиента — это данные</h3>
+              <p>
+                Сообщения клиентов и данные бэкенда попадают в модель в тегах и с пометкой «недоверенное». Здесь сообщение гостя выдаёт себя за указание оператора начислить 500 баллов. Агент ничего не предлагает и спрашивает оператора, было ли такое согласование.
+              </p>
+              <p>
+                Оператор может запустить действие и вручную. Бэкенд проверяет его так же и узнаёт, кто его запустил, а агент видит, что было сделано.
+              </p>
+              <p>Пароли почтовых ящиков, секреты вебхуков и ключи моделей хранятся в зашифрованном виде.</p>
+            </div>
+            <div class="shot">
+              <img src="../assets/screenshots/prompt-injection.webp" loading="lazy" alt="Сообщение клиента выдаёт себя за системное указание начислить 500 баллов; агент ничего не предлагает и спрашивает оператора" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="architecture">
+        <div class="wrap">
+          <p class="eyebrow">Архитектура</p>
+          <h2>Один образ, два процесса, Postgres и Redis</h2>
+          <p class="section-lead">
+            API обслуживает веб-интерфейс, REST API и MCP-эндпоинт. Воркер запускает агента, принимает и отправляет почту, доставляет вебхуки. Оба процесса работают из одного Docker-образа рядом с PostgreSQL и Redis.
+          </p>
+          <div class="diagram diagram-frame">
+            <svg viewBox="0 0 1000 490" role="img" aria-label="Архитектура: клиенты пишут через ваше приложение по API-каналу или на почту; Kvitok работает как один Docker-образ с API, веб-интерфейсом, воркером очередей и агентом поверх PostgreSQL и Redis; операторы работают в веб-интерфейсе, внешние агенты подключаются к API через MCP; агент обращается к OpenAI-совместимому провайдеру LLM и к вашему бэкенду по подписанному протоколу">
+              <rect x="20" y="20" width="200" height="56" rx="10" class="d-box" />
+              <text x="120" y="44" text-anchor="middle" class="d-title">Клиенты</text>
+              <text x="120" y="62" text-anchor="middle" class="d-sub">почта, формы в приложении</text>
+
+              <rect x="300" y="20" width="190" height="56" rx="10" class="d-ai" />
+              <text x="395" y="44" text-anchor="middle" class="d-title">Внешний агент</text>
+              <text x="395" y="62" text-anchor="middle" class="d-sub">любой MCP-клиент</text>
+
+              <rect x="510" y="20" width="190" height="56" rx="10" class="d-human" />
+              <text x="605" y="44" text-anchor="middle" class="d-title">Операторы</text>
+              <text x="605" y="62" text-anchor="middle" class="d-sub">в браузере</text>
+
+              <rect x="260" y="110" width="460" height="360" rx="16" class="d-frame" />
+              <text x="280" y="138" class="d-display">Kvitok</text>
+
+              <rect x="300" y="156" width="190" height="56" rx="10" class="d-box" />
+              <text x="395" y="180" text-anchor="middle" class="d-title">API</text>
+              <text x="395" y="198" text-anchor="middle" class="d-sub">REST · ingest · /api/mcp</text>
+              <rect x="510" y="156" width="190" height="56" rx="10" class="d-box" />
+              <text x="605" y="180" text-anchor="middle" class="d-title">Веб-интерфейс</text>
+              <text x="605" y="198" text-anchor="middle" class="d-sub">Nuxt, русский или английский</text>
+
+              <rect x="300" y="262" width="190" height="56" rx="10" class="d-box" />
+              <text x="395" y="286" text-anchor="middle" class="d-title">Воркер</text>
+              <text x="395" y="304" text-anchor="middle" class="d-sub">входящая и исходящая почта · вебхуки</text>
+              <rect x="510" y="262" width="190" height="56" rx="10" class="d-ai" />
+              <text x="605" y="286" text-anchor="middle" class="d-title">Агент</text>
+              <text x="605" y="304" text-anchor="middle" class="d-sub">запуски с вызовом инструментов</text>
+
+              <rect x="300" y="368" width="190" height="56" rx="10" class="d-box" />
+              <text x="395" y="392" text-anchor="middle" class="d-title">PostgreSQL</text>
+              <text x="395" y="410" text-anchor="middle" class="d-sub">тикеты, настройки, запуски</text>
+              <rect x="510" y="368" width="190" height="56" rx="10" class="d-box" />
+              <text x="605" y="392" text-anchor="middle" class="d-title">Redis</text>
+              <text x="605" y="410" text-anchor="middle" class="d-sub">очереди BullMQ</text>
+              <text x="490" y="452" text-anchor="middle" class="d-sub">один Docker-образ: api · worker · migrate · cli</text>
+
+              <rect x="60" y="156" width="160" height="56" rx="10" class="d-box" />
+              <text x="140" y="180" text-anchor="middle" class="d-title">Приложение или форма</text>
+              <text x="140" y="198" text-anchor="middle" class="d-sub">ingest · вебхуки</text>
+              <rect x="60" y="262" width="160" height="56" rx="10" class="d-box" />
+              <text x="140" y="286" text-anchor="middle" class="d-title">Почтовый ящик</text>
+              <text x="140" y="304" text-anchor="middle" class="d-sub">IMAP · SMTP</text>
+
+              <rect x="780" y="156" width="200" height="56" rx="10" class="d-box" />
+              <text x="880" y="180" text-anchor="middle" class="d-title">Провайдер LLM</text>
+              <text x="880" y="198" text-anchor="middle" class="d-sub">OpenAI-совместимый API</text>
+              <rect x="780" y="262" width="200" height="56" rx="10" class="d-box" />
+              <text x="880" y="286" text-anchor="middle" class="d-title">Ваш бэкенд</text>
+              <text x="880" y="304" text-anchor="middle" class="d-sub">Support Action Protocol</text>
+
+              <path d="M140 78 V154" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M36 78 V290 H58" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M222 184 H298" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+              <path d="M222 290 H298" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+              <path d="M395 78 V154" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="403" y="120" class="d-sub">MCP</text>
+              <path d="M605 78 V154" class="d-line" marker-start="url(#k-arrow)" marker-end="url(#k-arrow)" />
+              <path d="M510 184 H492" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M702 276 H740 V184 H778" class="d-line" marker-end="url(#k-arrow)" />
+              <path d="M702 304 H778" class="d-line" marker-end="url(#k-arrow)" />
+              <text x="740" y="324" text-anchor="middle" class="d-sub">с подписью</text>
+            </svg>
+          </div>
+          <p style="color: var(--muted); max-width: 760px">
+            Сделано на NestJS с Fastify, Prisma с PostgreSQL, BullMQ с Redis, Nuxt 4 с Nuxt UI; zod-схемы общие для API, интерфейса и протокола. Образы для amd64 и arm64 публикуются в
+            <code>ghcr.io/rogue85/kvitok</code>.
+          </p>
+        </div>
+      </section>
+
+      <section id="start">
+        <div class="wrap">
+          <p class="eyebrow">Начать</p>
+          <h2>Попробуйте на кофейне, потом подключите свой проект</h2>
+          <p class="section-lead">
+            Kvitok в ранней разработке и ещё не работал в проде. Начните с синтетических данных или стенда и читайте changelog перед обновлением: до версии 1.0 минорный релиз может ломать совместимость.
+          </p>
+          <div class="tabs" role="tablist" aria-label="Как начать">
+            <button role="tab" aria-selected="true" aria-controls="tab-local" id="t-local">Локально</button>
+            <button role="tab" aria-selected="false" aria-controls="tab-agent" id="t-agent">Подключить через агента</button>
+            <button role="tab" aria-selected="false" aria-controls="tab-server" id="t-server">На сервере</button>
+          </div>
+
+          <div class="panel" role="tabpanel" id="tab-local" aria-labelledby="t-local">
+            <p>
+              Нужен Docker. В стенде для разработки есть симулятор кофейни и фейковая LLM, которая отвечает по простым правилам, так что ключ модели не нужен.
+            </p>
+            <div class="code"><pre>git clone https://github.com/Rogue85/kvitok.git && cd kvitok</pre></div>
+            <div class="code"><pre>cp apps/api/.env.example apps/api/.env</pre></div>
+            <div class="code"><pre>docker compose up -d</pre></div>
+            <p>
+              Откройте <code>http://localhost:3000</code>. При первом входе Kvitok попросит создать суперадминистратора и первое пространство. Затем добавьте фейковую LLM или настоящего провайдера, подключите симулятор по адресу <code>http://coffee-sim:3100</code> и загрузите его тикеты-сценарии, как описано в
+              <a href="https://github.com/Rogue85/kvitok#try-it-on-the-simulator">README</a> (на английском).
+            </p>
+          </div>
+
+          <div class="panel" role="tabpanel" id="tab-agent" aria-labelledby="t-agent" hidden>
+            <p>
+              В Kvitok откройте Настройки → Токены доступа и создайте токен с правами <code>read</code>, <code>config:write</code>, <code>integrations:write</code>, <code>tickets:ingest</code> и <code>workspaces:create</code>. Затем в репозитории бэкенда подключите MCP-клиент к эндпоинту с этим токеном:
+            </p>
+            <div class="code"><pre>http://localhost:3001/api/mcp
+Authorization: Bearer kvt_…</pre></div>
+            <p>
+              Попросите его настроить Kvitok для проекта или запустите промпт <code>onboard_project</code>, который отдаёт сервер. Скажите, как Kvitok достучится до бэкенда и какого тестового клиента взять, например: «Kvitok работает в Docker и видит этот бэкенд по адресу http://host.docker.internal:8000. У тестового клиента телефон 79000000001».
+            </p>
+            <p>В Claude Code плагин из репозитория добавляет подключение и два навыка: для подключения проекта и для настройки агента.</p>
+            <div class="code"><pre>claude plugin install kvitok --marketplace "$(pwd)"</pre></div>
+            <div class="code"><pre>export KVITOK_URL=http://localhost:3001 KVITOK_TOKEN=kvt_…</pre></div>
+            <p>
+              После подключения просмотрите журнал изменений, отзовите токен и создайте новый, ограниченный пространством проекта. Подробнее в <a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">docs/mcp.md</a>.
+            </p>
+          </div>
+
+          <div class="panel" role="tabpanel" id="tab-server" aria-labelledby="t-server" hidden>
+            <p>
+              Сервер на Linux с Docker Compose 2.20 или новее и 2 ГБ памяти. Один compose-файл запускает приложение и воркер, а по желанию ещё Postgres, Redis и Caddy с автоматическим HTTPS.
+            </p>
+            <div class="code"><pre>mkdir kvitok && cd kvitok</pre></div>
+            <div class="code"><pre>curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/Rogue85/kvitok/main/deploy/docker-compose.yml</pre></div>
+            <div class="code"><pre>curl -fsSL -o .env https://raw.githubusercontent.com/Rogue85/kvitok/main/deploy/.env.example</pre></div>
+            <p>
+              Сгенерируйте секреты в <code>.env</code>, выберите, как приложение будет доступно, и запустите <code>docker compose up -d</code>. При первом входе создаются суперадминистратор и первое пространство. Пошагово в <a href="https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md">docs/deployment.md</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>
+          <a class="logo" href="#top" aria-label="Kvitok">
+            <svg viewBox="60 -816 3690 832" aria-hidden="true"><use href="#k-wordmark" /></svg>
+          </a>
+          <p style="margin: 0; max-width: 420px">
+            Система распространяется под лицензией AGPL-3.0. Пакет протокола и эталонный бэкенд под MIT, поэтому бэкенды могут встраивать их код без обязательств AGPL.
+          </p>
+        </div>
+        <div>
+          <h4>Документация (на английском)</h4>
+          <ul>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md">Протокол</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">MCP-сервер</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md">Развёртывание</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/development.md">Разработка</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Проект</h4>
+          <ul>
+            <li><a href="https://github.com/Rogue85/kvitok">GitHub</a></li>
+            <li><a href="../compare/" hreflang="en">Сравнение</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/CHANGELOG.md">Список изменений</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/CONTRIBUTING.md">Участие</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/SECURITY.md">Безопасность</a></li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../main.js"></script>
+  </body>
+</html>

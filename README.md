@@ -8,7 +8,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Protocol: MIT](https://img.shields.io/badge/protocol-MIT-green.svg)](packages/protocol/LICENSE)
 
-Kvitok is an open-source customer support system with an AI agent. Requests come in by email or over an API. The agent reads the customer's data in your backend, picks a department, drafts a reply and proposes actions such as crediting points or issuing a coupon. An operator reviews the result, talks it over with the agent in the ticket, sends the reply and approves the actions. Your backend then executes them.
+Kvitok is an open-source, self-hosted customer support system (a helpdesk) with an AI agent. Requests come in by email or over an API. The agent reads the customer's data in your backend, picks a department, drafts a reply and proposes actions such as crediting points or issuing a coupon. An operator reviews the result, talks it over with the agent in the ticket, sends the reply and approves the actions. Your backend then executes them.
 
 Kvitok knows nothing about your business. A backend describes its data and actions through a small HTTP protocol, and the same installation can serve an online shop, a loyalty program and an internal tool, each in its own workspace.
 
@@ -26,11 +26,13 @@ Kvitok knows nothing about your business. A backend describes its data and actio
 - [An example](#an-example). A guest is missing 44 points, followed from the first email to the points on the card.
 - [What you can configure](#what-you-can-configure). Your backend publishes tools, actions and playbooks, the support team writes the policy, departments and routing rules in the UI, and the model is any OpenAI-compatible endpoint.
 - [Safety](#safety). The agent only proposes. Every action is approved by a person and validated by the backend twice.
-- [Connecting your backend](#connecting-your-backend). Six signed HTTP endpoints, with an MIT-licensed client, conformance suite and reference backend.
+- [Connecting your backend](#connecting-your-backend). A few signed HTTP endpoints, with an MIT-licensed client, conformance suite and reference backend.
 - [Getting started](#getting-started). Run it in Docker with a fake LLM and a coffee shop simulator, or let Claude Code connect your project.
 - [Evaluating the agent](#evaluating-the-agent). `pnpm eval` runs test scenarios against a real model and reports which passed and what it cost.
 - [Working with an external agent](#working-with-an-external-agent). Claude Code and other agents can configure and tune a workspace over MCP.
 - [Status](#status). Early development, not yet proven in production.
+
+The website at [kvitok.nojake.com](https://kvitok.nojake.com/) shows a ticket going through Kvitok and [compares it](https://kvitok.nojake.com/compare/) with Zendesk, Intercom Fin, Freshdesk, Chatwoot and Zammad.
 
 ## Why
 
@@ -60,7 +62,7 @@ Kvitok replaces that script with a full loop. The agent works on the ticket as l
 <sub>The agent shows its findings and the arithmetic. Each proposal carries the preview the backend returned when it validated the parameters.</sub>
 
 5. The operator sees all of this in the ticket, which works like a chat. Anything the operator types goes to the agent: "the guest says the receipt was 540", "offer a coupon instead", "make the reply shorter". The agent updates only what the message affects.
-6. Approved actions are executed by the backend with an idempotency key, so a retry never applies an action twice. The reply goes out by email or to the source's webhook.
+6. Approved actions are executed by the backend with an idempotency key, so a retry never applies an action twice. When the agent proposed nothing or proposed it wrong, the operator runs the action by hand from a form the backend checks. The reply goes out by email or to the source's webhook.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/queue-dark.webp">
@@ -87,7 +89,7 @@ You can run the same scenarios on your machine with the coffee shop simulator de
 
 ## What you can configure
 
-Your backend publishes a manifest with its tools, actions, playbooks, departments and domain knowledge, and the agent picks up a new version without a change in Kvitok (see the [Support Action Protocol](docs/protocol.md)). The backend team keeps this knowledge in git next to their code. The support team writes its policy (tone, what not to promise, when to hand over to a human) and its departments in the UI. Every change creates a new version, and each agent run records the version it used.
+Your backend publishes a manifest with its tools, actions, playbooks, departments and domain knowledge, and the agent picks up a new version without a change in Kvitok (see the [Support Action Protocol](docs/protocol.md)). It can also publish directories such as shops, cities or plans: a list field takes its options from one and follows the backend, and the agent picks the option the data points to. An action can be kept for operators only. The backend team keeps this knowledge in git next to their code. The support team writes its policy (tone, what not to promise, when to hand over to a human) and its departments in the UI. Every change creates a new version, and each agent run records the version it used.
 
 The model is anything behind an OpenAI-compatible endpoint with tool calling: OpenAI, OpenRouter, a LiteLLM proxy, vLLM or Ollama. Each workspace sets its own provider, model and prices, so every agent run has a known cost. A ticket shows what the agent spent on it, and the Analytics page breaks spending down by day, department, model and ticket, next to ticket volume, response times and how operators used the agent's drafts.
 
@@ -122,12 +124,14 @@ A backend implements a few signed HTTP endpoints:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /manifest` | tools, actions, playbooks, departments, domain knowledge |
+| `GET /manifest` | tools, actions, playbooks, departments, domain knowledge, directories |
 | `POST /customers/resolve` | find a customer by phone, email or another identity |
 | `POST /context` | the customer card shown to the agent and the operator |
 | `POST /tools/{name}` | read data for the agent |
 | `POST /actions/{name}/validate` | check proposed parameters and return a preview |
 | `POST /actions/{name}/execute` | execute an approved action, idempotently |
+| `GET /actions/executions/{key}` | the outcome of an execution that timed out |
+| `GET /option-sets/{name}` | the options of a directory for list fields |
 
 The existing support pipeline can stay in place: Kvitok can receive copies of the same requests and run alongside it, so you can compare the two before switching.
 
@@ -212,7 +216,7 @@ Kvitok serves an MCP endpoint at `/api/mcp`. With a personal access token, Claud
 
 Kvitok is in early development and has not run in production yet. The [changelog](CHANGELOG.md) lists the releases and what each one changed.
 
-Working today: email and API channels, routing rules, custom fields, the agent with read tools and validated actions, the ticket chat with the agent, integrations through the protocol, agent evaluation, an MCP server for external agents and the English and Russian interface. The ticket queue has filters, bulk changes and saved views. A ticket can have several assignees, and a department can hand its tickets out in turn. An admin can limit operators to their departments. Web push tells operators about new tickets, customer messages and the agent's questions. Analytics covers the agent's cost and the team's work, and the interface works on phones.
+Working today: email and API channels, routing rules, custom fields with options from the backend's directories, the agent with read tools and validated actions, the ticket chat with the agent, actions operators run by hand, integrations through the protocol, agent evaluation, an MCP server for external agents and the English and Russian interface. The ticket queue has filters, bulk changes and saved views. A ticket can have several assignees, and a department can hand its tickets out in turn. An admin can limit operators to their departments. Web push tells operators about new tickets, customer messages and the agent's questions. Analytics covers the agent's cost and the team's work, and the interface works on phones.
 
 The agent's prompt is in English. The agent drafts replies in the customer's language and writes summaries, findings and messages for the operator in the installation language. Next up are an automatic mode for safe cases, SLA, templates and macros, a website widget and a Telegram bot as sources, and notifications in Telegram and other messengers.
 

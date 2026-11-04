@@ -3,17 +3,64 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Kvitok · customer support with an AI agent</title>
-    <meta
-      name="description"
-      content="Kvitok is an open-source customer support system with an AI agent. The agent reads your backend, drafts a reply and proposes actions; an operator approves them and your backend executes them."
-    />
-    <meta property="og:title" content="Kvitok · customer support with an AI agent" />
-    <meta
-      property="og:description"
-      content="Open-source support system: the AI agent reads your backend, drafts replies and proposes actions, people approve, your backend executes."
-    />
+    <title>Kvitok · Open-source, self-hosted helpdesk with an AI agent</title>
+    <meta name="description" content="Open-source, self-hosted helpdesk with an AI agent that reads your backend, drafts replies and proposes actions an operator approves. Any LLM, MCP, AGPL." />
+    <link rel="canonical" href="https://kvitok.nojake.com/" />
+    <link rel="alternate" hreflang="en" href="https://kvitok.nojake.com/" />
+    <link rel="alternate" hreflang="ru" href="https://kvitok.nojake.com/ru/" />
+    <link rel="alternate" hreflang="x-default" href="https://kvitok.nojake.com/" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kvitok" />
+    <meta property="og:url" content="https://kvitok.nojake.com/" />
+    <meta property="og:title" content="Kvitok · Open-source helpdesk with an AI agent" />
+    <meta property="og:description" content="The agent reads your backend, drafts replies and proposes actions. A person approves, your backend executes. Self-hosted, any LLM." />
+    <meta property="og:image" content="https://kvitok.nojake.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Kvitok: an open-source helpdesk with an AI agent, next to a ticket where the agent proposes two actions" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="alternate" type="text/plain" href="https://kvitok.nojake.com/llms.txt" title="LLM-friendly summary" />
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Kvitok",
+      "url": "https://kvitok.nojake.com/",
+      "description": "Kvitok is an open-source, self-hosted customer support system (helpdesk) with an AI agent. The agent reads the customer's data in your backend, drafts a reply and proposes actions; an operator approves them and your backend executes them.",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Helpdesk software",
+      "operatingSystem": "Linux (Docker)",
+      "softwareVersion": "{{version}}",
+      "image": "https://kvitok.nojake.com/og-image.png",
+      "screenshot": "https://kvitok.nojake.com/assets/screenshots/ticket.webp",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Egor Lazarev"
+      },
+      "sameAs": [
+        "https://github.com/Rogue85/kvitok"
+      ]
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "Kvitok",
+      "codeRepository": "https://github.com/Rogue85/kvitok",
+      "programmingLanguage": "TypeScript",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "runtimePlatform": "Node.js"
+    }
+  ]
+}
+    </script>
     <link rel="icon" href="assets/brand/kvitok-icon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -67,8 +114,10 @@
           <a href="#protocol">Protocol</a>
           <a href="#architecture">Architecture</a>
           <a href="#start">Get started</a>
+          <a href="compare/">Compare</a>
         </nav>
         <div class="header-links">
+          <a href="ru/" hreflang="ru" lang="ru" title="Русская версия">RU</a>
           <a class="hide-sm" href="https://github.com/Rogue85/kvitok/tree/main/docs">Docs</a>
           <button class="icon-button" type="button" id="theme" aria-label="Switch theme">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -91,7 +140,7 @@
         <span class="badge"><b>v{{version}}</b> Open source · early development</span>
         <h1>Support where the <span class="ai-text">AI agent</span> finishes the job</h1>
         <p class="lead">
-          Requests come in by email or over an API. The agent reads the customer's data in your backend, drafts a reply and
+          Kvitok is an open-source, self-hosted helpdesk with an AI agent. Requests come in by email or over an API. The agent reads the customer's data in your backend, drafts a reply and
           proposes actions such as crediting points or issuing a coupon. An operator approves them, and your backend executes
           them.
         </p>
@@ -106,13 +155,164 @@
             View on GitHub
           </a>
         </div>
-        <div class="shot">
-          <img class="only-light" src="assets/screenshots/ticket.webp" width="2400" height="1750" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator" />
-          <img class="only-dark" src="assets/screenshots/ticket-dark.webp" width="2400" height="1750" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator" />
+        <div class="demo">
+          <div class="dm-nav">
+            <ol class="dm-steps">
+              <li>
+                <button type="button" data-step="0">
+                  <b>The customer writes</b>
+                  <span>By email, a form in your app or the API.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="1500" class="box">
+                  <b>Kvitok finds the customer</b>
+                  <span>Your backend resolves her by phone and returns her card.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="3200" class="ai">
+                  <b>The agent investigates</b>
+                  <span>It reads receipts through your tools and proposes an action your backend has checked.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="11200" class="human">
+                  <b>The operator talks to the agent</b>
+                  <span>In plain words. The agent changes only what the message is about.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="14800" class="human">
+                  <b>One click, your backend executes</b>
+                  <span>Validated again and run once. The agent updates the reply.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+              <li>
+                <button type="button" data-step="19600" class="human">
+                  <b>The reply goes out</b>
+                  <span>Through the channel the request came from.</span>
+                  <i class="dm-bar"></i>
+                </button>
+              </li>
+            </ol>
+            <p class="dm-caption"></p>
+            <button type="button" class="dm-toggle" aria-pressed="false" data-pause="Pause" data-play="Play">
+              <svg class="dm-icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+              <svg class="dm-icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" /></svg>
+              <span>Pause</span>
+            </button>
+          </div>
+
+          <div class="dm-window" aria-hidden="true">
+            <div class="dm-top">
+              <span class="dm-dots"><i></i><i></i><i></i></span>
+              <b class="dm-title">#1042 · Points did not arrive</b>
+              <em class="dm-chip" data-hide="21600">New</em>
+              <em class="dm-chip ok" data-show="21600">Resolved</em>
+            </div>
+            <div class="dm-strip">
+              <span class="dm-skel" data-on="filled@1700">Anna · Silver 7%</span>
+              <span class="dm-skel" data-on="filled@1700,bump@17200-18600"><span data-count="1280,1324,17200,800">1,280</span> pts</span>
+              <span class="dm-skel agent" data-on="filled@6400">Loyalty · 92%</span>
+            </div>
+            <div class="dm-body">
+              <div class="dm-main">
+                <div class="dm-thread">
+                  <div class="dm-msg" data-show="300">
+                    <div class="dm-who"><span class="dm-avatar">A</span><b>Anna</b><small>App form · 10:42</small></div>
+                    <p>Hi! I bought a latte and a croissant yesterday for 640 ₽ and got no points. My phone is +7 900 000-00-01.</p>
+                  </div>
+                  <div class="dm-event" data-show="1500">Found in your backend by phone</div>
+                  <div class="dm-msg dm-agent" data-show="3200">
+                    <div class="dm-who">
+                      <span class="dm-avatar ai">✦</span><b>Agent</b>
+                      <small class="dm-thinking" data-hide="5600">reading your backend…</small>
+                    </div>
+                    <div class="dm-tools">
+                      <span class="dm-tool" data-show="3500" data-on="done@4400"><code>get_transactions</code></span>
+                      <span class="dm-tool" data-show="4500" data-on="done@5300"><code>get_loyalty_tier</code></span>
+                    </div>
+                    <p data-show="5600" data-type="5600,1600">Receipt 4112 for 640 ₽ earned no points. The Silver tier earns 7%, so 44 points are missing.</p>
+                  </div>
+                  <div class="dm-msg dm-operator" data-show="11400">
+                    <div class="dm-who"><span class="dm-avatar op">M</span><b>Maria</b><small>to the agent</small></div>
+                    <p data-type="11400,1200">Make it warmer, she is a regular.</p>
+                  </div>
+                  <div class="dm-msg dm-agent" data-show="13200">
+                    <div class="dm-who"><span class="dm-avatar ai">✦</span><b>Agent</b></div>
+                    <p data-type="13200,800">Rewrote the greeting. The action is unchanged.</p>
+                  </div>
+                  <div class="dm-event" data-show="18000">Your backend executed <code>credit_points</code>: +44 points</div>
+                  <div class="dm-msg dm-agent" data-show="18400">
+                    <div class="dm-who"><span class="dm-avatar ai">✦</span><b>Agent</b></div>
+                    <p data-type="18400,700">The points are on the card. Updated the reply.</p>
+                  </div>
+                  <div class="dm-msg dm-out" data-show="21100">
+                    <div class="dm-who"><span class="dm-avatar op">M</span><b>Maria → Anna</b><small>sent by email</small></div>
+                    <p>Hi Anna, thank you for coming to us so often, and sorry for the trouble! Receipt 4112 earned no points. 44 points are already on your card.</p>
+                  </div>
+                </div>
+
+                <div class="dm-dock">
+                  <div class="dm-action" data-show="7400" data-hide="18000" data-on="busy@16300-17200,done@17200">
+                    <div class="dm-action-head">
+                      <span class="dm-avatar ai sm">✦</span><b>Credit points</b><code>credit_points</code>
+                      <span class="dm-busy">Executing…</span>
+                      <span class="dm-done">Executed</span>
+                    </div>
+                    <div class="dm-params"><span>Points <b>44</b></span><span>Receipt <b>4112</b></span></div>
+                    <p class="dm-preview" data-show="8100">Your backend checked it: balance 1,280 → 1,324</p>
+                    <div class="dm-buttons">
+                      <span class="dm-btn primary" data-target="approve" data-on="pressed@16300-16560">Approve</span>
+                      <span class="dm-btn">Edit</span>
+                      <span class="dm-btn">Reject</span>
+                    </div>
+                  </div>
+                  <div class="dm-composer">
+                    <div class="dm-tabs"><span class="on">Reply to the customer</span><span>To the agent</span></div>
+                    <div class="dm-draft">
+                      <p class="dm-placeholder" data-hide="8800">Write a reply…</p>
+                      <p data-show="8800" data-hide="13900" data-type="8800,2000">Hi Anna, sorry for the trouble! Receipt 4112 earned no points. We will credit 44 points to your card today.</p>
+                      <p data-show="13900" data-hide="19200">Hi Anna, <mark>thank you for coming to us so often, and</mark> sorry for the trouble! Receipt 4112 earned no points. We will credit 44 points to your card today.</p>
+                      <p data-show="19200" data-hide="21100">Hi Anna, thank you for coming to us so often, and sorry for the trouble! Receipt 4112 earned no points. <mark>44 points are already on your card.</mark></p>
+                      <p class="dm-placeholder" data-show="21100">Write a reply…</p>
+                    </div>
+                    <div class="dm-foot">
+                      <small data-show="8800" data-hide="21100">Draft by the agent</small>
+                      <span class="dm-btn primary" data-target="send" data-on="pressed@21000-21260">Send</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="dm-side">
+                <p class="dm-side-title">Customer · from your backend</p>
+                <div class="dm-field"><span>Name</span><b class="dm-skel" data-on="filled@1700">Anna Petrova</b></div>
+                <div class="dm-field"><span>Tier</span><b class="dm-skel" data-on="filled@1700">Silver · 7%</b></div>
+                <div class="dm-field">
+                  <span>Points</span>
+                  <b class="dm-skel" data-on="filled@1700,bump@17200-18600"><span data-count="1280,1324,17200,800">1,280</span></b>
+                </div>
+                <p class="dm-side-title">Ticket</p>
+                <div class="dm-field"><span>Department</span><b class="dm-skel agent" data-on="filled@6400">Loyalty <small>92%</small></b></div>
+                <div class="dm-field"><span>Channel</span><b>App form</b></div>
+                <div class="dm-field"><span>Assignee</span><b>Maria</b></div>
+              </aside>
+            </div>
+            <div class="dm-cursor">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.2v15.6l4.3-4 2.8 6.3 2.6-1.1-2.8-6.2 5.9-.4Z" /></svg>
+            </div>
+          </div>
         </div>
         <p class="caption">
-          A guest got neither points nor a promo cup for a purchase. Kvitok found her in the backend and filled in her tier and
-          balance, the agent found the receipt, worked out what was missing and proposed two actions. Each one waits for the operator.
+          A simplified replay of a ticket from the coffee shop simulator. Screenshots of the real interface are
+          <a href="#how">below</a>.
         </p>
       </div>
 
@@ -167,6 +367,10 @@
               <p>An MCP server lets Claude Code, Cursor or any other MCP client connect your project and tune the support agent.</p>
             </div>
           </div>
+          <p class="more">
+            How does it differ from Zendesk, Intercom Fin, Freshdesk, Chatwoot or Zammad?
+            <a href="compare/">Read the comparison →</a>
+          </p>
         </div>
       </section>
 
@@ -188,7 +392,16 @@
             <img class="only-dark" src="assets/diagrams/how-it-works-dark.svg" width="1112" height="448" alt="A request in six steps across four lanes. The customer writes in; Kvitok finds the customer in your backend and applies routing rules; the agent calls read tools and proposes a draft and actions that the backend validates; the operator reviews the ticket in a chat with the agent, which revises the draft; the operator approves, the backend executes the actions and the customer gets the reply" />
           </div>
 
-          <div class="split">
+          <div class="shot wide">
+            <img class="only-light" src="assets/screenshots/ticket.webp" width="2400" height="1750" loading="lazy" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator" />
+            <img class="only-dark" src="assets/screenshots/ticket-dark.webp" width="2400" height="1750" loading="lazy" alt="A ticket in Kvitok: the customer's message, the agent's analysis and two proposed actions waiting for the operator" />
+          </div>
+          <p class="caption">
+            A guest got neither points nor a promo cup for a purchase. Kvitok found her in the backend and filled in her tier and
+            balance, the agent found the receipt, worked out what was missing and proposed two actions. Each one waits for the operator.
+          </p>
+
+          <div class="split" style="margin-top: 72px">
             <div>
               <h3>An example: 44 missing points</h3>
               <p>A guest writes through the app form that the points for a 640-ruble receipt never came.</p>
@@ -366,8 +579,9 @@
             <div class="card">
               <h3>Backend team</h3>
               <p>
-                Publishes a manifest with read tools, actions, playbooks, departments and domain knowledge. It lives in git next to
-                their code, and the agent picks up a new version without a change in Kvitok.
+                Publishes a manifest with read tools, actions, playbooks, departments and domain knowledge, plus directories
+                for list fields such as shops or plans. Some actions can be kept for operators only. The manifest lives in git
+                next to their code, and the agent picks up a new version without a change in Kvitok.
               </p>
             </div>
             <div class="card">
@@ -397,81 +611,107 @@
               <img src="assets/screenshots/rules.webp" loading="lazy" alt="Routing rules before and after the agent" />
             </div>
           </div>
+
+          <h3 class="block-title">For the support team</h3>
+          <div class="grid four">
+            <div class="card">
+              <h3>Assignees and turns</h3>
+              <p>A ticket can have several assignees. A department can hand new tickets to the next member who accepts them.</p>
+            </div>
+            <div class="card">
+              <h3>Access by department</h3>
+              <p>Operators and viewers can be limited to their departments, in the queue, analytics, notifications and over MCP.</p>
+            </div>
+            <div class="card">
+              <h3>Actions by hand</h3>
+              <p>When the agent proposed nothing or proposed it wrong, an operator runs the action from a form your backend checks.</p>
+            </div>
+            <div class="card">
+              <h3>On any device</h3>
+              <p>Web push for new tickets, customer messages and the agent's questions. The interface works on phones.</p>
+            </div>
+          </div>
         </div>
       </section>
 
       <section class="alt" id="protocol">
         <div class="wrap">
           <p class="eyebrow">Support Action Protocol</p>
-          <h2>Six signed endpoints in your backend</h2>
+          <h2>A few signed endpoints in your backend</h2>
           <p class="section-lead">
             Kvitok calls your backend on behalf of the agent and the operator. Every request is signed with HMAC-SHA256 over the
             timestamp, method, path and body. The protocol package and the reference backend are MIT licensed, so you can copy
             their code into a closed backend.
           </p>
           <div class="diagram diagram-frame">
-            <svg viewBox="0 0 1000 570" role="img" aria-label="When Kvitok calls each endpoint: the manifest on connect or sync; customer resolve when a ticket arrives; context, tools and action validation while the agent works; execute with an idempotency key when the operator approves; the execution status when the outcome is unclear">
-              <rect x="10" y="74" width="980" height="66" rx="10" class="d-lane" />
-              <rect x="10" y="144" width="980" height="66" rx="10" class="d-lane" />
-              <rect x="10" y="214" width="980" height="206" rx="10" class="d-ai-lane" />
-              <rect x="10" y="424" width="980" height="66" rx="10" class="d-human-lane" />
-              <rect x="10" y="494" width="980" height="66" rx="10" class="d-lane" />
+            <svg viewBox="0 0 1000 640" role="img" aria-label="When Kvitok calls each endpoint: the manifest and the option sets for list fields on connect or sync; customer resolve when a ticket arrives; context, tools and action validation while the agent works; execute with an idempotency key when the operator approves; the execution status when the outcome is unclear">
+              <rect x="10" y="74" width="980" height="136" rx="10" class="d-lane" />
+              <rect x="10" y="214" width="980" height="66" rx="10" class="d-lane" />
+              <rect x="10" y="284" width="980" height="206" rx="10" class="d-ai-lane" />
+              <rect x="10" y="494" width="980" height="66" rx="10" class="d-human-lane" />
+              <rect x="10" y="564" width="980" height="66" rx="10" class="d-lane" />
 
-              <text x="30" y="112" class="d-title">Connect or sync</text>
-              <text x="30" y="182" class="d-title">A ticket arrives</text>
-              <text x="30" y="312" class="d-title">The agent works</text>
-              <text x="30" y="330" class="d-sub">on the ticket</text>
-              <text x="30" y="462" class="d-title">The operator approves</text>
-              <text x="30" y="524" class="d-title">Outcome unclear</text>
-              <text x="30" y="542" class="d-sub">after a timeout</text>
+              <text x="30" y="147" class="d-title">Connect or sync</text>
+              <text x="30" y="252" class="d-title">A ticket arrives</text>
+              <text x="30" y="382" class="d-title">The agent works</text>
+              <text x="30" y="400" class="d-sub">on the ticket</text>
+              <text x="30" y="532" class="d-title">The operator approves</text>
+              <text x="30" y="594" class="d-title">Outcome unclear</text>
+              <text x="30" y="612" class="d-sub">after a timeout</text>
 
               <rect x="260" y="10" width="180" height="46" rx="10" class="d-box" />
               <text x="350" y="38" text-anchor="middle" class="d-display">Kvitok</text>
               <rect x="720" y="10" width="180" height="46" rx="10" class="d-box" />
               <text x="810" y="38" text-anchor="middle" class="d-title">Your backend</text>
-              <path d="M350 56 V560 M810 56 V560" class="d-life" />
+              <path d="M350 56 V630 M810 56 V630" class="d-life" />
 
               <g>
                 <text x="580" y="92" text-anchor="middle" class="d-mono">GET /manifest</text>
                 <path d="M352 100 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="124" text-anchor="middle" class="d-sub">tools, actions, playbooks, departments · ETag</text>
+                <text x="580" y="124" text-anchor="middle" class="d-sub">tools, actions, playbooks, departments, option sets · ETag</text>
                 <path d="M808 132 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
               <g>
-                <text x="580" y="162" text-anchor="middle" class="d-mono">POST /customers/resolve</text>
+                <text x="580" y="162" text-anchor="middle" class="d-mono">GET /option-sets/{name}</text>
                 <path d="M352 170 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="194" text-anchor="middle" class="d-sub">found · not_found · ambiguous</text>
+                <text x="580" y="194" text-anchor="middle" class="d-sub">options for list fields: shops, cities, plans</text>
                 <path d="M808 202 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
               <g>
-                <text x="580" y="232" text-anchor="middle" class="d-mono">POST /context</text>
+                <text x="580" y="232" text-anchor="middle" class="d-mono">POST /customers/resolve</text>
                 <path d="M352 240 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="264" text-anchor="middle" class="d-sub">the customer card</text>
+                <text x="580" y="264" text-anchor="middle" class="d-sub">found · not_found · ambiguous</text>
                 <path d="M808 272 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
               <g>
-                <text x="580" y="302" text-anchor="middle" class="d-mono">POST /tools/{name}</text>
+                <text x="580" y="302" text-anchor="middle" class="d-mono">POST /context</text>
                 <path d="M352 310 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="334" text-anchor="middle" class="d-sub">data the agent reads, with refs</text>
+                <text x="580" y="334" text-anchor="middle" class="d-sub">the customer card</text>
                 <path d="M808 342 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
               <g>
-                <text x="580" y="372" text-anchor="middle" class="d-mono">POST /actions/{name}/validate</text>
+                <text x="580" y="372" text-anchor="middle" class="d-mono">POST /tools/{name}</text>
                 <path d="M352 380 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="404" text-anchor="middle" class="d-sub">a preview, or errors the agent fixes</text>
+                <text x="580" y="404" text-anchor="middle" class="d-sub">data the agent reads, with refs</text>
                 <path d="M808 412 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
               <g>
-                <text x="580" y="442" text-anchor="middle" class="d-mono">POST /actions/{name}/execute · Idempotency-Key</text>
+                <text x="580" y="442" text-anchor="middle" class="d-mono">POST /actions/{name}/validate</text>
                 <path d="M352 450 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="474" text-anchor="middle" class="d-sub">validated again, executed once per key</text>
+                <text x="580" y="474" text-anchor="middle" class="d-sub">a preview, or errors the agent fixes</text>
                 <path d="M808 482 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
               <g>
-                <text x="580" y="512" text-anchor="middle" class="d-mono">GET /actions/executions/{key}</text>
+                <text x="580" y="512" text-anchor="middle" class="d-mono">POST /actions/{name}/execute · Idempotency-Key</text>
                 <path d="M352 520 H806" class="d-line" marker-end="url(#k-arrow)" />
-                <text x="580" y="544" text-anchor="middle" class="d-sub">executed · failed · pending · unknown</text>
+                <text x="580" y="544" text-anchor="middle" class="d-sub">validated again, executed once per key</text>
                 <path d="M808 552 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
+              </g>
+              <g>
+                <text x="580" y="582" text-anchor="middle" class="d-mono">GET /actions/executions/{key}</text>
+                <path d="M352 590 H806" class="d-line" marker-end="url(#k-arrow)" />
+                <text x="580" y="614" text-anchor="middle" class="d-sub">executed · failed · pending · unknown</text>
+                <path d="M808 622 H354" class="d-line d-dash" marker-end="url(#k-arrow)" />
               </g>
             </svg>
           </div>
@@ -519,6 +759,10 @@
                 Customer messages and backend data reach the model wrapped in tags and marked as untrusted. Here a guest's message
                 poses as an operator instruction to credit 500 points. The agent proposes nothing and asks the operator whether
                 such an approval exists.
+              </p>
+              <p>
+                An operator can also run an action by hand. Your backend checks it the same way, it tells your backend who
+                started it, and the agent sees what was done.
               </p>
               <p>Mailbox passwords, webhook secrets and model keys are encrypted at rest.</p>
             </div>
@@ -633,10 +877,9 @@
             <div class="code"><pre>git clone https://github.com/Rogue85/kvitok.git && cd kvitok</pre></div>
             <div class="code"><pre>cp apps/api/.env.example apps/api/.env</pre></div>
             <div class="code"><pre>docker compose up -d</pre></div>
-            <div class="code"><pre>docker compose exec api pnpm --filter @kvitok/api db:seed</pre></div>
             <p>
-              Open <code>http://localhost:3000</code> and sign in as <code>admin@example.com</code> / <code>admin12345</code>.
-              Then add the fake LLM or a real provider, connect the simulator at <code>http://coffee-sim:3100</code> and load its
+              Open <code>http://localhost:3000</code>. The first visit asks for the superadmin's account and the first
+              workspace. Then add the fake LLM or a real provider, connect the simulator at <code>http://coffee-sim:3100</code> and load its
               scenario tickets, as described in the
               <a href="https://github.com/Rogue85/kvitok#try-it-on-the-simulator">README</a>.
             </p>
@@ -707,6 +950,7 @@ Authorization: Bearer kvt_…</pre></div>
           <h4>Project</h4>
           <ul>
             <li><a href="https://github.com/Rogue85/kvitok">GitHub</a></li>
+            <li><a href="compare/">Comparison</a></li>
             <li><a href="https://github.com/Rogue85/kvitok/blob/main/CHANGELOG.md">Changelog</a></li>
             <li><a href="https://github.com/Rogue85/kvitok/blob/main/CONTRIBUTING.md">Contributing</a></li>
             <li><a href="https://github.com/Rogue85/kvitok/blob/main/SECURITY.md">Security</a></li>

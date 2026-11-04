@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kvitok vs Zendesk, Intercom Fin, Freshdesk, Chatwoot and Zammad · open-source AI helpdesk</title>
+    <meta
+      name="description"
+      content="Kvitok, an open-source self-hosted helpdesk with an AI agent, compared with Zendesk, Intercom Fin, Freshdesk, Chatwoot and Zammad: license, hosting, AI cost, models and actions."
+    />
+    <link rel="canonical" href="https://kvitok.nojake.com/compare/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Kvitok" />
+    <meta property="og:url" content="https://kvitok.nojake.com/compare/" />
+    <meta property="og:title" content="Kvitok compared with Zendesk, Intercom Fin, Freshdesk, Chatwoot and Zammad" />
+    <meta property="og:description" content="An open-source alternative to Zendesk and Intercom Fin for support that changes data: the agent proposes, a person approves, your backend executes." />
+    <meta property="og:image" content="https://kvitok.nojake.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is Kvitok an open-source alternative to Zendesk?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "For teams whose support work happens in their own backend, yes: Kvitok is a self-hosted helpdesk with tickets, departments, routing rules, custom fields, analytics and an AI agent that drafts replies and proposes actions. It is licensed under AGPL-3.0. It does not yet have a chat widget, a help center or SLAs."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is there a self-hosted alternative to Intercom Fin?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Kvitok runs on your servers with a model you choose and charges nothing per resolution. Its agent reads your backend and proposes actions like Fin's procedures do, but an operator approves every action and reply before it reaches the customer."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I run the agent on my own or a local model?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Any OpenAI-compatible endpoint with tool calling works: OpenAI, OpenRouter, a LiteLLM proxy, vLLM or Ollama. Each workspace sets its own provider, model and prices."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does the AI cost to run?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "What your model provider charges for the tokens. Kvitok records the cost of every agent run, shows it on the ticket and breaks it down in analytics, and pnpm eval reports the cost of each test run."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does Kvitok connect to my backend?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Through the Support Action Protocol: a few signed HTTP endpoints for the manifest, customer lookup, the customer card, read tools and actions. The protocol package with a client and a conformance suite and the reference backend are MIT licensed. See docs/protocol.md."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Kvitok ready for production?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not yet proven there. Kvitok is in early development, and until 1.0 a minor version may break compatibility. Try it on the coffee shop simulator, then connect a staging backend."
+          }
+        }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Kvitok",
+          "item": "https://kvitok.nojake.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Comparison",
+          "item": "https://kvitok.nojake.com/compare/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+    <link rel="icon" href="../assets/brand/kvitok-icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../style.css" />
+    <script>
+      // Before the first paint, so a saved theme does not flash.
+      try {
+        const theme = localStorage.getItem('kvitok-theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="wrap">
+        <a class="logo" href="../#top" aria-label="Kvitok">
+          <svg viewBox="60 -816 3690 832" aria-hidden="true">
+            <path
+              id="k-wordmark"
+              fill="currentColor"
+              d="M245 -151 194 -168 521 -570H720L227 0H60V-770H245ZM359 -279 497 -380 735 0H524ZM1112 -87 1047 -88 1253 -570H1451L1182 0H971L702 -570H907ZM1484 -578 1576 -559 1669 -578V0H1484ZM1577 -630Q1528 -630 1497 -655.5Q1466 -681 1466 -723Q1466 -766 1497 -791Q1528 -816 1577 -816Q1627 -816 1657 -791Q1687 -766 1687 -723Q1687 -681 1657 -655.5Q1627 -630 1577 -630ZM1704 -432V-513L1822 -556L1902 -722H2008V-570H2254V-432H2008V-244Q2008 -180 2034 -154.5Q2060 -129 2127 -129Q2170 -129 2202.5 -136.5Q2235 -144 2264 -157V-16Q2234 -4 2185.5 6Q2137 16 2085 16Q1994 16 1935.5 -13Q1877 -42 1849.5 -94.5Q1822 -147 1822 -218V-432ZM2652 16Q2544 16 2463 -22Q2382 -60 2337 -128Q2292 -196 2292 -285Q2292 -375 2337 -442.5Q2382 -510 2463.5 -548Q2545 -586 2652 -586Q2760 -586 2841.5 -548Q2923 -510 2968 -442.5Q3013 -375 3013 -285Q3013 -195 2968 -127.5Q2923 -60 2841.5 -22Q2760 16 2652 16ZM2652 -124Q2707 -124 2745.5 -143.5Q2784 -163 2804.5 -199Q2825 -235 2825 -285Q2825 -335 2804.5 -371Q2784 -407 2745.5 -426.5Q2707 -446 2652 -446Q2599 -446 2560 -426.5Q2521 -407 2500 -371Q2479 -335 2479 -285Q2479 -235 2500 -199Q2521 -163 2560 -143.5Q2599 -124 2652 -124ZM3260 -151 3209 -168 3536 -570H3735L3242 0H3075V-770H3260ZM3374 -279 3512 -380 3750 0H3539Z"
+            />
+          </svg>
+        </a>
+        <nav class="nav" aria-label="Sections">
+          <a href="../#how">How it works</a>
+          <a href="../#onboarding">Onboarding</a>
+          <a href="../#protocol">Protocol</a>
+          <a href="../#architecture">Architecture</a>
+          <a href="../#start">Get started</a>
+          <a href="../compare/">Compare</a>
+        </nav>
+        <div class="header-links">
+          <a class="hide-sm" href="https://github.com/Rogue85/kvitok/tree/main/docs">Docs</a>
+          <button class="icon-button" type="button" id="theme" aria-label="Switch theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+          </button>
+          <a class="icon-button" href="https://github.com/Rogue85/kvitok" aria-label="Kvitok on GitHub">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="page-hero wrap">
+        <p class="eyebrow">Comparison</p>
+        <h1>Kvitok compared with other AI helpdesks</h1>
+        <p class="lead">
+          Most AI support products are built to close conversations on their own and charge for each resolution. Kvitok is built
+          for support that changes data in your systems: the agent investigates in your backend and proposes, a person approves,
+          and your backend executes. It is open source and runs on your servers with the model you choose.
+        </p>
+        <p class="page-meta">
+          Compared with Zendesk, Intercom Fin, Freshdesk Freddy AI, Chatwoot Captain and Zammad. Facts about other products come
+          from their public websites and documentation as of November 2026.
+        </p>
+      </div>
+
+      <section class="alt" id="table">
+        <div class="wrap">
+          <h2>At a glance</h2>
+          <p class="section-lead">How each product is licensed and hosted, what its AI costs, which model it runs and how it acts.</p>
+          <div class="table-wrap">
+            <table class="table compare-table">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col" class="us">Kvitok</th>
+                  <th scope="col">Zendesk</th>
+                  <th scope="col">Intercom Fin</th>
+                  <th scope="col">Freshdesk Freddy AI</th>
+                  <th scope="col">Chatwoot Captain</th>
+                  <th scope="col">Zammad</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">License</th>
+                  <td class="us">Open source, AGPL-3.0. The protocol and the reference backend are MIT</td>
+                  <td>Proprietary</td>
+                  <td>Proprietary</td>
+                  <td>Proprietary</td>
+                  <td>Open source: MIT core, the <code>enterprise/</code> directory under its own license</td>
+                  <td>Open source, AGPL-3.0</td>
+                </tr>
+                <tr>
+                  <th scope="row">Hosting</th>
+                  <td class="us">Self-hosted: one Docker image with Postgres and Redis</td>
+                  <td>Vendor cloud</td>
+                  <td>Vendor cloud</td>
+                  <td>Vendor cloud</td>
+                  <td>Self-hosted or vendor cloud</td>
+                  <td>Self-hosted or vendor cloud</td>
+                </tr>
+                <tr>
+                  <th scope="row">What the AI costs</th>
+                  <td class="us">Your provider's token price. Every agent run and ticket shows its cost</td>
+                  <td>A fee per automated resolution, on top of seats</td>
+                  <td>$0.99 per outcome, on top of seats</td>
+                  <td>A fee per AI agent session, on top of seats</td>
+                  <td>Self-hosted: your LLM API key</td>
+                  <td>Self-hosted: your AI provider</td>
+                </tr>
+                <tr>
+                  <th scope="row">Model</th>
+                  <td class="us">Any OpenAI-compatible endpoint with tool calling: OpenAI, OpenRouter, LiteLLM, vLLM, Ollama</td>
+                  <td>Chosen by the vendor</td>
+                  <td>Chosen by the vendor</td>
+                  <td>Chosen by the vendor</td>
+                  <td>An API key you supply when self-hosted</td>
+                  <td>A provider the administrator configures</td>
+                </tr>
+                <tr>
+                  <th scope="row">How the AI acts</th>
+                  <td class="us">
+                    Proposes typed actions. A person approves each one, and your backend validates it twice and executes it once
+                    per idempotency key
+                  </td>
+                  <td>AI agents resolve conversations and can call your systems through integrations</td>
+                  <td>Answers customers and takes action on external systems through procedures and data connectors</td>
+                  <td>An AI agent resolves conversations on its own</td>
+                  <td>Answers customers and calls custom HTTP tools (Business plan and above)</td>
+                  <td>AI agents run routine ticket tasks; ticket summaries and a writing assistant help agents</td>
+                </tr>
+                <tr>
+                  <th scope="row">Maturity</th>
+                  <td class="us">Early development, not yet run in production</td>
+                  <td>Established</td>
+                  <td>Established</td>
+                  <td>Established</td>
+                  <td>Established</td>
+                  <td>Established</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="different">
+        <div class="wrap">
+          <p class="eyebrow">What Kvitok does differently</p>
+          <h2>Built for requests that change data</h2>
+          <p class="section-lead">
+            With points, refunds, coupons and cancelled orders a mistake costs money, so in Kvitok the agent proposes and a
+            person decides.
+          </p>
+          <div class="grid two compare-points">
+            <div>
+              <h3>The agent investigates in your backend</h3>
+              <p>
+                Your backend publishes read tools, actions and playbooks through a small signed HTTP protocol. The agent reads
+                receipts, orders and balances with them, works out what went wrong and drafts a reply. Kvitok passes the
+                customer from the ticket, so a prompt injection in an email cannot reach another customer's data.
+              </p>
+            </div>
+            <div>
+              <h3>A person approves every action</h3>
+              <p>
+                The agent proposes, an operator approves, and the backend checks the parameters again against the current state
+                before executing. Operators correct the agent in a chat inside the ticket, and it changes only what the message
+                is about. An automatic mode for safe cases is planned.
+              </p>
+            </div>
+            <div>
+              <h3>Your servers, your model, a known cost</h3>
+              <p>
+                There is no fee per resolution. Each workspace picks its provider, model and prices, so every agent run has a
+                cost, and analytics breaks it down by day, department, model and ticket. A local model behind vLLM or Ollama
+                keeps customer data on your network.
+              </p>
+            </div>
+            <div>
+              <h3>Changes are tested before customers see them</h3>
+              <p>
+                <code>pnpm eval</code> runs scenarios against a real model and reports what passed and what it cost. Over MCP,
+                an external agent can replay past tickets with a changed configuration and compare the result with what
+                operators did.
+              </p>
+            </div>
+            <div>
+              <h3>Your coding agent sets it up</h3>
+              <p>
+                Kvitok serves an MCP endpoint, and a Claude Code plugin ships in the repository. Claude Code, Cursor or another
+                MCP client studies your backend, writes the protocol module and configures the workspace, then helps tune the
+                agent from operators' corrections.
+              </p>
+            </div>
+            <div>
+              <h3>One installation, many projects</h3>
+              <p>
+                Kvitok knows nothing about your business. An online shop, a loyalty program and an internal tool each get a
+                workspace with their own backend, departments, fields, routing rules and policy.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="alt" id="other">
+        <div class="wrap">
+          <p class="eyebrow">When something else fits better</p>
+          <h2>Pick another tool if</h2>
+          <div class="grid two compare-points">
+            <div>
+              <h3>You need live chat and a help center today</h3>
+              <p>
+                Zendesk, Intercom and Freshdesk are mature products with chat widgets, messaging channels, help centers and
+                large integration catalogs. Kvitok takes email and API requests and has no chat widget yet.
+              </p>
+            </div>
+            <div>
+              <h3>The AI should answer customers on its own</h3>
+              <p>
+                Intercom Fin, Zendesk AI agents and Freddy AI are built to resolve conversations without a person. In Kvitok
+                every reply and action waits for an operator.
+              </p>
+            </div>
+            <div>
+              <h3>You want an open-source omnichannel inbox</h3>
+              <p>
+                Chatwoot covers live chat, email, WhatsApp and social channels in one inbox, with the Captain assistant on top.
+              </p>
+            </div>
+            <div>
+              <h3>You want a mature open-source ticketing system</h3>
+              <p>
+                Zammad has years of production use, SLAs, a knowledge base and many integrations, plus AI summaries, a writing
+                assistant and AI agents for routine tasks.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="wrap">
+          <p class="eyebrow">Questions</p>
+          <h2>Frequently asked</h2>
+          <div class="faq">
+            <details open>
+              <summary>Is Kvitok an open-source alternative to Zendesk?</summary>
+              <p>
+                For teams whose support work happens in their own backend, yes: Kvitok is a self-hosted helpdesk with tickets,
+                departments, routing rules, custom fields, analytics and an AI agent that drafts replies and proposes actions.
+                It is licensed under AGPL-3.0. It does not yet have a chat widget, a help center or SLAs.
+              </p>
+            </details>
+            <details>
+              <summary>Is there a self-hosted alternative to Intercom Fin?</summary>
+              <p>
+                Kvitok runs on your servers with a model you choose and charges nothing per resolution. Its agent reads your
+                backend and proposes actions like Fin's procedures do, but an operator approves every action and reply before
+                it reaches the customer.
+              </p>
+            </details>
+            <details>
+              <summary>Can I run the agent on my own or a local model?</summary>
+              <p>
+                Yes. Any OpenAI-compatible endpoint with tool calling works: OpenAI, OpenRouter, a LiteLLM proxy, vLLM or Ollama.
+                Each workspace sets its own provider, model and prices.
+              </p>
+            </details>
+            <details>
+              <summary>How much does the AI cost to run?</summary>
+              <p>
+                What your model provider charges for the tokens. Kvitok records the cost of every agent run, shows it on the
+                ticket and breaks it down in analytics, and <code>pnpm eval</code> reports the cost of each test run.
+              </p>
+            </details>
+            <details>
+              <summary>How does Kvitok connect to my backend?</summary>
+              <p>
+                Through the Support Action Protocol: a few signed HTTP endpoints for the manifest, customer lookup, the customer
+                card, read tools and actions. The protocol package with a client and a conformance suite and the reference
+                backend are MIT licensed. See <a href="https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md">docs/protocol.md</a>.
+              </p>
+            </details>
+            <details>
+              <summary>Is Kvitok ready for production?</summary>
+              <p>
+                Not yet proven there. Kvitok is in early development, and until 1.0 a minor version may break compatibility.
+                Try it on the coffee shop simulator, then connect a staging backend.
+              </p>
+            </details>
+          </div>
+          <div class="actions" style="justify-content: flex-start">
+            <a class="button primary" href="../#start">Get started</a>
+            <a class="button" href="https://github.com/Rogue85/kvitok">View on GitHub</a>
+          </div>
+          <p class="page-meta">
+            Zendesk, Intercom, Fin, Freshdesk, Freddy, Chatwoot and Zammad are trademarks of their owners. Sources:
+            <a href="https://www.intercom.com/pricing">Intercom pricing</a>,
+            <a href="https://www.zendesk.com/pricing/">Zendesk pricing</a>,
+            <a href="https://www.freshworks.com/freshdesk/pricing/">Freshdesk pricing</a>,
+            <a href="https://github.com/chatwoot/chatwoot/blob/develop/LICENSE">Chatwoot license</a>,
+            <a href="https://www.chatwoot.com/hc/user-guide/articles/1775045339-v2-_-how-to-set-up-custom-tools-for-captain">Captain custom tools</a>,
+            <a href="https://user-docs.zammad.org/en/latest/extras/ai-features.html">Zammad AI features</a>.
+            Something out of date? <a href="https://github.com/Rogue85/kvitok/issues">Open an issue</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>
+          <a class="logo" href="../#top" aria-label="Kvitok">
+            <svg viewBox="60 -816 3690 832" aria-hidden="true"><use href="#k-wordmark" /></svg>
+          </a>
+          <p style="margin: 0; max-width: 420px">
+            The system is licensed under the AGPL-3.0. The protocol package and the reference backend are MIT, so backends can
+            embed their code without taking on the AGPL.
+          </p>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/protocol.md">Protocol</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/mcp.md">MCP server</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/deployment.md">Deployment</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/docs/development.md">Development</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Rogue85/kvitok">GitHub</a></li>
+            <li><a href="../compare/">Comparison</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/CONTRIBUTING.md">Contributing</a></li>
+            <li><a href="https://github.com/Rogue85/kvitok/blob/main/SECURITY.md">Security</a></li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../main.js"></script>
+  </body>
+</html>
